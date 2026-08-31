@@ -1,5 +1,8 @@
 # SolScope
 
+> Arayüz **UAVSX** adıyla yayında; iki dilli (EN varsayılan / TR), tarama konsolu
+> ve "Hakkında" sayfası içerir. Render servis adı ve URL'i `solscope` olarak kaldı.
+
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
 Bir mint adresi alır, 12 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
 Organic** kararını skor + güven değeriyle döndürür.

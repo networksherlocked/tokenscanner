@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SolScope — Solana token dağıtım analizi</title>
+<title>UAVSX — Solana token distribution analysis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#070a12;          /* zemin */
-  --panel:#0e1420;        /* kart */
-  --panel-2:#131b2a;      /* iç kart */
-  --rule:#1d2839;         /* hairline */
+  --ink:#070a12;
+  --panel:#0e1420;
+  --panel-2:#131b2a;
+  --rule:#1d2839;
   --text:#ccd8ea;
   --muted:#67789a;
   --dim:#3d4c66;
@@ -20,7 +20,7 @@
   --bundled:#ff4d5e;
   --cabaled:#ffa726;
   --organic:#4d9fff;
-  --live:#5eead4;         /* tarama sırasında akan sinyal rengi */
+  --live:#5eead4;
 
   --mono:'IBM Plex Mono',ui-monospace,monospace;
   --display:'Archivo',system-ui,sans-serif;
@@ -33,6 +33,7 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 a{color:inherit}
+[hidden]{display:none!important}
 .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
 
 /* ---------- üst bar ---------- */
@@ -41,9 +42,14 @@ header{border-bottom:1px solid var(--rule);position:sticky;top:0;background:rgba
 .brand{font-family:var(--display);font-weight:900;letter-spacing:.14em;text-transform:uppercase;font-size:15px}
 .brand i{font-style:normal;color:var(--live);animation:blink 1.1s steps(2) infinite}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.bar nav{display:flex;gap:18px;font-size:12px;color:var(--muted)}
-.bar nav a{text-decoration:none}
-.bar nav a:hover{color:var(--text)}
+.bar nav{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted)}
+.navbtn{background:transparent;border:0;color:var(--muted);font-family:var(--mono);font-size:12px;cursor:pointer;padding:4px 0;letter-spacing:.04em}
+.navbtn:hover{color:var(--text)}
+.langsel{display:inline-flex;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.langsel button{background:transparent;border:0;color:var(--dim);font-family:var(--mono);
+  font-size:11px;font-weight:600;letter-spacing:.08em;padding:5px 9px;cursor:pointer}
+.langsel button:hover{color:var(--muted)}
+.langsel button.on{background:var(--panel-2);color:var(--live)}
 
 /* ---------- arama ---------- */
 .hero{padding:52px 0 30px;border-bottom:1px solid var(--rule)}
@@ -52,7 +58,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.4vw,38px);l
 .lede{color:var(--muted);max-width:62ch;margin:0 0 26px}
 .search{display:flex;gap:10px;flex-wrap:wrap}
 .search input{
-  flex:1 1 380px;background:var(--panel);border:1px solid var(--rule);color:var(--text);
+  flex:1 1 340px;background:var(--panel);border:1px solid var(--rule);color:var(--text);
   font-family:var(--mono);font-size:14px;padding:14px 16px;border-radius:2px;
 }
 .search input::placeholder{color:var(--dim)}
@@ -64,12 +70,12 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.4vw,38px);l
 }
 .search button:hover{background:var(--live)}
 .search button:disabled{opacity:.45;cursor:progress}
-.search button.ghost{background:transparent;color:var(--muted);border:1px solid var(--rule)}
+.search button.ghost{background:transparent;color:var(--muted);border:1px solid var(--rule);padding:14px 20px}
 .search button.ghost:hover{color:var(--text);background:transparent;border-color:var(--muted)}
 .hint{margin-top:12px;font-size:12px;color:var(--dim)}
 .err{margin-top:14px;padding:12px 14px;border-left:2px solid var(--bundled);background:rgba(255,77,94,.07);color:#ffb3ba;font-size:13px}
 
-/* ---------- teşhis ızgarası (imza öğesi) ---------- */
+/* ---------- teşhis ızgarası ---------- */
 .result{padding:34px 0 60px;display:none}
 .result.on{display:block}
 .section-label{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin:0 0 14px;display:flex;justify-content:space-between;align-items:baseline}
@@ -91,7 +97,6 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.4vw,38px);l
 .tokline{border-top:1px solid var(--rule);padding-top:14px;font-size:12px;color:var(--muted);display:grid;gap:5px}
 .tokline b{color:var(--text);font-weight:500}
 
-/* ızgara */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
 .cell{
   border:1px solid var(--rule);background:var(--panel);padding:12px 13px;border-radius:2px;
@@ -153,12 +158,11 @@ footer p{margin:0 0 6px;max-width:76ch}
 .recitem .rv{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--sig,var(--muted))}
 .recitem .rm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text)}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
-.recempty{font-size:12px;color:var(--dim)}
 
-/* ---------- tarama konsolu (sayfa içi ilerleme) ---------- */
+/* ---------- tarama konsolu ---------- */
 .scanning{display:none;padding:30px 0 46px;border-bottom:1px solid var(--rule);position:relative;overflow:hidden}
 .scanning.on{display:block}
-.scanning::after{ /* aşağı süzülen tarama çizgisi */
+.scanning::after{
   content:"";position:absolute;left:0;right:0;top:0;height:120px;pointer-events:none;
   background:linear-gradient(180deg,transparent,rgba(94,234,212,.06) 60%,rgba(94,234,212,.18));
   animation:scanline 3.4s cubic-bezier(.5,0,.5,1) infinite;
@@ -189,7 +193,6 @@ footer p{margin:0 0 6px;max-width:76ch}
 .scan-body{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:stretch}
 @media(max-width:720px){.scan-body{grid-template-columns:1fr}}
 
-/* radar */
 .scan-radar{border:1px solid var(--rule);background:radial-gradient(circle at 50% 50%,#0c1422,#070a12);
   border-radius:2px;padding:14px;display:flex;align-items:center;justify-content:center;min-height:200px}
 .scan-radar svg{width:100%;max-width:190px;height:auto}
@@ -201,7 +204,6 @@ footer p{margin:0 0 6px;max-width:76ch}
 .radar-blip.lit{animation:blip 2.6s ease-out infinite}
 @keyframes blip{0%{opacity:1;transform:scale(1.5)}30%{opacity:.9}100%{opacity:.12;transform:scale(1)}}
 
-/* konsol */
 .scan-console{border:1px solid var(--rule);background:#080d16;border-radius:2px;padding:14px 16px;
   font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#7fe9d6;
   overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;min-height:200px}
@@ -216,7 +218,6 @@ footer p{margin:0 0 6px;max-width:76ch}
 .scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
 .scan-stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 
-/* sinyal ızgarası iskeleti */
 .scan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:14px}
 .skel{height:58px;border:1px solid var(--rule);border-left:2px solid var(--dim);border-radius:2px;
   background:linear-gradient(100deg,var(--panel) 25%,var(--panel-2) 50%,var(--panel) 75%);
@@ -228,6 +229,20 @@ footer p{margin:0 0 6px;max-width:76ch}
   font-size:11px;padding:9px 20px;border-radius:2px;cursor:pointer}
 .scan-cancel:hover{color:var(--text);border-color:var(--muted)}
 
+/* ---------- hakkında ---------- */
+.about{padding:48px 0 72px}
+.about h2{font-family:var(--display);font-weight:900;font-size:clamp(22px,3vw,32px);margin:0 0 6px;letter-spacing:-.01em}
+.about .sub{color:var(--dim);font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:30px}
+.about h3{font-family:var(--display);font-weight:700;font-size:15px;margin:30px 0 8px;color:var(--text)}
+.about p{color:var(--muted);max-width:72ch;margin:0 0 12px}
+.about .verdefs{display:grid;gap:8px;margin:12px 0 4px}
+.about .vd{border-left:2px solid var(--sig);padding:9px 14px;background:var(--panel);font-size:13px;color:var(--muted);max-width:72ch}
+.about .vd b{color:var(--sig);font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;font-size:12px;margin-right:8px}
+.about .back{margin-top:36px;border:1px solid var(--rule);padding:10px 20px;border-radius:2px;
+  font-family:var(--display);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:11px;
+  color:var(--muted);cursor:pointer;background:transparent}
+.about .back:hover{color:var(--text);border-color:var(--muted)}
+
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;transition-duration:.01ms!important}
   .cell{opacity:1;transform:none}
@@ -238,46 +253,41 @@ footer p{margin:0 0 6px;max-width:76ch}
 
 <header>
   <div class="wrap bar">
-    <div class="brand">solscope<i>_</i></div>
+    <div class="brand">uavsx<i>_</i></div>
     <nav>
-      <a href="#yontem">Yöntem</a>
+      <button class="navbtn" id="navAbout" data-i18n="navAbout">About</button>
+      <span class="langsel">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="tr">TR</button>
+      </span>
     </nav>
   </div>
 </header>
 
-<main>
+<main id="mainView">
   <section class="hero">
     <div class="wrap">
-      <div class="kicker">Solana · dağıtım adli analizi</div>
-      <h1>Bir tokenın arzını kimin, nasıl aldığını görün.</h1>
-      <p class="lede">
-        Mint adresini yapıştırın. On iki bağımsız zincir sinyali çalışır ve kaçının
-        aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.
-      </p>
+      <div class="kicker" data-i18n="kicker">Solana · distribution forensics</div>
+      <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
+      <p class="lede" data-i18n="lede">Paste a mint address. Twelve independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
       <div class="search">
-        <input id="mint" placeholder="Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
-               spellcheck="false" autocomplete="off" aria-label="Mint adresi">
-        <button id="scanBtn">Tara</button>
+        <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
+               spellcheck="false" autocomplete="off" aria-label="Mint address">
+        <button id="scanBtn" data-i18n="scanBtn">Scan</button>
+        <button id="pasteBtn" class="ghost" type="button" data-i18n="pasteBtn">Paste</button>
       </div>
-      <div class="hint" id="hint">Sonuçlar 15 dakika önbellekte tutulur. Tarama genelde 15–40 saniye sürer.</div>
+      <div class="hint" id="hint" data-i18n="hint">Results are cached for 15 minutes. A scan usually takes 15–40 seconds.</div>
       <div class="err" id="err" hidden></div>
-    </div>
-  </section>
-
-  <section class="recent" id="recentSection" hidden>
-    <div class="wrap">
-      <div class="head">Son taranan tokenlar</div>
-      <div class="reclist" id="reclist"></div>
     </div>
   </section>
 
   <section class="scanning" id="scanPanel">
     <div class="wrap">
       <div class="scan-top">
-        <div class="scan-title"><span class="scan-dot"></span> Zincir taranıyor</div>
+        <div class="scan-title"><span class="scan-dot"></span> <span data-i18n="scanTitle">Scanning chain</span></div>
         <div class="scan-metrics">
           <span class="scan-pct" id="scanPct">0%</span>
-          <span class="scan-elapsed" id="scanElapsed">0.0 sn</span>
+          <span class="scan-elapsed" id="scanElapsed">0.0s</span>
         </div>
       </div>
 
@@ -321,14 +331,21 @@ footer p{margin:0 0 6px;max-width:76ch}
       </div>
 
       <div class="scan-stats">
-        <div class="scan-stat"><b id="statHolders">0</b><span>cüzdan bulundu</span></div>
-        <div class="scan-stat"><b id="statRpc">0</b><span>RPC çağrısı</span></div>
-        <div class="scan-stat"><b id="statSignals">0<span style="color:var(--dim)">/12</span></b><span>sinyal</span></div>
+        <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">wallets found</span></div>
+        <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
+        <div class="scan-stat"><b id="statSignals">0/12</b><span data-i18n="statSignalsLbl">signals</span></div>
       </div>
 
       <div class="scan-grid" id="scanGrid"></div>
 
-      <button class="scan-cancel" id="scanCancel" type="button">Taramayı durdur</button>
+      <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
+    </div>
+  </section>
+
+  <section class="recent" id="recentSection" hidden>
+    <div class="wrap">
+      <div class="head" data-i18n="recentHead">Recently scanned tokens</div>
+      <div class="reclist" id="reclist"></div>
     </div>
   </section>
 
@@ -338,7 +355,7 @@ footer p{margin:0 0 6px;max-width:76ch}
         <aside class="verdict" id="verdict"></aside>
         <div>
           <div class="section-label">
-            <span>Sinyal ızgarası</span>
+            <span data-i18n="sigGrid">Signal grid</span>
             <span id="firedCount"></span>
           </div>
           <div class="grid" id="grid"></div>
@@ -347,7 +364,7 @@ footer p{margin:0 0 6px;max-width:76ch}
       </div>
 
       <div class="section-label" style="margin-top:36px">
-        <span>En büyük cüzdanlar</span>
+        <span data-i18n="largestWallets">Largest wallets</span>
         <span id="holderNote"></span>
       </div>
       <div class="tablewrap"><table id="holders"></table></div>
@@ -355,51 +372,239 @@ footer p{margin:0 0 6px;max-width:76ch}
   </section>
 </main>
 
-<footer id="yontem">
+<section class="about" id="aboutView" hidden>
   <div class="wrap">
-    <p><b style="color:var(--muted)">Bu sonuçlar algoritmik görüştür, olgusal tespit değildir.</b></p>
-    <p>Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki
-       çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz.
-       Yanlış pozitif ve yanlış negatif üretebilir. <b>Organic</b>, "manipülasyon deseni
-       bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe
-       aynı token için karar da değişir. Yatırım tavsiyesi değildir.</p>
+    <h2 data-i18n="aboutTitle">About UAVSX</h2>
+    <div class="sub" data-i18n="aboutSub">On-chain supply-distribution forensics for Solana</div>
+
+    <p data-i18n="aboutP1">UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs twelve independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
+
+    <h3 data-i18n="aboutVerdictH">The verdict</h3>
+    <div class="verdefs">
+      <div class="vd" style="--sig:var(--bundled)"><b>Bundled</b><span data-i18n="aboutBundled">supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.</span></div>
+      <div class="vd" style="--sig:var(--cabaled)"><b>Cabaled</b><span data-i18n="aboutCabaled">distribution is insider-heavy or unusual, but without the hard signatures of a bundle.</span></div>
+      <div class="vd" style="--sig:var(--organic)"><b>Organic</b><span data-i18n="aboutOrganic">no coordinated distribution pattern found. This does not mean "safe" or "will go up".</span></div>
+    </div>
+
+    <h3 data-i18n="aboutNumbersH">Two numbers</h3>
+    <p data-i18n="aboutNumbersP">Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).</p>
+
+    <h3 data-i18n="aboutLimitsH">Limits</h3>
+    <p data-i18n="aboutLimitsP">Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.</p>
+
+    <h3 data-i18n="aboutDataH">Data &amp; cost</h3>
+    <p data-i18n="aboutDataP">One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for 15 minutes so popular tokens are not re-scanned on every request.</p>
+
+    <button class="back" id="aboutBack" type="button" data-i18n="aboutBack">← Back to scanner</button>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p data-i18n-html="footerLead"><b style="color:var(--muted)">These results are an algorithmic opinion, not a factual finding.</b></p>
+    <p data-i18n="footerBody">Each classification is the current output of heuristic rules applied to public on-chain data. It describes a pattern; it carries no claim of intent, fraud or crime. It can produce false positives and false negatives. "Organic" means "no manipulation pattern found" — not "safe" or "will go up". As data changes, the verdict for the same token changes too. Not investment advice.</p>
   </div>
 </footer>
 
 <script>
-// Arayüz backend ile aynı origin'den sunulduğunda API göreli ('') kalır.
-// Frontend'i ayrı bir sunucudan açacaksan, bu dosyadaki ana script'ten önce
-// ayrı bir script etiketiyle window.SOLSCOPE_API = "https://api.alan-adin.com" tanımla.
+// Served from the same origin as the backend, so API stays relative ('').
+// If you host the frontend separately, define window.SOLSCOPE_API in a
+// separate <script> before this one.
 const API = window.SOLSCOPE_API ?? '';
 const COLORS = {bundled:'#ff4d5e', cabaled:'#ffa726', organic:'#4d9fff'};
+const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic' };
 
 const $ = id => document.getElementById(id);
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
-const num = n => n==null ? '—' : n.toLocaleString('tr-TR',{maximumFractionDigits:2});
-const usd = n => n==null ? '—' : '$'+n.toLocaleString('tr-TR',{maximumFractionDigits:0});
 
+/* ---------------- i18n ---------------- */
+let lang = 'en';
+try{ const s = localStorage.getItem('uavsx_lang'); if(s === 'tr' || s === 'en') lang = s; }catch(e){}
+
+const STR = {
+  en: {
+    navAbout:'About',
+    kicker:'Solana · distribution forensics',
+    h1:"See who took a token's supply, and how.",
+    lede:'Paste a mint address. Twelve independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
+    mintPh:'Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
+    scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
+    hint:'Results are cached for 15 minutes. A scan usually takes 15–40 seconds.',
+    scanTitle:'Scanning chain',
+    statHoldersLbl:'wallets found', statRpcLbl:'RPC calls', statSignalsLbl:'signals',
+    scanCancel:'Stop scan',
+    recentHead:'Recently scanned tokens',
+    sigGrid:'Signal grid', largestWallets:'Largest wallets',
+    footerLead:'<b style="color:var(--muted)">These results are an algorithmic opinion, not a factual finding.</b>',
+    footerBody:'Each classification is the current output of heuristic rules applied to public on-chain data. It describes a pattern; it carries no claim of intent, fraud or crime. It can produce false positives and false negatives. "Organic" means "no manipulation pattern found" — not "safe" or "will go up". As data changes, the verdict for the same token changes too. Not investment advice.',
+    aboutTitle:'About UAVSX',
+    aboutSub:'On-chain supply-distribution forensics for Solana',
+    aboutP1:"UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs twelve independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
+    aboutVerdictH:'The verdict',
+    aboutBundled:'supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.',
+    aboutCabaled:'distribution is insider-heavy or unusual, but without the hard signatures of a bundle.',
+    aboutOrganic:'no coordinated distribution pattern found. This does not mean "safe" or "will go up".',
+    aboutNumbersH:'Two numbers',
+    aboutNumbersP:'Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).',
+    aboutLimitsH:'Limits',
+    aboutLimitsP:'Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.',
+    aboutDataH:'Data & cost',
+    aboutDataP:'One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for 15 minutes so popular tokens are not re-scanned on every request.',
+    aboutBack:'← Back to scanner',
+    // dynamic
+    errNoAddr:'Enter a mint address.',
+    errBadAddr:'That is not a valid Solana address.',
+    errApi: origin => `Could not reach the API (${origin}). Is the backend running?`,
+    errServer: n => `Server returned ${n}.`,
+    clipFail:'Could not read the clipboard — paste manually.',
+    alignScore:'Alignment score', confidence:'Confidence',
+    noName:'No name data', marketCap:'Market cap', liquidity:'Liquidity', age:'Age',
+    hours: n => `${n} h`,
+    firedOf: (a,b) => `${a} / ${b} fired`,
+    clean:'clean', noDataShort:'no data',
+    whatLimits:'What limits this reading',
+    noSignalData:'No data to compute this signal.',
+    thWallet:'Wallet', thShare:'Share', thBalance:'Balance', thTxns:'Txns', thFunder:'Funded by', thTag:'Tag',
+    noHolders:'No holder data.',
+    cacheAge: s => `cache · ${s}s`, ms: n => `${n} ms`,
+    scanDone:'done — fetching result',
+    relNow: s => `${s}s ago`, relMin: m => `${m}m ago`, relHr: h => `${h}h ago`, relDay: d => `${d}d ago`,
+  },
+  tr: {
+    navAbout:'Hakkında',
+    kicker:'Solana · dağıtım adli analizi',
+    h1:'Bir tokenın arzını kimin, nasıl aldığını görün.',
+    lede:'Mint adresini yapıştırın. On iki bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
+    mintPh:'Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
+    scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
+    hint:'Sonuçlar 15 dakika önbellekte tutulur. Tarama genelde 15–40 saniye sürer.',
+    scanTitle:'Zincir taranıyor',
+    statHoldersLbl:'cüzdan bulundu', statRpcLbl:'RPC çağrısı', statSignalsLbl:'sinyal',
+    scanCancel:'Taramayı durdur',
+    recentHead:'Son taranan tokenlar',
+    sigGrid:'Sinyal ızgarası', largestWallets:'En büyük cüzdanlar',
+    footerLead:'<b style="color:var(--muted)">Bu sonuçlar algoritmik görüştür, olgusal tespit değildir.</b>',
+    footerBody:'Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz. Yanlış pozitif ve yanlış negatif üretebilir. "Organic", "manipülasyon deseni bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe aynı token için karar da değişir. Yatırım tavsiyesi değildir.',
+    aboutTitle:'UAVSX Hakkında',
+    aboutSub:'Solana için zincir üstü arz dağıtımı adli analizi',
+    aboutP1:'UAVSX bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On iki bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
+    aboutVerdictH:'Karar',
+    aboutBundled:'arz dağıtımı üretilmiş görünüyor — birden çok sert sinyal aynı yönü gösteriyor ve koordineli alım görülüyor.',
+    aboutCabaled:'dağıtım insider ağırlıklı ya da olağandışı, ama bir bundle\'ın sert imzaları yok.',
+    aboutOrganic:'koordineli dağıtım deseni bulunamadı. Bu "güvenli" ya da "yükselecek" demek değildir.',
+    aboutNumbersH:'İki sayı',
+    aboutNumbersP:'Her tarama bir skor (token atandığı kategoriye ne kadar uyuyor — fiyat tahmini değil) ve bir güven (karar verilirken ne kadar veri vardı) döndürür.',
+    aboutLimitsH:'Sınırlar',
+    aboutLimitsP:'Sonuçlar algoritmik görüştür, olgusal tespit değildir. Yanlış pozitif ve yanlış negatif üretebilir; veri değiştikçe karar da değişir. Yatırım tavsiyesi değildir.',
+    aboutDataH:'Veri ve maliyet',
+    aboutDataP:'Bir tarama yaklaşık 125 RPC çağrısı ile Solana altyapısına, bir de piyasa verisi için DexScreener\'a gider. Sonuçlar 15 dakika önbellekte tutulur; popüler tokenlar her istekte yeniden taranmaz.',
+    aboutBack:'← Tarayıcıya dön',
+    errNoAddr:'Bir mint adresi girin.',
+    errBadAddr:'Bu geçerli bir Solana adresi değil.',
+    errApi: origin => `API'ye ulaşılamadı (${origin}). Backend çalışıyor mu?`,
+    errServer: n => `Sunucu ${n} döndü.`,
+    clipFail:'Pano okunamadı — elle yapıştırın.',
+    alignScore:'Uyum skoru', confidence:'Güven',
+    noName:'İsim verisi yok', marketCap:'Piyasa değeri', liquidity:'Likidite', age:'Yaş',
+    hours: n => `${n} saat`,
+    firedOf: (a,b) => `${a} / ${b} tetiklendi`,
+    clean:'temiz', noDataShort:'veri yok',
+    whatLimits:'Bu okumayı sınırlayanlar',
+    noSignalData:'Bu sinyali hesaplayacak veri bulunamadı.',
+    thWallet:'Cüzdan', thShare:'Pay', thBalance:'Bakiye', thTxns:'İşlem', thFunder:'Fonlayan', thTag:'Etiket',
+    noHolders:'Holder verisi yok.',
+    cacheAge: s => `önbellek · ${s}s`, ms: n => `${n} ms`,
+    scanDone:'tamamlandı — sonuç getiriliyor',
+    relNow: s => `${s} sn önce`, relMin: m => `${m} dk önce`, relHr: h => `${h} sa önce`, relDay: d => `${d} gün önce`,
+  },
+};
+
+// English labels for the 12 signals, keyed by backend signal key.
+// (Turkish labels come from the backend as-is.)
+const SIG_EN = {
+  wallet_age_cluster:'Wallet birth cluster',
+  common_funder:'Common funder',
+  same_slot_entry:'Simultaneous entry',
+  identical_balances:'Identical balances',
+  fee_fingerprint:'Fee fingerprint',
+  fresh_wallets:'Fresh-wallet ratio',
+  flagged_wallets:'Previously flagged wallets',
+  top10_concentration:'Top-10 concentration',
+  funding_profile:'Funding-source profile',
+  mint_authority:'Mint / freeze authority',
+  liquidity_health:'Liquidity depth',
+  wallet_age_diversity:'Wallet-age diversity',
+};
+const CONF_EN = { 'yüksek':'high', 'orta':'medium', 'düşük':'low', 'çok düşük':'very low' };
+const SUMMARY_EN = {
+  bundled:'Supply distribution looks manufactured — coordinated buying patterns detected.',
+  cabaled:'Distribution is insider-heavy or unusual; without the hard signatures of a bundle.',
+  organic:'No coordinated distribution pattern found. This does not mean "safe".',
+};
+const SCAN_LOG = {
+  en: [
+    [200,   'RPC pool ready · provider connected'],
+    [700,   'resolving mint account'],
+    [1500,  'read supply, decimals and mint/freeze authority'],
+    [2400,  'fetching top 20 token accounts'],
+    [4200,  'matching owner wallets (getMultipleAccounts)'],
+    [6500,  'scanning wallet transaction histories'],
+    [11000, 'tracing first funding transactions — where did the SOL come from?'],
+    [17000, 'collecting priority-fee fingerprints'],
+    [23000, 'merging DexScreener market data'],
+    [27000, 'computing 12 independent signals'],
+    [31000, 'applying convergence rule'],
+    [35000, 'preparing verdict, score and confidence'],
+  ],
+  tr: [
+    [200,   'RPC havuzu hazır · sağlayıcıya bağlanıldı'],
+    [700,   'mint hesabı çözümleniyor'],
+    [1500,  'arz, ondalık ve mint/freeze yetkisi okundu'],
+    [2400,  'en büyük 20 token hesabı çekiliyor'],
+    [4200,  'sahip cüzdanlar eşleştiriliyor (getMultipleAccounts)'],
+    [6500,  'cüzdan işlem geçmişleri taranıyor'],
+    [11000, 'ilk fonlama işlemleri izleniyor — SOL nereden geldi?'],
+    [17000, 'öncelik ücreti parmak izleri toplanıyor'],
+    [23000, 'DexScreener piyasa verisi birleştiriliyor'],
+    [27000, '12 bağımsız sinyal hesaplanıyor'],
+    [31000, 'yakınsama kuralı uygulanıyor'],
+    [35000, 'karar, skor ve güven hazırlanıyor'],
+  ],
+};
+
+function L(key, ...args){
+  const dict = STR[lang] || STR.en;
+  const v = (key in dict) ? dict[key] : STR.en[key];
+  return typeof v === 'function' ? v(...args) : (v ?? key);
+}
+const locale = () => lang === 'tr' ? 'tr-TR' : 'en-US';
+const num = n => n==null ? '—' : n.toLocaleString(locale(), {maximumFractionDigits:2});
+const usd = n => n==null ? '—' : '$'+n.toLocaleString(locale(), {maximumFractionDigits:0});
+
+function applyI18n(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = L(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{ el.innerHTML = L(el.dataset.i18nHtml); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = L(el.dataset.i18nPh); });
+  document.querySelectorAll('.langsel button').forEach(b=> b.classList.toggle('on', b.dataset.lang === lang));
+  if(!SCAN.on) $('scanBtn').textContent = L('scanBtn');
+  if(lastResult) render(lastResult);
+  if(lastRecent) renderRecent(lastRecent);
+}
+function setLang(l){
+  lang = (l === 'tr') ? 'tr' : 'en';
+  try{ localStorage.setItem('uavsx_lang', lang); }catch(e){}
+  applyI18n();
+}
+
+/* ---------------- hata kutusu ---------------- */
 function showError(msg){ const e=$('err'); e.textContent=msg; e.hidden=false; }
 function clearError(){ $('err').hidden = true; }
 
-/* ---------- tarama konsolu (sayfa içi) ---------- */
-// Backend tek parça cevap döndürüyor (akış yok). Aşamalar, taramanın gerçek
-// akışına göre zaman-tahminli ilerler; sayaçlar tipik bir taramayı yansıtır.
+/* ---------------- tarama konsolu ---------------- */
+// The backend returns one response (no streaming); stages advance on estimated
+// timing that mirrors a real scan, and the counters reflect a typical run.
 const SCAN = { on:false, t0:0, timers:[], tick:null, pct:0, reveal:null };
-
-const SCAN_LOG = [
-  [200,   'RPC havuzu hazır · sağlayıcıya bağlanıldı'],
-  [700,   'mint hesabı çözümleniyor'],
-  [1500,  'arz, ondalık ve mint/freeze yetkisi okundu'],
-  [2400,  'en büyük 20 token hesabı çekiliyor'],
-  [4200,  'sahip cüzdanlar eşleştiriliyor (getMultipleAccounts)'],
-  [6500,  'cüzdan işlem geçmişleri taranıyor'],
-  [11000, 'ilk fonlama işlemleri izleniyor — SOL nereden geldi?'],
-  [17000, 'öncelik ücreti parmak izleri toplanıyor'],
-  [23000, 'DexScreener piyasa verisi birleştiriliyor'],
-  [27000, '12 bağımsız sinyal hesaplanıyor'],
-  [31000, 'yakınsama kuralı uygulanıyor'],
-  [35000, 'karar, skor ve güven hazırlanıyor'],
-];
 
 function scanLine(text){
   const box = $('scanConsole');
@@ -426,28 +631,27 @@ function scanReset(){
   $('scanConsole').innerHTML = '';
   $('scanBarFill').style.width = '0%';
   $('scanPct').textContent = '0%';
-  $('scanElapsed').textContent = '0.0 sn';
+  $('scanElapsed').textContent = '0.0s';
   $('statHolders').textContent = '0';
   $('statRpc').textContent = '0';
-  $('statSignals').innerHTML = '0<span style="color:var(--dim)">/12</span>';
+  $('statSignals').textContent = '0/12';
   $('radarBlips').querySelectorAll('.radar-blip').forEach(b=>b.classList.remove('lit'));
 }
 function scanStart(){
   scanReset();
   SCAN.on = true; SCAN.t0 = Date.now();
   scanSkeleton();
-  // önbellekten anında dönen cevaplarda paneli hiç açma
   SCAN.reveal = setTimeout(()=>{
     $('scanPanel').classList.add('on');
     $('scanPanel').scrollIntoView({behavior:'smooth', block:'start'});
   }, 180);
-  SCAN_LOG.forEach(([ms, text]) => SCAN.timers.push(setTimeout(()=>scanLine(text), ms)));
+  (SCAN_LOG[lang] || SCAN_LOG.en).forEach(([ms, text]) => SCAN.timers.push(setTimeout(()=>scanLine(text), ms)));
 
   const blips = [...$('radarBlips').querySelectorAll('.radar-blip')];
   SCAN.tick = setInterval(()=>{
     const s = (Date.now() - SCAN.t0) / 1000;
-    $('scanElapsed').textContent = s.toFixed(1) + ' sn';
-    SCAN.pct = Math.max(SCAN.pct, 96 * (1 - Math.exp(-s / 15)));   // yavaşlayan eğri, ~%96 tavan
+    $('scanElapsed').textContent = s.toFixed(1) + 's';
+    SCAN.pct = Math.max(SCAN.pct, 96 * (1 - Math.exp(-s / 15)));
     $('scanBarFill').style.width = SCAN.pct + '%';
     $('scanPct').textContent = Math.round(SCAN.pct) + '%';
 
@@ -456,16 +660,16 @@ function scanStart(){
     const signals = s > 26 ? Math.min(12, Math.floor((s - 26) * 1.7)) : 0;
     $('statHolders').textContent = holders;
     $('statRpc').textContent = rpc;
-    $('statSignals').innerHTML = signals + '<span style="color:var(--dim)">/12</span>';
+    $('statSignals').textContent = signals + '/12';
     blips.forEach((b,i)=> b.classList.toggle('lit', i < holders * 12 / 19));
   }, 120);
 }
 function scanFinish(){
   SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
-  if(!$('scanPanel').classList.contains('on')){ SCAN.on = false; return; }  // hızlı cevap — hiç görünmedi
+  if(!$('scanPanel').classList.contains('on')){ SCAN.on = false; return; }
   $('scanBarFill').style.width = '100%';
   $('scanPct').textContent = '100%';
-  scanLine('tamamlandı — sonuç getiriliyor');
+  scanLine(L('scanDone'));
   setTimeout(()=>{ $('scanPanel').classList.remove('on'); SCAN.on = false; }, 420);
 }
 function scanStop(){
@@ -474,93 +678,98 @@ function scanStop(){
 }
 
 let scanAbort = null;
+let lastResult = null;
 
 async function scan(mint){
   const btn = $('scanBtn');
-  clearError(); btn.disabled = true; btn.textContent = 'Taranıyor';
+  clearError(); btn.disabled = true; btn.textContent = L('scanBtnBusy');
   scanAbort = new AbortController();
   scanStart();
   try{
     const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}`, { signal: scanAbort.signal });
     const body = await r.json();
-    if(!r.ok) throw new Error(body.detail || `Sunucu ${r.status} döndü.`);
+    if(!r.ok) throw new Error(body.detail || L('errServer', r.status));
     scanFinish();
     render(body);
     loadRecent();
   }catch(e){
     scanStop();
     if(e.name === 'AbortError') return;
-    showError(e.message.includes('fetch')
-      ? `API'ye ulaşılamadı (${API || location.origin}). Backend çalışıyor mu?`
-      : e.message);
+    showError(e.message.includes('fetch') ? L('errApi', API || location.origin) : e.message);
   }finally{
     scanAbort = null;
-    btn.disabled = false; btn.textContent = 'Tara';
+    btn.disabled = false; btn.textContent = L('scanBtn');
   }
 }
 
-/* ---------- son taranan tokenlar ---------- */
+/* ---------------- son taranan tokenlar ---------------- */
+let lastRecent = null;
+
 function relTime(ts){
   const s = Math.max(0, Math.floor(Date.now()/1000 - ts));
-  if(s < 60) return s + ' sn önce';
-  if(s < 3600) return Math.floor(s/60) + ' dk önce';
-  if(s < 86400) return Math.floor(s/3600) + ' sa önce';
-  return Math.floor(s/86400) + ' gün önce';
+  if(s < 60) return L('relNow', s);
+  if(s < 3600) return L('relMin', Math.floor(s/60));
+  if(s < 86400) return L('relHr', Math.floor(s/3600));
+  return L('relDay', Math.floor(s/86400));
+}
+function renderRecent(scans){
+  const box = $('reclist');
+  if(!scans || !scans.length){ $('recentSection').hidden = true; return; }
+  $('recentSection').hidden = false;
+  box.innerHTML = '';
+  scans.forEach(s=>{
+    const label = VERDICT_LABEL[s.verdict] || s.verdict || '—';
+    const col = COLORS[s.verdict] || 'var(--dim)';
+    const b = document.createElement('button');
+    b.className = 'recitem';
+    b.style.setProperty('--sig', col);
+    b.title = s.mint;
+    b.innerHTML = `
+      <span class="rv">${label}</span>
+      <span class="rm">${s.symbol ? s.symbol : short(s.mint)}</span>
+      <span class="rt">${relTime(s.created_at)}</span>`;
+    b.onclick = ()=>{ $('mint').value = s.mint; scan(s.mint); };
+    box.appendChild(b);
+  });
 }
 async function loadRecent(){
   try{
     const r = await fetch(`${API}/api/recent?limit=10`);
     if(!r.ok) return;
     const { scans } = await r.json();
-    const box = $('reclist');
-    if(!scans || !scans.length){
-      $('recentSection').hidden = true;
-      return;
-    }
-    $('recentSection').hidden = false;
-    box.innerHTML = '';
-    scans.forEach(s=>{
-      const label = (VERDICT_LABEL[s.verdict] || s.verdict || '—');
-      const col = COLORS[s.verdict] || 'var(--dim)';
-      const b = document.createElement('button');
-      b.className = 'recitem';
-      b.style.setProperty('--sig', col);
-      b.title = s.mint;
-      b.innerHTML = `
-        <span class="rv">${label}</span>
-        <span class="rm">${s.symbol ? s.symbol : short(s.mint)}</span>
-        <span class="rt">${relTime(s.created_at)}</span>`;
-      b.onclick = ()=>{ $('mint').value = s.mint; scan(s.mint); };
-      box.appendChild(b);
-    });
+    lastRecent = scans || [];
+    renderRecent(lastRecent);
   }catch(e){ /* sessizce geç */ }
 }
-const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic' };
 
+/* ---------------- sonuç ---------------- */
 function render(d){
+  lastResult = d;
   const v = d.verdict, c = COLORS[v.kind] || COLORS.cabaled;
   $('result').classList.add('on');
 
-  // --- verdict paneli
+  const summary = lang === 'en' ? (SUMMARY_EN[v.kind] || v.summary) : v.summary;
+  const confLbl = lang === 'en' ? (CONF_EN[v.confidence_label] || v.confidence_label) : v.confidence_label;
+
   const t = d.token || {};
   $('verdict').innerHTML = `
     <div class="tag" style="color:${c}">${v.label}</div>
-    <p>${v.summary}</p>
+    <p>${summary}</p>
     <div class="meters">
       <div class="meter">
-        <div class="row"><span>Uyum skoru</span><span style="color:${c}">${v.score}</span></div>
+        <div class="row"><span>${L('alignScore')}</span><span style="color:${c}">${v.score}</span></div>
         <div class="track"><div class="fill" style="background:${c}"></div></div>
       </div>
       <div class="meter">
-        <div class="row"><span>Güven</span><span>${v.confidence} · ${v.confidence_label}</span></div>
+        <div class="row"><span>${L('confidence')}</span><span>${v.confidence} · ${confLbl}</span></div>
         <div class="track"><div class="fill" style="background:var(--muted)"></div></div>
       </div>
     </div>
     <div class="tokline">
-      <div>${t.symbol ? `<b>${t.symbol}</b> · ${t.name||''}` : 'İsim verisi yok'}</div>
-      <div>Piyasa değeri <b>${usd(t.market_cap)}</b></div>
-      <div>Likidite <b>${usd(t.liquidity_usd)}</b></div>
-      <div>Yaş <b>${t.age_hours!=null ? t.age_hours+' saat' : '—'}</b></div>
+      <div>${t.symbol ? `<b>${t.symbol}</b> · ${t.name||''}` : L('noName')}</div>
+      <div>${L('marketCap')} <b>${usd(t.market_cap)}</b></div>
+      <div>${L('liquidity')} <b>${usd(t.liquidity_usd)}</b></div>
+      <div>${L('age')} <b>${t.age_hours!=null ? L('hours', t.age_hours) : '—'}</b></div>
       <div style="color:var(--dim);word-break:break-all;padding-top:6px">${d.mint}</div>
     </div>`;
   requestAnimationFrame(()=>{
@@ -568,24 +777,24 @@ function render(d){
     f[0].style.width = v.score+'%'; f[1].style.width = v.confidence+'%';
   });
 
-  // --- sinyal ızgarası: sırayla yanar
   const grid = $('grid'); grid.innerHTML = '';
   const fired = d.signals.filter(s=>s.fired).length;
-  $('firedCount').textContent = `${fired} / ${d.signals.length} tetiklendi`;
+  $('firedCount').textContent = L('firedOf', fired, d.signals.length);
 
   const ordered = [...d.signals].sort((a,b)=> (b.fired-a.fired) || (b.strength-a.strength));
   ordered.forEach((s,i)=>{
     const col = COLORS[s.direction] || 'var(--dim)';
+    const sigLabel = (lang === 'en' && SIG_EN[s.key]) ? SIG_EN[s.key] : s.label;
     const el = document.createElement('button');
     el.className = 'cell' + (s.fired?' fired':'') + (s.data_available?'':' nodata');
     el.style.setProperty('--sig', col);
     el.setAttribute('aria-expanded','false');
     el.innerHTML = `
-      <div class="k"><span>${s.fired ? s.direction : (s.data_available?'temiz':'veri yok')}</span>
+      <div class="k"><span>${s.fired ? s.direction : (s.data_available ? L('clean') : L('noDataShort'))}</span>
         <span>${s.fired ? Math.round(s.strength*100)+'%' : ''}</span></div>
-      <div class="n">${s.label}</div>
+      <div class="n">${sigLabel}</div>
       <div class="bar"><span></span></div>
-      <div class="why">${s.detail || 'Bu sinyali hesaplayacak veri bulunamadı.'}
+      <div class="why">${s.detail || L('noSignalData')}
         ${evidenceHtml(s.evidence)}</div>`;
     el.onclick = ()=>{
       el.classList.toggle('open');
@@ -598,12 +807,10 @@ function render(d){
     }, 60*i);
   });
 
-  // --- uyarılar
   $('caveats').innerHTML = v.caveats?.length ? `
-    <div class="caveats"><b>Bu okumayı sınırlayanlar</b>
+    <div class="caveats"><b>${L('whatLimits')}</b>
       <ul>${v.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
 
-  // --- holder tablosu
   const rows = (d.holders||[]).map(h=>`
     <tr>
       <td class="addr">${short(h.owner)}</td>
@@ -614,11 +821,9 @@ function render(d){
       <td>${h.tag && h.tag!=='unknown' ? `<span class="pill ${h.tag}">${h.tag}</span>` : ''}</td>
     </tr>`).join('');
   $('holders').innerHTML = `
-    <thead><tr><th>Cüzdan</th><th>Pay</th><th>Bakiye</th><th>İşlem</th><th>Fonlayan</th><th>Etiket</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="6">Holder verisi yok.</td></tr>'}</tbody>`;
-  $('holderNote').textContent = d.cached ? `önbellek · ${d.cache_age_s}s` : `${d.duration_ms} ms`;
-
-  $('result').scrollIntoView({behavior:'smooth', block:'start'});
+    <thead><tr><th>${L('thWallet')}</th><th>${L('thShare')}</th><th>${L('thBalance')}</th><th>${L('thTxns')}</th><th>${L('thFunder')}</th><th>${L('thTag')}</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="6">${L('noHolders')}</td></tr>`}</tbody>`;
+  $('holderNote').textContent = d.cached ? L('cacheAge', d.cache_age_s) : L('ms', d.duration_ms);
 }
 
 function evidenceHtml(e){
@@ -629,21 +834,39 @@ function evidenceHtml(e){
   return rows.length ? `<div style="margin-top:8px;font-size:11px;color:var(--dim)">${rows.join('<br>')}</div>` : '';
 }
 
-// --- olay bağlantıları
+/* ---------------- hakkında görünümü ---------------- */
+function showAbout(on){
+  $('mainView').hidden = on;
+  $('aboutView').hidden = !on;
+  window.scrollTo(0, 0);
+}
+
+/* ---------------- olay bağlantıları ---------------- */
 $('scanBtn').onclick = ()=>{
   const m = $('mint').value.trim();
-  if(!m) return showError('Bir mint adresi girin.');
-  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)) return showError('Bu geçerli bir Solana adresi değil.');
+  if(!m) return showError(L('errNoAddr'));
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)) return showError(L('errBadAddr'));
   scan(m);
 };
 $('mint').addEventListener('keydown', e=>{ if(e.key==='Enter') $('scanBtn').click(); });
+
+$('pasteBtn').onclick = async ()=>{
+  try{
+    const txt = (await navigator.clipboard.readText()).trim();
+    if(txt){ $('mint').value = txt; clearError(); $('mint').focus(); }
+  }catch(e){ showError(L('clipFail')); }
+};
 
 $('scanCancel').onclick = ()=>{ if(scanAbort) scanAbort.abort(); else scanStop(); };
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && SCAN.on){ if(scanAbort) scanAbort.abort(); else scanStop(); }
 });
 
-// --- açılışta son taramaları getir
+$('navAbout').onclick = ()=> showAbout(true);
+$('aboutBack').onclick = ()=> showAbout(false);
+document.querySelectorAll('.langsel button').forEach(b=>{ b.onclick = ()=> setLang(b.dataset.lang); });
+
+applyI18n();
 loadRecent();
 </script>
 </body>
