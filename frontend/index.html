@@ -155,29 +155,78 @@ footer p{margin:0 0 6px;max-width:76ch}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
 .recempty{font-size:12px;color:var(--dim)}
 
-/* ---------- ilerleme penceresi ---------- */
-.overlay[hidden]{display:none}
-.overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
-  background:rgba(7,10,18,.86);backdrop-filter:blur(4px);padding:20px}
-.progcard{width:100%;max-width:440px;border:1px solid var(--rule);background:var(--panel);border-radius:2px;padding:24px}
-.progcard .k{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
-.progbig{font-family:var(--display);font-weight:900;font-size:34px;line-height:1;margin:8px 0 14px;color:var(--live)}
-.progcard .track{height:3px;background:var(--rule);overflow:hidden;margin-bottom:16px}
-.progcard .fill{height:100%;width:0;background:var(--live);transition:width .5s ease}
-.stages{list-style:none;margin:0;padding:0;font-size:12px}
-.stages li{display:flex;gap:9px;align-items:center;padding:4px 0;color:var(--dim)}
-.stages li::before{content:"○";color:var(--dim)}
-.stages li.active{color:var(--text)}
-.stages li.active::before{content:"◐";color:var(--live);animation:spin 1.1s linear infinite}
-.stages li.done{color:var(--muted)}
-.stages li.done::before{content:"●";color:var(--live);animation:none}
-@keyframes spin{to{transform:rotate(360deg)}}
-.progfoot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;
-  border-top:1px solid var(--rule);padding-top:14px;font-size:12px;color:var(--dim)}
-.progfoot button{background:transparent;border:1px solid var(--rule);color:var(--muted);
-  font-family:var(--display);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-  font-size:11px;padding:8px 16px;border-radius:2px;cursor:pointer}
-.progfoot button:hover{color:var(--text);border-color:var(--muted)}
+/* ---------- tarama konsolu (sayfa içi ilerleme) ---------- */
+.scanning{display:none;padding:30px 0 46px;border-bottom:1px solid var(--rule);position:relative;overflow:hidden}
+.scanning.on{display:block}
+.scanning::after{ /* aşağı süzülen tarama çizgisi */
+  content:"";position:absolute;left:0;right:0;top:0;height:120px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(94,234,212,.06) 60%,rgba(94,234,212,.18));
+  animation:scanline 3.4s cubic-bezier(.5,0,.5,1) infinite;
+}
+@keyframes scanline{0%{transform:translateY(-140px)}100%{transform:translateY(560px)}}
+
+.scan-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.scan-title{display:flex;align-items:center;gap:12px;font-family:var(--display);font-weight:900;
+  letter-spacing:.18em;text-transform:uppercase;font-size:14px;color:var(--text)}
+.scan-dot{width:9px;height:9px;border-radius:50%;background:var(--live);position:relative;flex:none}
+.scan-dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid var(--live);
+  animation:ping 1.5s cubic-bezier(0,.3,.4,1) infinite}
+@keyframes ping{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.2);opacity:0}}
+.scan-metrics{display:flex;align-items:baseline;gap:18px;font-family:var(--mono)}
+.scan-pct{font-family:var(--display);font-weight:900;font-size:40px;line-height:.9;color:var(--live);
+  text-shadow:0 0 22px rgba(94,234,212,.45)}
+.scan-elapsed{font-size:12px;color:var(--dim);letter-spacing:.1em}
+
+.scan-bar{height:4px;background:var(--rule);border-radius:2px;overflow:hidden;position:relative;margin-bottom:24px}
+.scan-bar-fill{height:100%;width:0;border-radius:2px;transition:width .45s ease;
+  background:linear-gradient(90deg,#2dd4bf,var(--live) 60%,#a7f3e8);
+  box-shadow:0 0 14px rgba(94,234,212,.6)}
+.scan-bar-fill::after{content:"";position:absolute;top:0;bottom:0;width:90px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+  animation:sweepx 1.15s linear infinite}
+@keyframes sweepx{0%{left:-90px}100%{left:100%}}
+
+.scan-body{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:stretch}
+@media(max-width:720px){.scan-body{grid-template-columns:1fr}}
+
+/* radar */
+.scan-radar{border:1px solid var(--rule);background:radial-gradient(circle at 50% 50%,#0c1422,#070a12);
+  border-radius:2px;padding:14px;display:flex;align-items:center;justify-content:center;min-height:200px}
+.scan-radar svg{width:100%;max-width:190px;height:auto}
+.radar-ring{fill:none;stroke:var(--rule);stroke-width:1}
+.radar-cross{stroke:var(--rule);stroke-width:1}
+.radar-sweep{transform-origin:100px 100px;animation:radarspin 2.6s linear infinite}
+@keyframes radarspin{to{transform:rotate(360deg)}}
+.radar-blip{fill:var(--live);opacity:0;transform-box:fill-box;transform-origin:center}
+.radar-blip.lit{animation:blip 2.6s ease-out infinite}
+@keyframes blip{0%{opacity:1;transform:scale(1.5)}30%{opacity:.9}100%{opacity:.12;transform:scale(1)}}
+
+/* konsol */
+.scan-console{border:1px solid var(--rule);background:#080d16;border-radius:2px;padding:14px 16px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#7fe9d6;
+  overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;min-height:200px}
+.scan-console .ln{opacity:0;transform:translateY(4px);animation:lnin .35s forwards;white-space:pre-wrap;word-break:break-word}
+.scan-console .ln .t{color:var(--dim)}
+.scan-console .ln.cur{color:var(--live)}
+.scan-console .ln.cur::after{content:"▋";margin-left:2px;animation:blink 1s steps(2) infinite}
+@keyframes lnin{to{opacity:1;transform:none}}
+
+.scan-stats{display:flex;gap:26px;flex-wrap:wrap;margin:20px 0 6px;font-family:var(--mono)}
+.scan-stat{display:flex;flex-direction:column;gap:2px}
+.scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
+.scan-stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+
+/* sinyal ızgarası iskeleti */
+.scan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:14px}
+.skel{height:58px;border:1px solid var(--rule);border-left:2px solid var(--dim);border-radius:2px;
+  background:linear-gradient(100deg,var(--panel) 25%,var(--panel-2) 50%,var(--panel) 75%);
+  background-size:220% 100%;animation:shimmer 1.5s linear infinite}
+@keyframes shimmer{to{background-position:-220% 0}}
+
+.scan-cancel{margin-top:22px;background:transparent;border:1px solid var(--rule);color:var(--muted);
+  font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  font-size:11px;padding:9px 20px;border-radius:2px;cursor:pointer}
+.scan-cancel:hover{color:var(--text);border-color:var(--muted)}
 
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;transition-duration:.01ms!important}
@@ -222,6 +271,67 @@ footer p{margin:0 0 6px;max-width:76ch}
     </div>
   </section>
 
+  <section class="scanning" id="scanPanel">
+    <div class="wrap">
+      <div class="scan-top">
+        <div class="scan-title"><span class="scan-dot"></span> Zincir taranıyor</div>
+        <div class="scan-metrics">
+          <span class="scan-pct" id="scanPct">0%</span>
+          <span class="scan-elapsed" id="scanElapsed">0.0 sn</span>
+        </div>
+      </div>
+
+      <div class="scan-bar"><div class="scan-bar-fill" id="scanBarFill"></div></div>
+
+      <div class="scan-body">
+        <div class="scan-radar">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="radar-ring" cx="100" cy="100" r="90"/>
+            <circle class="radar-ring" cx="100" cy="100" r="60"/>
+            <circle class="radar-ring" cx="100" cy="100" r="30"/>
+            <line class="radar-cross" x1="100" y1="10" x2="100" y2="190"/>
+            <line class="radar-cross" x1="10" y1="100" x2="190" y2="100"/>
+            <g class="radar-sweep">
+              <defs>
+                <linearGradient id="sweepgrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#5eead4" stop-opacity="0"/>
+                  <stop offset="1" stop-color="#5eead4" stop-opacity="0.55"/>
+                </linearGradient>
+              </defs>
+              <path d="M100 100 L100 12 A88 88 0 0 1 178 68 Z" fill="url(#sweepgrad)"/>
+            </g>
+            <g id="radarBlips">
+              <circle class="radar-blip" cx="128" cy="66"  r="3"/>
+              <circle class="radar-blip" cx="150" cy="112" r="3"/>
+              <circle class="radar-blip" cx="72"  cy="140" r="3"/>
+              <circle class="radar-blip" cx="60"  cy="78"  r="3"/>
+              <circle class="radar-blip" cx="112" cy="150" r="3"/>
+              <circle class="radar-blip" cx="140" cy="150" r="3"/>
+              <circle class="radar-blip" cx="86"  cy="52"  r="3"/>
+              <circle class="radar-blip" cx="158" cy="88"  r="3"/>
+              <circle class="radar-blip" cx="52"  cy="118" r="3"/>
+              <circle class="radar-blip" cx="120" cy="40"  r="3"/>
+              <circle class="radar-blip" cx="44"  cy="96"  r="3"/>
+              <circle class="radar-blip" cx="96"  cy="120" r="3"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="scan-console" id="scanConsole"></div>
+      </div>
+
+      <div class="scan-stats">
+        <div class="scan-stat"><b id="statHolders">0</b><span>cüzdan bulundu</span></div>
+        <div class="scan-stat"><b id="statRpc">0</b><span>RPC çağrısı</span></div>
+        <div class="scan-stat"><b id="statSignals">0<span style="color:var(--dim)">/12</span></b><span>sinyal</span></div>
+      </div>
+
+      <div class="scan-grid" id="scanGrid"></div>
+
+      <button class="scan-cancel" id="scanCancel" type="button">Taramayı durdur</button>
+    </div>
+  </section>
+
   <section class="result" id="result">
     <div class="wrap">
       <div class="split">
@@ -256,27 +366,6 @@ footer p{margin:0 0 6px;max-width:76ch}
   </div>
 </footer>
 
-<div class="overlay" id="progOverlay" hidden role="dialog" aria-modal="true" aria-label="Analiz ilerlemesi">
-  <div class="progcard">
-    <div class="k">Analiz sürüyor</div>
-    <div class="progbig"><span id="progPct">0</span>%</div>
-    <div class="track"><div class="fill" id="progFill"></div></div>
-    <ul class="stages" id="progStages">
-      <li data-s="0">Sunucuya bağlanılıyor</li>
-      <li data-s="1">Mint bilgisi ve en büyük cüzdanlar çekiliyor</li>
-      <li data-s="2">Cüzdan sahipleri çözülüyor</li>
-      <li data-s="3">Cüzdan geçmişleri ve fonlama kaynakları taranıyor</li>
-      <li data-s="4">İşlem ücreti parmak izleri toplanıyor</li>
-      <li data-s="5">12 bağımsız sinyal hesaplanıyor</li>
-      <li data-s="6">Karar veriliyor</li>
-    </ul>
-    <div class="progfoot">
-      <span id="progElapsed">0 sn</span>
-      <button id="progCancel" type="button">İptal</button>
-    </div>
-  </div>
-</div>
-
 <script>
 // Arayüz backend ile aynı origin'den sunulduğunda API göreli ('') kalır.
 // Frontend'i ayrı bir sunucudan açacaksan, bu dosyadaki ana script'ten önce
@@ -292,56 +381,96 @@ const usd = n => n==null ? '—' : '$'+n.toLocaleString('tr-TR',{maximumFraction
 function showError(msg){ const e=$('err'); e.textContent=msg; e.hidden=false; }
 function clearError(){ $('err').hidden = true; }
 
-/* ---------- ilerleme penceresi ---------- */
-// Backend tek seferde cevap döndürüyor (akış yok); aşamalar tahmini zamanlamayla
-// ilerler. Çubuk %94'te bekler, gerçek cevap gelince %100'e atlar.
-const PROG = { open:false, t0:0, timers:[], tick:null, pct:0, reveal:null };
-// her aşamanın (yaklaşık) başlangıç anı, ms
-const STAGE_AT = [0, 800, 3500, 7000, 24000, 30000, 34000];
+/* ---------- tarama konsolu (sayfa içi) ---------- */
+// Backend tek parça cevap döndürüyor (akış yok). Aşamalar, taramanın gerçek
+// akışına göre zaman-tahminli ilerler; sayaçlar tipik bir taramayı yansıtır.
+const SCAN = { on:false, t0:0, timers:[], tick:null, pct:0, reveal:null };
 
-function progReset(){
-  PROG.timers.forEach(clearTimeout); clearInterval(PROG.tick); clearTimeout(PROG.reveal);
-  PROG.timers = []; PROG.tick = null; PROG.reveal = null; PROG.pct = 0;
-  $('progFill').style.width = '0%'; $('progPct').textContent = '0';
-  [...$('progStages').children].forEach(li=>li.className='');
+const SCAN_LOG = [
+  [200,   'RPC havuzu hazır · sağlayıcıya bağlanıldı'],
+  [700,   'mint hesabı çözümleniyor'],
+  [1500,  'arz, ondalık ve mint/freeze yetkisi okundu'],
+  [2400,  'en büyük 20 token hesabı çekiliyor'],
+  [4200,  'sahip cüzdanlar eşleştiriliyor (getMultipleAccounts)'],
+  [6500,  'cüzdan işlem geçmişleri taranıyor'],
+  [11000, 'ilk fonlama işlemleri izleniyor — SOL nereden geldi?'],
+  [17000, 'öncelik ücreti parmak izleri toplanıyor'],
+  [23000, 'DexScreener piyasa verisi birleştiriliyor'],
+  [27000, '12 bağımsız sinyal hesaplanıyor'],
+  [31000, 'yakınsama kuralı uygulanıyor'],
+  [35000, 'karar, skor ve güven hazırlanıyor'],
+];
+
+function scanLine(text){
+  const box = $('scanConsole');
+  const prev = box.querySelector('.ln.cur');
+  if(prev) prev.classList.remove('cur');
+  const el = document.createElement('div');
+  el.className = 'ln cur';
+  el.innerHTML = `<span class="t">&gt; </span>${text}`;
+  box.appendChild(el);
+  while(box.children.length > 9) box.removeChild(box.firstChild);
 }
-function progSetStage(i){
-  [...$('progStages').children].forEach(li=>{
-    const s = +li.dataset.s;
-    li.className = s < i ? 'done' : (s === i ? 'active' : '');
-  });
+function scanSkeleton(){
+  const g = $('scanGrid'); g.innerHTML = '';
+  for(let i=0;i<12;i++){
+    const d = document.createElement('div');
+    d.className = 'skel';
+    d.style.animationDelay = (i*0.09) + 's';
+    g.appendChild(d);
+  }
 }
-function progStart(){
-  progReset();
-  PROG.open = true; PROG.t0 = Date.now();
-  // önbellekten gelen sonuçlarda pencere yanıp sönmesin: 220 ms sonra göster
-  PROG.reveal = setTimeout(()=>{ $('progOverlay').hidden = false; }, 220);
-  progSetStage(0);
-  STAGE_AT.forEach((ms, i) => {
-    if(i === 0) return;
-    PROG.timers.push(setTimeout(()=>progSetStage(i), ms));
-  });
-  PROG.tick = setInterval(()=>{
-    const el = (Date.now() - PROG.t0) / 1000;
-    $('progElapsed').textContent = el.toFixed(0) + ' sn';
-    // 0 → ~94 arası, 40 sn'de dolacak şekilde yavaşlayan eğri
-    const target = 94 * (1 - Math.exp(-el / 16));
-    PROG.pct = Math.max(PROG.pct, target);
-    $('progFill').style.width = PROG.pct + '%';
-    $('progPct').textContent = Math.round(PROG.pct);
-  }, 250);
+function scanReset(){
+  SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
+  SCAN.timers = []; SCAN.tick = null; SCAN.reveal = null; SCAN.pct = 0;
+  $('scanConsole').innerHTML = '';
+  $('scanBarFill').style.width = '0%';
+  $('scanPct').textContent = '0%';
+  $('scanElapsed').textContent = '0.0 sn';
+  $('statHolders').textContent = '0';
+  $('statRpc').textContent = '0';
+  $('statSignals').innerHTML = '0<span style="color:var(--dim)">/12</span>';
+  $('radarBlips').querySelectorAll('.radar-blip').forEach(b=>b.classList.remove('lit'));
 }
-function progFinish(){
-  PROG.timers.forEach(clearTimeout); clearInterval(PROG.tick); clearTimeout(PROG.reveal);
-  const shown = !$('progOverlay').hidden;
-  if(!shown){ PROG.open = false; return; }          // hızlı (önbellek) cevap — hiç gösterme
-  progSetStage(99);
-  $('progFill').style.width = '100%'; $('progPct').textContent = '100';
-  setTimeout(()=>{ $('progOverlay').hidden = true; PROG.open = false; }, 350);
+function scanStart(){
+  scanReset();
+  SCAN.on = true; SCAN.t0 = Date.now();
+  scanSkeleton();
+  // önbellekten anında dönen cevaplarda paneli hiç açma
+  SCAN.reveal = setTimeout(()=>{
+    $('scanPanel').classList.add('on');
+    $('scanPanel').scrollIntoView({behavior:'smooth', block:'start'});
+  }, 180);
+  SCAN_LOG.forEach(([ms, text]) => SCAN.timers.push(setTimeout(()=>scanLine(text), ms)));
+
+  const blips = [...$('radarBlips').querySelectorAll('.radar-blip')];
+  SCAN.tick = setInterval(()=>{
+    const s = (Date.now() - SCAN.t0) / 1000;
+    $('scanElapsed').textContent = s.toFixed(1) + ' sn';
+    SCAN.pct = Math.max(SCAN.pct, 96 * (1 - Math.exp(-s / 15)));   // yavaşlayan eğri, ~%96 tavan
+    $('scanBarFill').style.width = SCAN.pct + '%';
+    $('scanPct').textContent = Math.round(SCAN.pct) + '%';
+
+    const holders = Math.min(19, Math.floor(s / 0.32));
+    const rpc = Math.min(126, Math.floor(s * 3.6));
+    const signals = s > 26 ? Math.min(12, Math.floor((s - 26) * 1.7)) : 0;
+    $('statHolders').textContent = holders;
+    $('statRpc').textContent = rpc;
+    $('statSignals').innerHTML = signals + '<span style="color:var(--dim)">/12</span>';
+    blips.forEach((b,i)=> b.classList.toggle('lit', i < holders * 12 / 19));
+  }, 120);
 }
-function progAbortClose(){
-  PROG.timers.forEach(clearTimeout); clearInterval(PROG.tick); clearTimeout(PROG.reveal);
-  $('progOverlay').hidden = true; PROG.open = false;
+function scanFinish(){
+  SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
+  if(!$('scanPanel').classList.contains('on')){ SCAN.on = false; return; }  // hızlı cevap — hiç görünmedi
+  $('scanBarFill').style.width = '100%';
+  $('scanPct').textContent = '100%';
+  scanLine('tamamlandı — sonuç getiriliyor');
+  setTimeout(()=>{ $('scanPanel').classList.remove('on'); SCAN.on = false; }, 420);
+}
+function scanStop(){
+  SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
+  $('scanPanel').classList.remove('on'); SCAN.on = false;
 }
 
 let scanAbort = null;
@@ -350,16 +479,16 @@ async function scan(mint){
   const btn = $('scanBtn');
   clearError(); btn.disabled = true; btn.textContent = 'Taranıyor';
   scanAbort = new AbortController();
-  progStart();
+  scanStart();
   try{
     const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}`, { signal: scanAbort.signal });
     const body = await r.json();
     if(!r.ok) throw new Error(body.detail || `Sunucu ${r.status} döndü.`);
-    progFinish();
+    scanFinish();
     render(body);
     loadRecent();
   }catch(e){
-    progAbortClose();
+    scanStop();
     if(e.name === 'AbortError') return;
     showError(e.message.includes('fetch')
       ? `API'ye ulaşılamadı (${API || location.origin}). Backend çalışıyor mu?`
@@ -509,9 +638,9 @@ $('scanBtn').onclick = ()=>{
 };
 $('mint').addEventListener('keydown', e=>{ if(e.key==='Enter') $('scanBtn').click(); });
 
-$('progCancel').onclick = ()=>{ if(scanAbort) scanAbort.abort(); else progAbortClose(); };
+$('scanCancel').onclick = ()=>{ if(scanAbort) scanAbort.abort(); else scanStop(); };
 document.addEventListener('keydown', e=>{
-  if(e.key === 'Escape' && PROG.open){ if(scanAbort) scanAbort.abort(); else progAbortClose(); }
+  if(e.key === 'Escape' && SCAN.on){ if(scanAbort) scanAbort.abort(); else scanStop(); }
 });
 
 // --- açılışta son taramaları getir
