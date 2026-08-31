@@ -212,8 +212,8 @@ footer p{margin:0 0 6px;max-width:76ch}
 
 <script>
 // Arayüz backend ile aynı origin'den sunulduğunda API göreli ('') kalır.
-// Frontend'i ayrı bir sunucudan açıyorsan bu script'ten önce
-// <script>window.SOLSCOPE_API='https://api.senin-alan-adin.com'</script> ekle.
+// Frontend'i ayrı bir sunucudan açacaksan, bu dosyadaki ana script'ten önce
+// ayrı bir script etiketiyle window.SOLSCOPE_API = "https://api.alan-adin.com" tanımla.
 const API = window.SOLSCOPE_API ?? '';
 const COLORS = {bundled:'#ff4d5e', cabaled:'#ffa726', organic:'#4d9fff'};
 
