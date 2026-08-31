@@ -97,11 +97,23 @@ class ScanCache:
 
     def recent(self, limit: int = 20) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT mint, verdict, score, confidence, created_at "
+            "SELECT mint, payload, verdict, score, confidence, created_at "
             "FROM scans ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        out: list[dict] = []
+        for r in rows:
+            d = dict(r)
+            raw = d.pop("payload", None)
+            token = {}
+            try:
+                token = (json.loads(raw) or {}).get("token") or {}
+            except (TypeError, ValueError):
+                pass
+            d["symbol"] = token.get("symbol")
+            d["name"] = token.get("name")
+            out.append(d)
+        return out
 
     def history(self, mint: str, limit: int = 20) -> list[dict]:
         """Aynı tokenın geçmiş kararları — verdict'in zamanla değiştiğini gösterir."""

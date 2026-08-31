@@ -34,10 +34,11 @@ uvicorn app.main:app --reload --port 8000
 # tarayıcıda http://localhost:8000  — arayüz de API de aynı adreste
 ```
 
-Arayüzü ayrı bir sunucudan açacaksan `index.html` içindeki script'ten önce:
-`<script>window.SOLSCOPE_API='https://api.senin-alan-adin.com'</script>`
+Arayüzü ayrı bir sunucudan açacaksan, `index.html` içindeki ana script'ten önce
+ayrı bir `<script>` etiketiyle `window.SOLSCOPE_API` değerini ver.
 
-Backend olmadan arayüzü görmek için sayfadaki **Örnek sonuç** butonu yeterli.
+Ana sayfa açılışta `/api/recent`'ten son 10 taramayı listeler; tarama sırasında
+aşamaları gösteren bir ilerleme penceresi çıkar.
 
 ## Yayına alma (Render.com)
 
