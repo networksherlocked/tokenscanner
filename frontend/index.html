@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SolScope — Solana token dağıtım analizi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#070a12;          /* zemin */
+  --panel:#0e1420;        /* kart */
+  --panel-2:#131b2a;      /* iç kart */
+  --rule:#1d2839;         /* hairline */
+  --text:#ccd8ea;
+  --muted:#67789a;
+  --dim:#3d4c66;
+
+  --bundled:#ff4d5e;
+  --cabaled:#ffa726;
+  --organic:#4d9fff;
+  --live:#5eead4;         /* tarama sırasında akan sinyal rengi */
+
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --display:'Archivo',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);color:var(--text);
+  font-family:var(--mono);font-size:14px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+/* ---------- üst bar ---------- */
+header{border-bottom:1px solid var(--rule);position:sticky;top:0;background:rgba(7,10,18,.92);backdrop-filter:blur(8px);z-index:20}
+.bar{display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px}
+.brand{font-family:var(--display);font-weight:900;letter-spacing:.14em;text-transform:uppercase;font-size:15px}
+.brand i{font-style:normal;color:var(--live);animation:blink 1.1s steps(2) infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.bar nav{display:flex;gap:18px;font-size:12px;color:var(--muted)}
+.bar nav a{text-decoration:none}
+.bar nav a:hover{color:var(--text)}
+
+/* ---------- arama ---------- */
+.hero{padding:52px 0 30px;border-bottom:1px solid var(--rule)}
+.kicker{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-bottom:14px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.4vw,38px);line-height:1.15;margin:0 0 10px;letter-spacing:-.01em;max-width:20ch}
+.lede{color:var(--muted);max-width:62ch;margin:0 0 26px}
+.search{display:flex;gap:10px;flex-wrap:wrap}
+.search input{
+  flex:1 1 380px;background:var(--panel);border:1px solid var(--rule);color:var(--text);
+  font-family:var(--mono);font-size:14px;padding:14px 16px;border-radius:2px;
+}
+.search input::placeholder{color:var(--dim)}
+.search input:focus{outline:2px solid var(--live);outline-offset:-1px;border-color:transparent}
+.search button{
+  background:var(--text);color:var(--ink);border:0;padding:14px 26px;border-radius:2px;
+  font-family:var(--display);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  font-size:12px;cursor:pointer;
+}
+.search button:hover{background:var(--live)}
+.search button:disabled{opacity:.45;cursor:progress}
+.search button.ghost{background:transparent;color:var(--muted);border:1px solid var(--rule)}
+.search button.ghost:hover{color:var(--text);background:transparent;border-color:var(--muted)}
+.hint{margin-top:12px;font-size:12px;color:var(--dim)}
+.err{margin-top:14px;padding:12px 14px;border-left:2px solid var(--bundled);background:rgba(255,77,94,.07);color:#ffb3ba;font-size:13px}
+
+/* ---------- teşhis ızgarası (imza öğesi) ---------- */
+.result{padding:34px 0 60px;display:none}
+.result.on{display:block}
+.section-label{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin:0 0 14px;display:flex;justify-content:space-between;align-items:baseline}
+
+.split{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:start}
+@media(max-width:820px){.split{grid-template-columns:1fr}}
+
+.verdict{border:1px solid var(--rule);background:var(--panel);padding:22px;border-radius:2px;position:sticky;top:76px}
+@media(max-width:820px){.verdict{position:static}}
+.verdict .tag{
+  font-family:var(--display);font-weight:900;font-size:30px;letter-spacing:.04em;
+  text-transform:uppercase;line-height:1;margin-bottom:14px;
+}
+.verdict p{font-size:13px;color:var(--muted);margin:0 0 18px}
+.meters{display:grid;gap:12px;margin-bottom:18px}
+.meter .row{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+.meter .track{height:3px;background:var(--rule);overflow:hidden}
+.meter .fill{height:100%;width:0;transition:width .9s cubic-bezier(.2,.7,.2,1)}
+.tokline{border-top:1px solid var(--rule);padding-top:14px;font-size:12px;color:var(--muted);display:grid;gap:5px}
+.tokline b{color:var(--text);font-weight:500}
+
+/* ızgara */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.cell{
+  border:1px solid var(--rule);background:var(--panel);padding:12px 13px;border-radius:2px;
+  cursor:pointer;position:relative;overflow:hidden;
+  opacity:.25;transform:translateY(4px);
+  transition:opacity .35s,transform .35s,border-color .2s;
+  text-align:left;font-family:var(--mono);color:inherit;width:100%;
+}
+.cell.in{opacity:1;transform:none}
+.cell:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+.cell::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--dim)}
+.cell.fired::before{background:var(--sig,var(--bundled))}
+.cell.nodata{opacity:.45}
+.cell .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+.cell .n{font-family:var(--display);font-weight:500;font-size:13px;margin-top:5px;color:var(--muted)}
+.cell.fired .n{color:var(--text)}
+.cell .bar{margin-top:9px;height:2px;background:var(--rule)}
+.cell .bar span{display:block;height:100%;width:0;background:var(--sig,var(--dim));transition:width .7s ease .2s}
+.cell .why{display:none;margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5;border-top:1px solid var(--rule);padding-top:9px}
+.cell.open .why{display:block}
+.cell .why code{color:var(--live);font-size:11px;word-break:break-all}
+
+/* ---------- holder tablosu ---------- */
+.tablewrap{margin-top:34px;border:1px solid var(--rule);border-radius:2px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
+th{
+  text-align:left;padding:11px 14px;background:var(--panel);color:var(--dim);
+  font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  border-bottom:1px solid var(--rule);position:sticky;top:0;
+}
+td{padding:10px 14px;border-bottom:1px solid var(--rule);color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td.addr{color:var(--text)}
+.pill{display:inline-block;padding:1px 7px;border:1px solid var(--rule);border-radius:2px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.pill.cex{color:var(--organic);border-color:rgba(77,159,255,.35)}
+.pill.protocol,.pill.burn{color:var(--muted)}
+.pill.flagged{color:var(--bundled);border-color:rgba(255,77,94,.4)}
+
+.caveats{margin-top:26px;border-left:2px solid var(--cabaled);background:rgba(255,167,38,.05);padding:14px 16px;font-size:12px;color:var(--muted)}
+.caveats b{color:var(--text);font-weight:500;display:block;margin-bottom:6px;letter-spacing:.1em;text-transform:uppercase;font-size:10px}
+.caveats li{margin-bottom:4px}
+.caveats ul{margin:0;padding-left:18px}
+
+footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--dim);font-size:12px}
+footer p{margin:0 0 6px;max-width:76ch}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  .cell{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="brand">solscope<i>_</i></div>
+    <nav>
+      <a href="#yontem">Yöntem</a>
+      <a href="#" id="demoLink">Demo</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="kicker">Solana · dağıtım adli analizi</div>
+      <h1>Bir tokenın arzını kimin, nasıl aldığını görün.</h1>
+      <p class="lede">
+        Mint adresini yapıştırın. On iki bağımsız zincir sinyali çalışır ve kaçının
+        aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.
+      </p>
+      <div class="search">
+        <input id="mint" placeholder="Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
+               spellcheck="false" autocomplete="off" aria-label="Mint adresi">
+        <button id="scanBtn">Tara</button>
+        <button id="demoBtn" class="ghost">Örnek sonuç</button>
+      </div>
+      <div class="hint" id="hint">Sonuçlar 15 dakika önbellekte tutulur.</div>
+      <div class="err" id="err" hidden></div>
+    </div>
+  </section>
+
+  <section class="result" id="result">
+    <div class="wrap">
+      <div class="split">
+        <aside class="verdict" id="verdict"></aside>
+        <div>
+          <div class="section-label">
+            <span>Sinyal ızgarası</span>
+            <span id="firedCount"></span>
+          </div>
+          <div class="grid" id="grid"></div>
+          <div id="caveats"></div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:36px">
+        <span>En büyük cüzdanlar</span>
+        <span id="holderNote"></span>
+      </div>
+      <div class="tablewrap"><table id="holders"></table></div>
+    </div>
+  </section>
+</main>
+
+<footer id="yontem">
+  <div class="wrap">
+    <p><b style="color:var(--muted)">Bu sonuçlar algoritmik görüştür, olgusal tespit değildir.</b></p>
+    <p>Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki
+       çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz.
+       Yanlış pozitif ve yanlış negatif üretebilir. <b>Organic</b>, "manipülasyon deseni
+       bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe
+       aynı token için karar da değişir. Yatırım tavsiyesi değildir.</p>
+  </div>
+</footer>
+
+<script>
+// Arayüz backend ile aynı origin'den sunulduğunda API göreli ('') kalır.
+// Frontend'i ayrı bir sunucudan açıyorsan bu script'ten önce
+// <script>window.SOLSCOPE_API='https://api.senin-alan-adin.com'</script> ekle.
+const API = window.SOLSCOPE_API ?? '';
+const COLORS = {bundled:'#ff4d5e', cabaled:'#ffa726', organic:'#4d9fff'};
+
+const $ = id => document.getElementById(id);
+const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
+const num = n => n==null ? '—' : n.toLocaleString('tr-TR',{maximumFractionDigits:2});
+const usd = n => n==null ? '—' : '$'+n.toLocaleString('tr-TR',{maximumFractionDigits:0});
+
+function showError(msg){ const e=$('err'); e.textContent=msg; e.hidden=false; }
+function clearError(){ $('err').hidden = true; }
+
+async function scan(mint){
+  const btn = $('scanBtn');
+  clearError(); btn.disabled = true; btn.textContent = 'Taranıyor';
+  try{
+    const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}`);
+    const body = await r.json();
+    if(!r.ok) throw new Error(body.detail || `Sunucu ${r.status} döndü.`);
+    render(body);
+  }catch(e){
+    showError(e.message.includes('fetch')
+      ? `API'ye ulaşılamadı (${API || location.origin}). Backend çalışıyor mu?`
+      : e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Tara';
+  }
+}
+
+function render(d){
+  const v = d.verdict, c = COLORS[v.kind] || COLORS.cabaled;
+  $('result').classList.add('on');
+
+  // --- verdict paneli
+  const t = d.token || {};
+  $('verdict').innerHTML = `
+    <div class="tag" style="color:${c}">${v.label}</div>
+    <p>${v.summary}</p>
+    <div class="meters">
+      <div class="meter">
+        <div class="row"><span>Uyum skoru</span><span style="color:${c}">${v.score}</span></div>
+        <div class="track"><div class="fill" style="background:${c}"></div></div>
+      </div>
+      <div class="meter">
+        <div class="row"><span>Güven</span><span>${v.confidence} · ${v.confidence_label}</span></div>
+        <div class="track"><div class="fill" style="background:var(--muted)"></div></div>
+      </div>
+    </div>
+    <div class="tokline">
+      <div>${t.symbol ? `<b>${t.symbol}</b> · ${t.name||''}` : 'İsim verisi yok'}</div>
+      <div>Piyasa değeri <b>${usd(t.market_cap)}</b></div>
+      <div>Likidite <b>${usd(t.liquidity_usd)}</b></div>
+      <div>Yaş <b>${t.age_hours!=null ? t.age_hours+' saat' : '—'}</b></div>
+      <div style="color:var(--dim);word-break:break-all;padding-top:6px">${d.mint}</div>
+    </div>`;
+  requestAnimationFrame(()=>{
+    const f = $('verdict').querySelectorAll('.fill');
+    f[0].style.width = v.score+'%'; f[1].style.width = v.confidence+'%';
+  });
+
+  // --- sinyal ızgarası: sırayla yanar
+  const grid = $('grid'); grid.innerHTML = '';
+  const fired = d.signals.filter(s=>s.fired).length;
+  $('firedCount').textContent = `${fired} / ${d.signals.length} tetiklendi`;
+
+  const ordered = [...d.signals].sort((a,b)=> (b.fired-a.fired) || (b.strength-a.strength));
+  ordered.forEach((s,i)=>{
+    const col = COLORS[s.direction] || 'var(--dim)';
+    const el = document.createElement('button');
+    el.className = 'cell' + (s.fired?' fired':'') + (s.data_available?'':' nodata');
+    el.style.setProperty('--sig', col);
+    el.setAttribute('aria-expanded','false');
+    el.innerHTML = `
+      <div class="k"><span>${s.fired ? s.direction : (s.data_available?'temiz':'veri yok')}</span>
+        <span>${s.fired ? Math.round(s.strength*100)+'%' : ''}</span></div>
+      <div class="n">${s.label}</div>
+      <div class="bar"><span></span></div>
+      <div class="why">${s.detail || 'Bu sinyali hesaplayacak veri bulunamadı.'}
+        ${evidenceHtml(s.evidence)}</div>`;
+    el.onclick = ()=>{
+      el.classList.toggle('open');
+      el.setAttribute('aria-expanded', el.classList.contains('open'));
+    };
+    grid.appendChild(el);
+    setTimeout(()=>{
+      el.classList.add('in');
+      el.querySelector('.bar span').style.width = (s.fired ? s.strength*100 : 0)+'%';
+    }, 60*i);
+  });
+
+  // --- uyarılar
+  $('caveats').innerHTML = v.caveats?.length ? `
+    <div class="caveats"><b>Bu okumayı sınırlayanlar</b>
+      <ul>${v.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
+
+  // --- holder tablosu
+  const rows = (d.holders||[]).map(h=>`
+    <tr>
+      <td class="addr">${short(h.owner)}</td>
+      <td>${h.share.toFixed(2)}%</td>
+      <td>${num(h.amount)}</td>
+      <td>${h.tx_count || '—'}</td>
+      <td>${h.funder_tag ? h.funder_tag : short(h.funder)}</td>
+      <td>${h.tag && h.tag!=='unknown' ? `<span class="pill ${h.tag}">${h.tag}</span>` : ''}</td>
+    </tr>`).join('');
+  $('holders').innerHTML = `
+    <thead><tr><th>Cüzdan</th><th>Pay</th><th>Bakiye</th><th>İşlem</th><th>Fonlayan</th><th>Etiket</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6">Holder verisi yok.</td></tr>'}</tbody>`;
+  $('holderNote').textContent = d.cached ? `önbellek · ${d.cache_age_s}s` : `${d.duration_ms} ms`;
+
+  $('result').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function evidenceHtml(e){
+  if(!e || !Object.keys(e).length) return '';
+  const rows = Object.entries(e)
+    .filter(([,v]) => v!=null && v!=='' && !(Array.isArray(v)&&!v.length))
+    .map(([k,v])=>`${k}: <code>${typeof v==='object'?JSON.stringify(v):v}</code>`);
+  return rows.length ? `<div style="margin-top:8px;font-size:11px;color:var(--dim)">${rows.join('<br>')}</div>` : '';
+}
+
+// --- olay bağlantıları
+$('scanBtn').onclick = ()=>{
+  const m = $('mint').value.trim();
+  if(!m) return showError('Bir mint adresi girin.');
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(m)) return showError('Bu geçerli bir Solana adresi değil.');
+  scan(m);
+};
+$('mint').addEventListener('keydown', e=>{ if(e.key==='Enter') $('scanBtn').click(); });
+
+// --- demo: backend olmadan arayüzü görmek için
+const DEMO = {
+  mint:"DEMoTokenAddre55xxxxxxxxxxxxxxxxxxxxxxxxxxx", duration_ms:4120,
+  token:{symbol:"TEST",name:"Demo Token",market_cap:900000,liquidity_usd:15000,age_hours:8},
+  verdict:{kind:"bundled",label:"Bundled",color:"#ff4d5e",score:84,confidence:98,
+    confidence_label:"yüksek",
+    summary:"Arz dağıtımı üretilmiş görünüyor — koordineli alım desenleri tespit edildi.",
+    caveats:["Token 24 saatten yeni; yeni işlemler kararı değiştirebilir."]},
+  signals:[
+    {label:"Cüzdan doğum kümesi",direction:"bundled",fired:true,strength:1,data_available:true,
+     detail:"8 cüzdan token doğmadan önceki 24 saat içinde açılmış.",evidence:{clustered:8,total:8}},
+    {label:"Ortak fonlayıcı",direction:"bundled",fired:true,strength:1,data_available:true,
+     detail:"8 büyük cüzdanın ilk SOL'u aynı adresten geldi.",evidence:{wallets:8,distinct_funders:1}},
+    {label:"Eşzamanlı giriş",direction:"bundled",fired:true,strength:1,data_available:true,
+     detail:"8 cüzdan tokena 5 slot (~2 sn) içinde girmiş — tek işlem paketi imzası.",evidence:{cluster_size:8}},
+    {label:"Birebir eşit bakiyeler",direction:"bundled",fired:true,strength:1,data_available:true,
+     detail:"8 cüzdanın bakiyesi birbirinin %2'si içinde.",evidence:{cluster_size:8}},
+    {label:"İşlem ücreti parmak izi",direction:"bundled",fired:true,strength:1,data_available:true,
+     detail:"8 giriş işlemi birebir aynı öncelik ücretini ödemiş — aynı botun imzası.",evidence:{fee_lamports:105000}},
+    {label:"Taze cüzdan oranı",direction:"bundled",fired:true,strength:1,data_available:true,
+     detail:"8/8 büyük cüzdanın toplam işlem geçmişi 10'un altında.",evidence:{ratio:1}},
+    {label:"Mint / freeze yetkisi",direction:"cabaled",fired:true,strength:.6,data_available:true,
+     detail:"mint yetkisi hâlâ açık — arz sonradan artırılabilir.",evidence:{}},
+    {label:"Likidite derinliği",direction:"cabaled",fired:true,strength:.5,data_available:true,
+     detail:"Likidite piyasa değerinin sadece %1.7'si.",evidence:{ratio:0.017}},
+    {label:"Top 10 yoğunlaşması",direction:"cabaled",fired:false,strength:0,data_available:true,
+     detail:"İlk 10 cüzdan arzın %24.8'i — dağılım makul.",evidence:{}},
+    {label:"Fonlama kaynağı profili",direction:"cabaled",fired:false,strength:0,data_available:true,
+     detail:"Fonlama kaynakları tanımlı listede yok.",evidence:{}},
+    {label:"İşaretlenmiş cüzdanlar",direction:"bundled",fired:false,strength:0,data_available:true,
+     detail:"Bilinen işaretli cüzdan yok.",evidence:{}},
+    {label:"Cüzdan yaşı çeşitliliği",direction:"organic",fired:false,strength:0,data_available:true,
+     detail:"Yaş dağılımı organik sayılacak kadar geniş değil.",evidence:{}}
+  ],
+  holders:Array.from({length:8},(_,i)=>({
+    owner:"OWnER"+i+"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", share:3.1-i*0.02,
+    amount:31000000, tx_count:4, funder:"BUNDLEFUNDERxxxxxxxxxxxxxxxxxxxxxxxxx",
+    funder_tag:null, tag:"unknown"
+  })).concat([{owner:"5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j",share:30,amount:300000000,
+    tx_count:0,funder:null,funder_tag:null,tag:"protocol"}])
+};
+const runDemo = e => { e?.preventDefault(); clearError(); render(DEMO); };
+$('demoBtn').onclick = runDemo;
+$('demoLink').onclick = runDemo;
+</script>
+</body>
+</html>

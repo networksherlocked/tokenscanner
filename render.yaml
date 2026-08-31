@@ -1,0 +1,32 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Dashboard > New > Blueprint ile bu repoyu bağla, gerisi otomatik.
+services:
+  - type: web
+    name: solscope
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      # Arayüzü FastAPI sunuyor; klasör backend/ dışında olduğu için elle veriyoruz.
+      - key: FRONTEND_DIR
+        value: /opt/render/project/src/frontend
+      - key: CACHE_PATH
+        value: /tmp/scans.db
+      - key: CACHE_TTL
+        value: "900"
+      - key: RATE_LIMIT_PER_MIN
+        value: "10"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: LOG_LEVEL
+        value: INFO
+      # RPC anahtarların olduğunda Render panelinden bu değişkeni ekle:
+      # RPC_ENDPOINTS = https://mainnet.helius-rpc.com/?api-key=XXX|10,https://solana-mainnet.g.alchemy.com/v2/YYY|25
+      - key: RPC_ENDPOINTS
+        sync: false
