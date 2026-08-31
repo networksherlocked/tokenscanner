@@ -159,6 +159,40 @@ footer p{margin:0 0 6px;max-width:76ch}
 .recitem .rm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text)}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
 
+/* ---------- karne / track record ---------- */
+.track{padding:30px 0 46px;border-top:1px solid var(--rule)}
+.track .head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:14px}
+.track .tscore{font-family:var(--display);font-weight:700;letter-spacing:.04em;color:var(--live)}
+.tlist{display:grid;gap:6px}
+.titem{
+  display:grid;grid-template-columns:96px minmax(70px,1fr) auto auto auto;gap:14px;align-items:center;
+  width:100%;text-align:left;background:var(--panel);border:1px solid var(--rule);
+  border-left:2px solid var(--sig,var(--dim));border-radius:2px;padding:10px 14px;
+  cursor:pointer;font-family:var(--mono);color:inherit;transition:border-color .2s,background .2s;
+}
+.titem:hover{background:var(--panel-2);border-color:var(--muted)}
+.titem:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+.titem .tv{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--sig,var(--muted))}
+.titem .tsym{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titem .tflow{font-size:12px;color:var(--muted);white-space:nowrap}
+.titem .tdelta{font-size:12px;font-weight:600;white-space:nowrap}
+.titem .tdelta.down{color:var(--bundled)}
+.titem .tdelta.up{color:var(--live)}
+.titem .tdelta.flat{color:var(--dim)}
+.titem .tout{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.tout.hit{color:var(--live)} .tout.clear{color:var(--organic)}
+.tout.miss{color:var(--bundled)} .tout.no_dump{color:var(--muted)} .tout.open{color:var(--dim)}
+.track .tnote{margin-top:12px;font-size:11px;color:var(--dim);max-width:76ch}
+@media(max-width:640px){
+  .titem{grid-template-columns:1fr auto;grid-auto-rows:min-content;gap:4px 12px}
+  .titem .tv{grid-column:1}
+  .titem .tsym{grid-column:2;grid-row:1;text-align:right}
+  .titem .tflow{grid-column:1/-1}
+  .titem .tdelta{grid-column:1}
+  .titem .tout{grid-column:2;grid-row:3;text-align:right}
+}
+
 /* ---------- tarama konsolu ---------- */
 .scanning{display:none;padding:30px 0 46px;border-bottom:1px solid var(--rule);position:relative;overflow:hidden}
 .scanning.on{display:block}
@@ -370,6 +404,17 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="tablewrap"><table id="holders"></table></div>
     </div>
   </section>
+
+  <section class="track" id="trackSection" hidden>
+    <div class="wrap">
+      <div class="head">
+        <span data-i18n="trackHead">UAVSX track record</span>
+        <span class="tscore" id="trackScore"></span>
+      </div>
+      <div class="tlist" id="tlist"></div>
+      <div class="tnote" data-i18n="trackNote">After each scan, UAVSX follows the token's market cap for 30 minutes. A drop of more than 35% from the scan-time value counts as a crash.</div>
+    </div>
+  </section>
 </main>
 
 <section class="about" id="aboutView" hidden>
@@ -469,6 +514,12 @@ const STR = {
     cacheAge: s => `cache · ${s}s`, ms: n => `${n} ms`,
     scanDone:'done — fetching result',
     relNow: s => `${s}s ago`, relMin: m => `${m}m ago`, relHr: h => `${h}h ago`, relDay: d => `${d}d ago`,
+    trackHead:'UAVSX track record',
+    trackNote:"After each scan, UAVSX follows the token's market cap for 30 minutes. A drop of more than 35% from the scan-time value counts as a crash. Not a backtest — a live, running log.",
+    trackScore: (n,m) => `${n} / ${m} correct`,
+    outHit:'✓ called it', outMiss:'✗ missed', outNoDump:'— no dump yet', outClear:'✓ held up',
+    outOpen: m => `tracking · ${m}m left`,
+    predWas: v => `predicted ${v}`,
   },
   tr: {
     navAbout:'Hakkında',
@@ -516,6 +567,12 @@ const STR = {
     cacheAge: s => `önbellek · ${s}s`, ms: n => `${n} ms`,
     scanDone:'tamamlandı — sonuç getiriliyor',
     relNow: s => `${s} sn önce`, relMin: m => `${m} dk önce`, relHr: h => `${h} sa önce`, relDay: d => `${d} gün önce`,
+    trackHead:'UAVSX karnesi',
+    trackNote:'Her taramadan sonra UAVSX, tokenın market cap\'ini 30 dakika izler. Tarama anına göre %35\'ten fazla düşüş "çöktü" sayılır. Bu bir geriye dönük test değil — canlı, işleyen bir kayıt.',
+    trackScore: (n,m) => `${n} / ${m} doğru`,
+    outHit:'✓ isabet', outMiss:'✗ kaçırdı', outNoDump:'— henüz düşüş yok', outClear:'✓ korudu',
+    outOpen: m => `izleniyor · ${m} dk kaldı`,
+    predWas: v => `${v} dedi`,
   },
 };
 
@@ -590,6 +647,7 @@ function applyI18n(){
   if(!SCAN.on) $('scanBtn').textContent = L('scanBtn');
   if(lastResult) render(lastResult);
   if(lastRecent) renderRecent(lastRecent);
+  if(lastTrack) renderTrack(lastTrack);
 }
 function setLang(l){
   lang = (l === 'tr') ? 'tr' : 'en';
@@ -692,6 +750,7 @@ async function scan(mint){
     scanFinish();
     render(body);
     loadRecent();
+    loadTrack();
   }catch(e){
     scanStop();
     if(e.name === 'AbortError') return;
@@ -739,6 +798,72 @@ async function loadRecent(){
     const { scans } = await r.json();
     lastRecent = scans || [];
     renderRecent(lastRecent);
+  }catch(e){ /* sessizce geç */ }
+}
+
+/* ---------------- karne / track record ---------------- */
+let lastTrack = null;
+let trackWindow = 1800;
+
+const mcapShort = n => {
+  if(n == null) return '—';
+  if(n >= 1e9) return '$' + (n/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+  if(n >= 1e6) return '$' + (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if(n >= 1e3) return '$' + Math.round(n/1e3) + 'k';
+  return '$' + Math.round(n);
+};
+
+function renderTrack(rec){
+  if(!rec || !rec.length){ $('trackSection').hidden = true; return; }
+  $('trackSection').hidden = false;
+  const box = $('tlist'); box.innerHTML = '';
+  let correct = 0, settled = 0;
+
+  rec.forEach(t=>{
+    const col = COLORS[t.verdict] || 'var(--dim)';
+    const label = VERDICT_LABEL[t.verdict] || t.verdict || '—';
+    const chg = t.change_pct;
+    let deltaCls = 'flat', deltaTxt = '—';
+    if(chg != null){
+      deltaCls = chg <= -0.02 ? 'down' : (chg >= 0.02 ? 'up' : 'flat');
+      deltaTxt = (chg > 0 ? '+' : '') + Math.round(chg * 100) + '%';
+    }
+
+    let outCls, outTxt;
+    if(!t.settled){
+      const leftMin = Math.max(0, Math.ceil((trackWindow - t.age_sec) / 60));
+      outCls = 'open'; outTxt = L('outOpen', leftMin);
+    }else{
+      settled++;
+      outCls = t.outcome || 'open';
+      outTxt = { hit:L('outHit'), miss:L('outMiss'), no_dump:L('outNoDump'), clear:L('outClear') }[t.outcome] || '—';
+      if(t.outcome === 'hit' || t.outcome === 'clear') correct++;
+    }
+
+    const b = document.createElement('button');
+    b.className = 'titem';
+    b.style.setProperty('--sig', col);
+    b.title = `${t.mint} — ${L('predWas', label)}`;
+    b.innerHTML = `
+      <span class="tv">${label}</span>
+      <span class="tsym">${t.symbol ? t.symbol : short(t.mint)}</span>
+      <span class="tflow">${mcapShort(t.mcap_at_scan)} → ${mcapShort(t.mcap_latest)}</span>
+      <span class="tdelta ${deltaCls}">${deltaTxt}</span>
+      <span class="tout ${outCls}">${outTxt}</span>`;
+    b.onclick = ()=>{ $('mint').value = t.mint; scan(t.mint); };
+    box.appendChild(b);
+  });
+
+  $('trackScore').textContent = settled ? L('trackScore', correct, settled) : '';
+}
+async function loadTrack(){
+  try{
+    const r = await fetch(`${API}/api/track?limit=20`);
+    if(!r.ok) return;
+    const data = await r.json();
+    if(data.window_sec) trackWindow = data.window_sec;
+    lastTrack = data.records || [];
+    renderTrack(lastTrack);
   }catch(e){ /* sessizce geç */ }
 }
 
@@ -868,6 +993,8 @@ document.querySelectorAll('.langsel button').forEach(b=>{ b.onclick = ()=> setLa
 
 applyI18n();
 loadRecent();
+loadTrack();
+setInterval(loadTrack, 60000);
 </script>
 </body>
 </html>

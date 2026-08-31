@@ -6,6 +6,7 @@ Uç noktalar:
     POST /api/scan/{mint}/fresh  Cache'i atlayıp yeniden tara
     GET  /api/history/{mint}     Bu tokenın geçmiş kararları
     GET  /api/recent             Son taranan tokenlar
+    GET  /api/track              Karne: geçmiş kararlar + sonrasında ne oldu
     GET  /api/health             Sağlayıcı durumu
 """
 
@@ -25,7 +26,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .cache import ScanCache
-from .engine.scanner import scan_token
+from .engine.scanner import scan_token, TokenTooSmall
+from .rpc.market import fetch_market
 from .rpc.pool import RpcPool, RpcError
 
 logging.basicConfig(
@@ -42,6 +44,63 @@ _ip_hits: dict[str, list[float]] = {}
 
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MIN", "10"))
 
+# --- Karne (outcome tracking) --------------------------------------------
+# Tarama sonrası tokenın market cap'i TRACK_WINDOW_SEC boyunca izlenir.
+# Pencerede en düşük noktaya göre düşüş TRACK_DROP_PCT'i geçtiyse "çöktü".
+TRACK_WINDOW = int(os.getenv("TRACK_WINDOW_SEC", "1800"))      # 30 dk
+TRACK_DROP = float(os.getenv("TRACK_DROP_PCT", "0.35"))        # %35
+TRACK_POLL = int(os.getenv("TRACK_POLL_SEC", "120"))
+FLAGGED_VERDICTS = {"bundled", "cabaled"}
+_last_track_refresh = 0.0
+
+
+async def refresh_track() -> None:
+    """İzlenen tokenların market cap'ini günceller, süresi dolanları sonuçlandırır."""
+    cache = state.get("cache")
+    if cache is None:
+        return
+    now = int(time.time())
+    pending = cache.track_pending(max_age=TRACK_WINDOW + 3600)
+    for row in pending:
+        mint = row["mint"]
+        mcap_min = row.get("mcap_min")
+        try:
+            snap = await fetch_market(mint)
+            mcap = snap.market_cap
+        except Exception:  # noqa: BLE001
+            mcap = None
+        if mcap:
+            mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
+            cache.track_update(mint, mcap, mcap_min, now)
+
+        if now - row["scored_at"] >= TRACK_WINDOW:
+            base = row.get("mcap_at_scan")
+            drop = (
+                max(0.0, (base - mcap_min) / base)
+                if base and mcap_min is not None
+                else 0.0
+            )
+            flagged = (row.get("verdict") or "") in FLAGGED_VERDICTS
+            crashed = drop >= TRACK_DROP
+            if flagged and crashed:
+                outcome = "hit"
+            elif flagged and not crashed:
+                outcome = "no_dump"
+            elif not flagged and crashed:
+                outcome = "miss"
+            else:
+                outcome = "clear"
+            cache.track_settle(mint, outcome)
+
+
+async def _track_loop() -> None:
+    while True:
+        try:
+            await refresh_track()
+        except Exception:  # noqa: BLE001
+            log.exception("Karne yenileme hatası")
+        await asyncio.sleep(TRACK_POLL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,7 +112,9 @@ async def lifespan(app: FastAPI):
     log.info(
         "Havuz hazır: %s sağlayıcı", len(state["pool"].providers)
     )
+    track_task = asyncio.create_task(_track_loop())
     yield
+    track_task.cancel()
     await state["pool"].aclose()
 
 
@@ -92,6 +153,15 @@ async def _run_scan(mint: str) -> dict:
         try:
             result = await scan_token(state["pool"], mint)
             state["cache"].put(mint, result)
+            token = result.get("token") or {}
+            verdict = result.get("verdict") or {}
+            state["cache"].track_start(
+                mint,
+                token.get("symbol"),
+                verdict.get("kind"),
+                verdict.get("score"),
+                token.get("market_cap"),
+            )
             return result
         finally:
             _inflight.pop(mint, None)
@@ -110,6 +180,8 @@ async def scan(mint: str, request: Request):
     _check_rate(request)
     try:
         return await _run_scan(mint)
+    except TokenTooSmall as exc:
+        raise HTTPException(422, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
     except RpcError as exc:
@@ -124,6 +196,8 @@ async def rescan(mint: str, request: Request):
     _check_rate(request)
     try:
         return await _run_scan(mint)
+    except TokenTooSmall as exc:
+        raise HTTPException(422, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
     except RpcError as exc:
@@ -138,6 +212,22 @@ async def history(mint: str):
 @app.get("/api/recent")
 async def recent(limit: int = 20):
     return {"scans": state["cache"].recent(min(limit, 50))}
+
+
+@app.get("/api/track")
+async def track(limit: int = 20):
+    # Instance yeni uyandıysa arka plan döngüsü henüz dönmemiş olabilir —
+    # sayfa açılışında bir kez tetikle (throttle'lı, bloklamadan).
+    global _last_track_refresh
+    now = time.time()
+    if now - _last_track_refresh > 45:
+        _last_track_refresh = now
+        asyncio.create_task(refresh_track())
+    return {
+        "records": state["cache"].track_list(min(limit, 50)),
+        "window_sec": TRACK_WINDOW,
+        "drop_pct": TRACK_DROP,
+    }
 
 
 @app.get("/api/health")

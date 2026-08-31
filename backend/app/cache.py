@@ -38,6 +38,23 @@ CREATE TABLE IF NOT EXISTS scan_history (
     created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_history_mint ON scan_history(mint, created_at DESC);
+
+-- Karne: her taramanın market cap'ini bir süre izleyip kararın tutup
+-- tutmadığını kaydeder.
+CREATE TABLE IF NOT EXISTS track (
+    mint          TEXT PRIMARY KEY,
+    symbol        TEXT,
+    verdict       TEXT,
+    score         INTEGER,
+    scored_at     INTEGER NOT NULL,
+    mcap_at_scan  REAL,
+    mcap_latest   REAL,
+    mcap_min      REAL,
+    latest_at     INTEGER,
+    outcome       TEXT,
+    settled       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 """
 
 
@@ -112,6 +129,75 @@ class ScanCache:
                 pass
             d["symbol"] = token.get("symbol")
             d["name"] = token.get("name")
+            out.append(d)
+        return out
+
+    # ---- karne / outcome takibi -------------------------------------------
+
+    def track_start(
+        self, mint: str, symbol: str | None, verdict: str | None,
+        score: int | None, mcap: float | None,
+    ) -> None:
+        """Yeni bir tarama için izlemeyi (yeniden) başlatır."""
+        now = int(time.time())
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO track "
+                "(mint, symbol, verdict, score, scored_at, mcap_at_scan, "
+                " mcap_latest, mcap_min, latest_at, outcome, settled) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0) "
+                "ON CONFLICT(mint) DO UPDATE SET symbol=excluded.symbol, "
+                "verdict=excluded.verdict, score=excluded.score, "
+                "scored_at=excluded.scored_at, mcap_at_scan=excluded.mcap_at_scan, "
+                "mcap_latest=excluded.mcap_latest, mcap_min=excluded.mcap_min, "
+                "latest_at=excluded.latest_at, outcome=NULL, settled=0",
+                (mint, symbol, verdict, score, now, mcap, mcap, mcap, now),
+            )
+
+    def track_pending(self, max_age: int) -> list[dict]:
+        cutoff = int(time.time()) - max_age
+        rows = self.conn.execute(
+            "SELECT * FROM track WHERE settled = 0 AND scored_at >= ? "
+            "ORDER BY scored_at ASC",
+            (cutoff,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def track_update(
+        self, mint: str, mcap_latest: float, mcap_min: float, at: int
+    ) -> None:
+        with self.conn:
+            self.conn.execute(
+                "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ? "
+                "WHERE mint = ?",
+                (mcap_latest, mcap_min, at, mint),
+            )
+
+    def track_settle(self, mint: str, outcome: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                "UPDATE track SET outcome = ?, settled = 1 WHERE mint = ?",
+                (outcome, mint),
+            )
+
+    def track_list(self, limit: int = 20) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM track ORDER BY scored_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        now = int(time.time())
+        out: list[dict] = []
+        for r in rows:
+            d = dict(r)
+            base = d.get("mcap_at_scan")
+            latest = d.get("mcap_latest")
+            low = d.get("mcap_min")
+            d["change_pct"] = (
+                (latest - base) / base if base and latest is not None else None
+            )
+            d["drop_pct"] = (
+                max(0.0, (base - low) / base) if base and low is not None else None
+            )
+            d["age_sec"] = now - d["scored_at"]
             out.append(d)
         return out
 

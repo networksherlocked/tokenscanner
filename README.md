@@ -7,6 +7,13 @@ Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
 Bir mint adresi alır, 12 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
 Organic** kararını skor + güven değeriyle döndürür.
 
+- **$10k eşiği:** market cap'i `MIN_MARKET_CAP_USD` (varsayılan 10.000$) altındaki
+  tokenlar hiç taranmaz — zincir sorgusu bile yapılmadan 422 döner.
+- **Karne (`/api/track`):** her taramadan sonra tokenın market cap'i
+  `TRACK_WINDOW_SEC` (30 dk) boyunca izlenir; en düşük noktaya göre düşüş
+  `TRACK_DROP_PCT`'i (%35) geçtiyse "çöktü" sayılır. Karar + sonuç ana sayfanın
+  altında listelenir (isabet / kaçırdı / korudu / henüz düşüş yok).
+
 ---
 
 ## Dizin yapısı

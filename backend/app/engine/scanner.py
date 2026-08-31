@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 
 from ..rpc.market import fetch_market
@@ -15,14 +16,29 @@ from .signals import SignalContext, run_signals
 
 log = logging.getLogger(__name__)
 
+# Bu eşiğin altındaki tokenlar hiç taranmaz — zincir sorgusu bile yapılmaz.
+MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP_USD", "10000"))
+
+
+class TokenTooSmall(Exception):
+    """Market cap eşiğin altında; tarama yapılmadı."""
+
 
 async def scan_token(pool: RpcPool, mint: str) -> dict:
     started = time.monotonic()
 
-    chain, market = await asyncio.gather(
-        collect_chain_snapshot(pool, mint),
-        fetch_market(mint),
-    )
+    # Önce piyasa verisi (anahtarsız, ucuz). Eşiği geçemiyorsa ~125 RPC
+    # çağrısı harcamadan burada dururuz.
+    market = await fetch_market(mint)
+    if not market.market_cap or market.market_cap < MIN_MARKET_CAP:
+        seen = f"${market.market_cap:,.0f}" if market.market_cap else "unknown"
+        raise TokenTooSmall(
+            f"This token's market cap is {seen} — UAVSX only scans tokens above "
+            f"${MIN_MARKET_CAP:,.0f}. · Bu tokenın market cap'i {seen}; UAVSX "
+            f"yalnızca ${MIN_MARKET_CAP:,.0f} üzerindeki tokenları tarar."
+        )
+
+    chain = await collect_chain_snapshot(pool, mint)
 
     # Tokenin doğum zamanı: pazar çiftinin oluşumu, yoksa en erken holder girişi.
     launch_ts = market.pair_created_at
