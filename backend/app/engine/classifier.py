@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from .signals import Signal
 
-# Bundled kararı için gereken minimum "sert" sinyal sayısı.
+# "Sert" sinyaller: tek başına değil ama birkaçı birleşince Bundled kararı verir.
 HARD_SIGNALS = {
     "wallet_age_cluster",
     "common_funder",
@@ -25,11 +25,25 @@ HARD_SIGNALS = {
     "identical_balances",
     "fee_fingerprint",
     "flagged_wallets",
+    "supply_whale",
 }
+
+# Klasik yol: taze lansman paketleri — çok sayıda sert sinyal.
 BUNDLED_MIN_HARD = 3
-BUNDLED_MIN_WEIGHT = 2.0
+BUNDLED_MIN_WEIGHT = 1.8
+
+# Alternatif yol: eski/konsolide olmuş tokenlar. getTokenLargestAccounts
+# lansman cüzdanlarını göstermez ama yoğunlaşma + botsu izler hâlâ görülür.
+BUNDLED_ALT_HARD = 2
+BUNDLED_ALT_COMBO = 2.0   # bundled_weight + 0.6 * cabaled_weight
 
 CABALED_MIN_WEIGHT = 0.9
+
+# Bu kadar sert sinyal veri yokluğundan hesaplanamadıysa "Organic" deme.
+INCONCLUSIVE_BLIND_HARD = 3
+INCONCLUSIVE_COVERAGE = 0.4
+
+WEEK_HOURS = 24 * 7
 
 VERDICTS = {
     "bundled": {
@@ -46,6 +60,11 @@ VERDICTS = {
         "label": "Organic",
         "color": "#4d9fff",
         "summary": "Koordineli dağıtım deseni bulunamadı. Bu 'güvenli' demek değildir.",
+    },
+    "inconclusive": {
+        "label": "Inconclusive",
+        "color": "#8b9bb4",
+        "summary": "Karar vermeye yetecek zincir verisi toplanamadı — sonuç belirsiz.",
     },
 }
 
@@ -100,25 +119,46 @@ def classify(
     bundled_weight = sum(s.contribution for s in fired if s.direction == "bundled")
     cabaled_weight = sum(s.contribution for s in fired if s.direction == "cabaled")
     organic_weight = sum(s.contribution for s in fired if s.direction == "organic")
+    combo = bundled_weight + 0.6 * cabaled_weight
+
+    blind_hard = sum(
+        1 for s in signals if s.key in HARD_SIGNALS and not s.data_ok
+    )
+
+    strong_bundle = (
+        len(hard_fired) >= BUNDLED_MIN_HARD and bundled_weight >= BUNDLED_MIN_WEIGHT
+    )
+    alt_bundle = len(hard_fired) >= BUNDLED_ALT_HARD and combo >= BUNDLED_ALT_COMBO
 
     # --- Karar kuralı --------------------------------------------------
-    if len(hard_fired) >= BUNDLED_MIN_HARD and bundled_weight >= BUNDLED_MIN_WEIGHT:
+    if strong_bundle or alt_bundle:
         kind = "bundled"
-        raw = bundled_weight
-        ceiling = sum(s.weight for s in signals if s.direction == "bundled")
-    elif bundled_weight + cabaled_weight >= CABALED_MIN_WEIGHT:
+        # Tetiklenen bundled ağırlığı / veri BULUNAN bundled sinyallerin tavanı
+        # (kör sinyaller skoru boşuna düşürmesin). Yoğunlaşma ağırlığını da bir
+        # miktar kredi olarak ekle.
+        avail_ceiling = sum(
+            s.weight for s in signals if s.direction == "bundled" and s.data_ok
+        ) or 1.0
+        score_frac = min(1.0, bundled_weight / avail_ceiling + 0.15 * cabaled_weight)
+    elif combo >= CABALED_MIN_WEIGHT:
         kind = "cabaled"
-        raw = bundled_weight + cabaled_weight
         ceiling = sum(
             s.weight for s in signals if s.direction in ("bundled", "cabaled")
         )
+        score_frac = (bundled_weight + cabaled_weight) / ceiling if ceiling else 0.0
+    elif blind_hard >= INCONCLUSIVE_BLIND_HARD or coverage < INCONCLUSIVE_COVERAGE:
+        kind = "inconclusive"
+        score_frac = 0.0
     else:
         kind = "organic"
-        raw = organic_weight + 0.5  # taban: hiçbir şey tetiklenmemesi de kanıttır
         ceiling = sum(s.weight for s in signals if s.direction == "organic") + 0.5
+        score_frac = (organic_weight + 0.5) / ceiling if ceiling else 0.0
 
-    score = int(round(min(1.0, raw / ceiling) * 100)) if ceiling else 0
-    score = max(score, 40 if kind != "organic" else 35)
+    score = int(round(min(1.0, score_frac) * 100))
+    if kind in ("bundled", "cabaled"):
+        score = max(score, 40)
+    elif kind == "organic":
+        score = max(score, 35)
 
     # --- Güven ----------------------------------------------------------
     computable = [s for s in signals if s.data_ok]
@@ -130,6 +170,19 @@ def classify(
         conf *= 0.65
         caveats.append(
             "Token 6 saatten yeni — işlem geçmişi bir desen çıkarmaya yetmeyebilir."
+        )
+    if token_age_hours is not None and token_age_hours > WEEK_HOURS:
+        caveats.append(
+            "Token bir haftadan eski. getTokenLargestAccounts yalnızca ŞU ANKİ en "
+            "büyük cüzdanları verir — lansmandaki orijinal paket cüzdanları çoktan "
+            "dağılmış olabilir. Bu analiz mevcut holder yapısını yansıtır, "
+            "lansman anını değil."
+        )
+    whale = next((s for s in signals if s.key == "supply_whale" and s.fired), None)
+    if whale:
+        caveats.append(
+            "Baskın cüzdan bir borsa soğuk cüzdanı, hazine ya da kilitli vesting "
+            "kontratı da olabilir — etiketleyemedik."
         )
     if not market_available:
         caveats.append("Piyasa verisi alınamadı; likidite sinyalleri hesaplanmadı.")

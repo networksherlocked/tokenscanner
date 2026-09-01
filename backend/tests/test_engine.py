@@ -137,7 +137,36 @@ def cabaled_case() -> tuple[ChainSnapshot, MarketSnapshot]:
     return snap, _market(liq=45_000.0, mcap=1_200_000.0)
 
 
-def run(name: str, builder) -> str:
+def aged_whale_case() -> tuple[ChainSnapshot, MarketSnapshot]:
+    """Eski token (77 gün). getTokenLargestAccounts lansman paketini göstermez;
+    ama tek cüzdan arzın ~%49'unu tutuyor + botsu ücret imzası + ince likidite.
+    getSignaturesForAddress bütçesi dolduğu için çoğu cüzdanın yaşı/fonlayıcısı
+    çözülemedi (owner_created_at=None, funder=None)."""
+    holders = []
+    shares = [49.2, 9.2, 2.4, 1.4, 1.0, 0.9, 0.5, 0.4, 0.4, 0.4,
+              0.4, 0.35, 0.34, 0.33, 0.31, 0.3, 0.28, 0.27, 0.26]
+    for i, sh in enumerate(shares):
+        holders.append(
+            HolderRecord(
+                token_account=f"TA{i:040d}",
+                owner=f"OW{i:040d}",
+                amount_raw=int(SUPPLY * sh / 100),
+                first_slot=429_000_000 + i * 7_000,
+                first_block_time=LAUNCH + i * 90_000,
+                entry_fee=79_999 if i < 5 else 12_000 + i * 813,
+                token_tx_count=3000,
+                owner_created_at=None,   # bütçe doldu — yaş çözülemedi
+                owner_tx_count=3000,
+                funder=None,             # fonlayıcı çözülemedi
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    snap = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=0.33)
+    return snap, _market(liq=2_900_000.0, mcap=269_000_000.0)
+
+
+def run(name: str, builder, age_hours: float = 8.0) -> str:
     chain, market = builder()
     ctx = SignalContext(chain=chain, market=market, launch_ts=LAUNCH)
     signals = run_signals(ctx)
@@ -145,7 +174,7 @@ def run(name: str, builder) -> str:
         signals,
         coverage=chain.coverage,
         market_available=market.available,
-        token_age_hours=8.0,
+        token_age_hours=age_hours,
     )
     print(f"\n{'=' * 66}\n{name}\n{'=' * 66}")
     print(f"  KARAR: {verdict.label}  |  skor {verdict.score}  |  güven {verdict.confidence} ({verdict.confidence_label})")
@@ -163,11 +192,13 @@ if __name__ == "__main__":
         "BUNDLE SENARYOSU": run("BUNDLE SENARYOSU", bundled_case),
         "ORGANİK SENARYO": run("ORGANİK SENARYO", organic_case),
         "CABAL SENARYOSU": run("CABAL SENARYOSU", cabaled_case),
+        "ESKİ TOKEN + BALİNA": run("ESKİ TOKEN + BALİNA", aged_whale_case, age_hours=1847.0),
     }
     expected = {
         "BUNDLE SENARYOSU": "bundled",
         "ORGANİK SENARYO": "organic",
         "CABAL SENARYOSU": "cabaled",
+        "ESKİ TOKEN + BALİNA": "bundled",
     }
     print(f"\n{'=' * 66}")
     ok = True

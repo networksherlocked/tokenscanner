@@ -100,6 +100,21 @@ def _ramp(value: float, low: float, high: float) -> float:
     return max(0.0, min(1.0, (value - low) / (high - low)))
 
 
+def _count_strength(
+    count: int, min_count: int, span: int = 4, floor: float = 0.5
+) -> float:
+    """Eşik-tabanlı bir sinyalin gücü.
+
+    Eşiği geçen bir sinyal EN AZ `floor` güç taşır — böylece "tetiklendi ama
+    strength 0, katkı 0" durumu oluşmaz. `span` kadar fazla eşleşme 1.0 yapar.
+    Not: pay/toplam oranı DEĞİL, mutlak eşleşme sayısı kullanılır: 20 holder'ın
+    5'inin birebir aynı bot ücretini ödemesi, diğer 15'ten bağımsız olarak
+    güçlü bir imzadır.
+    """
+    over = max(0, count - min_count)
+    return max(floor, min(1.0, floor + (1.0 - floor) * over / span))
+
+
 # --- Sinyaller --------------------------------------------------------------
 
 def sig_top10_concentration(ctx: SignalContext) -> Signal:
@@ -125,6 +140,49 @@ def sig_top10_concentration(ctx: SignalContext) -> Signal:
         s.detail = f"Borsa ve LP dışı ilk 10 cüzdan arzın %{pct:.1f}'ini tutuyor."
     else:
         s.detail = f"İlk 10 cüzdan arzın %{pct:.1f}'i — dağılım makul."
+    return s
+
+
+def sig_supply_whale(ctx: SignalContext) -> Signal:
+    """Tek bir borsa/LP dışı cüzdanda toplanmış arz.
+
+    getTokenLargestAccounts eski tokenlarda lansmandaki paket cüzdanlarını
+    göstermez; ama tek bir 'unknown' cüzdanın arzın büyük kısmını tutması,
+    dağıtımın organik OLMADIĞININ güçlü ve yaştan bağımsız bir kanıtıdır.
+    """
+    s = Signal(
+        key="supply_whale",
+        label="Tek cüzdan baskınlığı",
+        direction="bundled",
+        weight=1.0,
+    )
+    holders = [h for h in ctx.real_holders if h.amount_raw > 0]
+    if not holders:
+        s.data_ok = False
+        return s
+    top = max(holders, key=lambda h: h.share)
+    # top2: en büyük iki 'unknown' cüzdanın toplamı
+    top2 = sum(sorted((h.share for h in holders), reverse=True)[:2])
+    s.evidence = {
+        "top_owner": top.owner,
+        "top_share": round(top.share, 2),
+        "top2_share": round(top2, 2),
+        "top_tag": top.tag,
+    }
+    WARN, HIGH = 18.0, 40.0
+    if top.share >= WARN:
+        s.fired = True
+        s.strength = max(0.5, _ramp(top.share, WARN, HIGH))
+        s.detail = (
+            f"Tek bir borsa/LP dışı cüzdan ({top.owner[:6]}…{top.owner[-4:]}) "
+            f"arzın %{top.share:.1f}'ini tutuyor — dağıtım tek elde toplanmış."
+        )
+    elif top2 >= 30.0:
+        s.fired = True
+        s.strength = max(0.45, _ramp(top2, 30.0, 55.0))
+        s.detail = f"En büyük iki cüzdan birlikte arzın %{top2:.1f}'ini tutuyor."
+    else:
+        s.detail = f"En büyük tekil cüzdan arzın %{top.share:.1f}'i — aşırı yoğunlaşma yok."
     return s
 
 
@@ -189,7 +247,14 @@ def sig_wallet_age_cluster(ctx: SignalContext) -> Signal:
         )
     else:
         median_age = (ctx.launch_ts - statistics.median(ages)) / DAY
-        s.detail = f"Cüzdan yaşları dağınık (medyan {median_age:.0f} gün önce açılmış)."
+        if median_age < 0:
+            s.detail = (
+                "Büyük cüzdanların çoğu tokendan SONRA açılmış — lansman kümesi yok."
+            )
+        else:
+            s.detail = (
+                f"Cüzdan yaşları dağınık (medyan {median_age:.0f} gün önce açılmış)."
+            )
     return s
 
 
@@ -201,7 +266,7 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
         weight=1.0,
     )
     resolved = [h.funder for h in ctx.real_holders if h.funder]
-    if len(resolved) < 3:
+    if len(resolved) < 2:
         s.data_ok = False
         return s
 
@@ -222,12 +287,23 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
         "resolved": len(funders),
         "distinct_funders": len(counts),
     }
-    if n >= SIGNAL_TUNING["common_funder_min"]:
+    # Ortak fonlayıcının fonladığı cüzdanlar arzın ne kadarını tutuyor?
+    shared_share = sum(
+        h.share for h in ctx.real_holders if h.funder == top_funder
+    )
+    s.evidence["shared_holder_share"] = round(shared_share, 2)
+    # Normalde 3 cüzdan; ama ortak fonlayıcı büyük bir payı (>%10) besliyorsa
+    # 2 cüzdan da yeterli.
+    threshold = SIGNAL_TUNING["common_funder_min"]
+    if n >= 2 and shared_share >= 10.0:
+        threshold = 2
+    if n >= threshold:
         s.fired = True
-        s.strength = _ramp(n / len(funders), 0.25, 0.7)
+        s.strength = _count_strength(n, threshold, span=4)
         s.detail = (
             f"{n} büyük cüzdanın ilk SOL'u aynı adresten geldi "
-            f"({top_funder[:6]}…{top_funder[-4:]})."
+            f"({top_funder[:6]}…{top_funder[-4:]}) — birlikte arzın "
+            f"%{shared_share:.1f}'i."
         )
     else:
         s.detail = f"{len(counts)} farklı fonlama kaynağı — ortak fonlayıcı yok."
@@ -260,7 +336,7 @@ def sig_same_slot_entry(ctx: SignalContext) -> Signal:
     }
     if len(best) >= SIGNAL_TUNING["same_slot_min"]:
         s.fired = True
-        s.strength = _ramp(len(best) / len(slots), 0.25, 0.8)
+        s.strength = _count_strength(len(best), SIGNAL_TUNING["same_slot_min"], span=5)
         s.detail = (
             f"{len(best)} cüzdan tokena {window} slot (~{window * 0.4:.0f} sn) "
             f"içinde girmiş — tek işlem paketi imzası."
@@ -292,7 +368,9 @@ def sig_identical_balances(ctx: SignalContext) -> Signal:
     s.evidence = {"cluster_size": len(best), "total": len(holders)}
     if len(best) >= SIGNAL_TUNING["identical_balance_min"]:
         s.fired = True
-        s.strength = _ramp(len(best) / len(holders), 0.25, 0.7)
+        s.strength = _count_strength(
+            len(best), SIGNAL_TUNING["identical_balance_min"], span=4
+        )
         s.detail = (
             f"{len(best)} cüzdanın bakiyesi birbirinin %{tol * 100:.0f}'i içinde — "
             "elle alımda beklenmeyen bir eşitlik."
@@ -318,7 +396,7 @@ def sig_fee_fingerprint(ctx: SignalContext) -> Signal:
     s.evidence = {"fee_lamports": fee, "wallets": n, "total": len(fees)}
     if n >= SIGNAL_TUNING["fee_fingerprint_min"]:
         s.fired = True
-        s.strength = _ramp(n / len(fees), 0.3, 0.8)
+        s.strength = _count_strength(n, SIGNAL_TUNING["fee_fingerprint_min"], span=4)
         s.detail = (
             f"{n} giriş işlemi birebir aynı öncelik ücretini ödemiş "
             f"({fee} lamports) — aynı botun imzası."
@@ -476,8 +554,15 @@ def sig_wallet_age_diversity(ctx: SignalContext) -> Signal:
         weight=0.8,
     )
     ages = [h.owner_created_at for h in ctx.real_holders if h.owner_created_at]
-    if len(ages) < 5 or not ctx.launch_ts:
+    # Cüzdanların yarısından azının gerçek yaşını çözebildiysek "organik" demek
+    # için yeterli veri yok — sessizce organiğe puan vermeyelim.
+    need = max(5, int(len(ctx.real_holders) * 0.5))
+    if len(ages) < need or not ctx.launch_ts:
         s.data_ok = False
+        s.detail = (
+            "Cüzdanların yeterince çoğunun gerçek yaşı çözülemedi — "
+            "organiklik puanı verilemiyor."
+        )
         return s
     days = [(ctx.launch_ts - t) / DAY for t in ages]
     spread = statistics.pstdev(days)
@@ -507,6 +592,7 @@ ALL_SIGNALS: list[Callable[[SignalContext], Signal]] = [
     sig_fee_fingerprint,
     sig_fresh_wallets,
     sig_flagged_wallets,
+    sig_supply_whale,
     sig_top10_concentration,
     sig_funding_profile,
     sig_mint_authority,

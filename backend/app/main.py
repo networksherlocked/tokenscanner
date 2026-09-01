@@ -155,13 +155,15 @@ async def _run_scan(mint: str) -> dict:
             state["cache"].put(mint, result)
             token = result.get("token") or {}
             verdict = result.get("verdict") or {}
-            state["cache"].track_start(
-                mint,
-                token.get("symbol"),
-                verdict.get("kind"),
-                verdict.get("score"),
-                token.get("market_cap"),
-            )
+            # "inconclusive" bir tahmin değil — karneye alma.
+            if verdict.get("kind") != "inconclusive":
+                state["cache"].track_start(
+                    mint,
+                    token.get("symbol"),
+                    verdict.get("kind"),
+                    verdict.get("score"),
+                    token.get("market_cap"),
+                )
             return result
         finally:
             _inflight.pop(mint, None)

@@ -120,15 +120,20 @@ async def resolve_owners(pool: RpcPool, holders: list[HolderRecord]) -> None:
 
 async def _oldest_signature(
     pool: RpcPool, address: str, max_pages: int = 3
-) -> tuple[dict | None, int]:
-    """Bir adresin en eski imzasını ve yaklaşık işlem sayısını bulur.
+) -> tuple[dict | None, int, bool]:
+    """Bir adresin en eski imzasını, yaklaşık işlem sayısını ve gerçek başlangıca
+    ulaşıp ulaşmadığımızı döndürür.
 
-    Sayfa başına 1000 imza. max_pages ile maliyeti sınırlıyoruz — 3000
-    işlemden fazlası olan bir cüzdan zaten "taze cüzdan" değil.
+    Sayfa başına 1000 imza. max_pages ile maliyeti sınırlıyoruz. Bütçe dolduğu
+    hâlde sayfa hâlâ doluysa `reached_start=False` — yani elimizdeki "en eski"
+    imza aslında cüzdanın ilk işlemi DEĞİL, sadece görebildiğimiz kadar geri.
+    Bu durumda çağıran taraf yaş/fonlayıcı çıkarımı yapmamalı (yoksa aktif bir
+    cüzdan "yeni doğmuş" gibi görünür ve motoru yanıltır).
     """
     before: str | None = None
     oldest: dict | None = None
     total = 0
+    reached_start = False
     for _ in range(max_pages):
         params: list = [address, {"limit": 1000}]
         if before:
@@ -139,13 +144,15 @@ async def _oldest_signature(
             log.debug("imza sayfası alınamadı %s: %s", address, exc)
             break
         if not page:
+            reached_start = True
             break
         total += len(page)
         oldest = page[-1]
         if len(page) < 1000:
+            reached_start = True
             break
         before = page[-1]["signature"]
-    return oldest, total
+    return oldest, total, reached_start
 
 
 async def enrich_token_accounts(
@@ -156,7 +163,9 @@ async def enrich_token_accounts(
 
     async def one(h: HolderRecord) -> None:
         async with sem:
-            oldest, count = await _oldest_signature(pool, h.token_account, max_pages=2)
+            oldest, count, _ = await _oldest_signature(
+                pool, h.token_account, max_pages=2
+            )
             h.token_tx_count = count
             if oldest:
                 h.first_slot = oldest.get("slot")
@@ -176,9 +185,16 @@ async def enrich_owners(
         if not h.owner:
             return
         async with sem:
-            oldest, count = await _oldest_signature(pool, h.owner, max_pages=3)
+            oldest, count, reached_start = await _oldest_signature(
+                pool, h.owner, max_pages=3
+            )
             h.owner_tx_count = count
             if not oldest:
+                return
+            if not reached_start:
+                # Bütçe içinde cüzdanın başına ulaşamadık — bu "en eski" imza
+                # yanıltıcı derecede yeni. Yaş ve fonlayıcı çıkarımını atla;
+                # owner_tx_count (>= 3000) tek başına "taze değil" bilgisini verir.
                 return
             h.owner_created_at = oldest.get("blockTime")
             sig = oldest.get("signature")

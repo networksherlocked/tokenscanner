@@ -4,8 +4,8 @@
 > ve "Hakkında" sayfası içerir. Render servis adı ve URL'i `solscope` olarak kaldı.
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
-Bir mint adresi alır, 12 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
-Organic** kararını skor + güven değeriyle döndürür.
+Bir mint adresi alır, 13 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
+Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 
 - **$10k eşiği:** market cap'i `MIN_MARKET_CAP_USD` (varsayılan 10.000$) altındaki
   tokenlar hiç taranmaz — zincir sorgusu bile yapılmadan 422 döner.
@@ -68,8 +68,9 @@ aşamaları gösteren bir ilerleme penceresi çıkar.
 cd backend && python -m tests.test_engine
 ```
 
-Üç sentetik senaryoyu (bundle / organik / cabal) çalıştırır. Sinyal eşiklerini
-kalibre ederken bunu kullan — her denemede kredi harcamana gerek yok.
+Dört sentetik senaryoyu (bundle / organik / cabal / eski token + balina)
+çalıştırır. Sinyal eşiklerini kalibre ederken bunu kullan — her denemede kredi
+harcamana gerek yok.
 
 ---
 
@@ -98,7 +99,7 @@ backend/app/
   rpc/solana.py     Zincir sorguları: holder, cüzdan yaşı, fonlama kaynağı, ücret
   rpc/market.py     DexScreener — fiyat, likidite, çift oluşum zamanı
   engine/registry.py  Küratörlü adres listeleri (CEX, LP, burn, işaretli cüzdan)
-  engine/signals.py   12 bağımsız sinyal + kalibrasyon tablosu
+  engine/signals.py   13 bağımsız sinyal + kalibrasyon tablosu
   engine/classifier.py  Yakınsama kuralı → karar, skor, güven
   engine/scanner.py   Orkestrasyon
   cache.py          SQLite tarama önbelleği + karar geçmişi
@@ -109,14 +110,23 @@ backend/app/
 
 Tek sinyal asla karar vermez. `classifier.py`:
 
-- **Bundled** — en az 3 *sert* sinyal (yaş kümesi, ortak fonlayıcı, eşzamanlı
-  giriş, eşit bakiyeler, ücret parmak izi, işaretli cüzdan) **ve** toplam
-  ağırlık ≥ 2.0
-- **Cabaled** — bundled + cabaled ağırlığı ≥ 0.9, sert eşik tutmamış
-- **Organic** — hiçbiri
+- **Bundled** — ya (a) ≥ 3 *sert* sinyal + bundled ağırlık ≥ 1.8 (klasik taze
+  lansman), ya da (b) ≥ 2 sert sinyal + `combo` ≥ 2.0 (eski/konsolide token;
+  `combo = bundled_ağırlık + 0.6·cabaled_ağırlık`). Sert sinyaller: yaş kümesi,
+  ortak fonlayıcı, eşzamanlı giriş, eşit bakiyeler, ücret parmak izi, işaretli
+  cüzdan, **tek cüzdan baskınlığı**.
+- **Cabaled** — `combo` ≥ 0.9, bundled eşiği tutmamış.
+- **Inconclusive** — coverage < 0.4 ya da 3+ sert sinyal veri yokluğundan kör.
+- **Organic** — hiçbiri.
 
 İki ayrı sayı döner: **skor** (kategoriye uyum gücü, fiyat tahmini değil) ve
 **güven** (elimizde ne kadar veri vardı).
+
+> **Eski tokenlar:** `getTokenLargestAccounts` bir tokenın *şu anki* en büyük
+> cüzdanlarını verir, lansmandaki paket cüzdanlarını değil. Bir haftadan eski
+> tokenlarda orijinal paket çoktan dağılmış olabilir; tarama mevcut holder
+> yapısını yansıtır ve sonuçta bu uyarı gösterilir. Derin tespit için yol
+> haritasındaki *deployer geçmişi* ve *çok-hop fonlama grafiği* gerekli.
 
 ---
 

@@ -303,7 +303,7 @@ footer p{margin:0 0 6px;max-width:76ch}
     <div class="wrap">
       <div class="kicker" data-i18n="kicker">Solana · distribution forensics</div>
       <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
-      <p class="lede" data-i18n="lede">Paste a mint address. Twelve independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
+      <p class="lede" data-i18n="lede">Paste a mint address. Thirteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
       <div class="search">
         <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
                spellcheck="false" autocomplete="off" aria-label="Mint address">
@@ -367,7 +367,7 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">wallets found</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <div class="scan-stat"><b id="statSignals">0/12</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="statSignals">0/13</b><span data-i18n="statSignalsLbl">signals</span></div>
       </div>
 
       <div class="scan-grid" id="scanGrid"></div>
@@ -422,14 +422,18 @@ footer p{margin:0 0 6px;max-width:76ch}
     <h2 data-i18n="aboutTitle">About UAVSX</h2>
     <div class="sub" data-i18n="aboutSub">On-chain supply-distribution forensics for Solana</div>
 
-    <p data-i18n="aboutP1">UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs twelve independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
+    <p data-i18n="aboutP1">UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs thirteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
 
     <h3 data-i18n="aboutVerdictH">The verdict</h3>
     <div class="verdefs">
       <div class="vd" style="--sig:var(--bundled)"><b>Bundled</b><span data-i18n="aboutBundled">supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.</span></div>
       <div class="vd" style="--sig:var(--cabaled)"><b>Cabaled</b><span data-i18n="aboutCabaled">distribution is insider-heavy or unusual, but without the hard signatures of a bundle.</span></div>
       <div class="vd" style="--sig:var(--organic)"><b>Organic</b><span data-i18n="aboutOrganic">no coordinated distribution pattern found. This does not mean "safe" or "will go up".</span></div>
+      <div class="vd" style="--sig:#8b9bb4"><b>Inconclusive</b><span data-i18n="aboutInconclusive">too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.</span></div>
     </div>
+
+    <h3 data-i18n="aboutAgedH">Aged tokens</h3>
+    <p data-i18n="aboutAgedP">The largest-accounts query returns a token's current top holders, not the wallets that sniped the launch. For a token more than a week old the original bundle may have already distributed, so a scan reflects the present holder structure. UAVSX flags this in the result.</p>
 
     <h3 data-i18n="aboutNumbersH">Two numbers</h3>
     <p data-i18n="aboutNumbersP">Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).</p>
@@ -456,8 +460,8 @@ footer p{margin:0 0 6px;max-width:76ch}
 // If you host the frontend separately, define window.SOLSCOPE_API in a
 // separate <script> before this one.
 const API = window.SOLSCOPE_API ?? '';
-const COLORS = {bundled:'#ff4d5e', cabaled:'#ffa726', organic:'#4d9fff'};
-const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic' };
+const COLORS = {bundled:'#ff4d5e', cabaled:'#ffa726', organic:'#4d9fff', inconclusive:'#8b9bb4'};
+const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic', inconclusive:'Inconclusive' };
 
 const $ = id => document.getElementById(id);
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
@@ -471,7 +475,7 @@ const STR = {
     navAbout:'About',
     kicker:'Solana · distribution forensics',
     h1:"See who took a token's supply, and how.",
-    lede:'Paste a mint address. Twelve independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
+    lede:'Paste a mint address. Thirteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
     mintPh:'Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
     hint:'Results are cached for 15 minutes. A scan usually takes 15–40 seconds.',
@@ -484,11 +488,14 @@ const STR = {
     footerBody:'Each classification is the current output of heuristic rules applied to public on-chain data. It describes a pattern; it carries no claim of intent, fraud or crime. It can produce false positives and false negatives. "Organic" means "no manipulation pattern found" — not "safe" or "will go up". As data changes, the verdict for the same token changes too. Not investment advice.',
     aboutTitle:'About UAVSX',
     aboutSub:'On-chain supply-distribution forensics for Solana',
-    aboutP1:"UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs twelve independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
+    aboutP1:"UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs thirteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
     aboutVerdictH:'The verdict',
     aboutBundled:'supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.',
     aboutCabaled:'distribution is insider-heavy or unusual, but without the hard signatures of a bundle.',
     aboutOrganic:'no coordinated distribution pattern found. This does not mean "safe" or "will go up".',
+    aboutInconclusive:'too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.',
+    aboutAgedH:'Aged tokens',
+    aboutAgedP:"The largest-accounts query returns a token's current top holders, not the wallets that sniped the launch. For a token more than a week old the original bundle may have already distributed, so a scan reflects the present holder structure. UAVSX flags this in the result.",
     aboutNumbersH:'Two numbers',
     aboutNumbersP:'Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).',
     aboutLimitsH:'Limits',
@@ -525,7 +532,7 @@ const STR = {
     navAbout:'Hakkında',
     kicker:'Solana · dağıtım adli analizi',
     h1:'Bir tokenın arzını kimin, nasıl aldığını görün.',
-    lede:'Mint adresini yapıştırın. On iki bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
+    lede:'Mint adresini yapıştırın. On üç bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
     mintPh:'Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
     hint:'Sonuçlar 15 dakika önbellekte tutulur. Tarama genelde 15–40 saniye sürer.',
@@ -538,11 +545,14 @@ const STR = {
     footerBody:'Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz. Yanlış pozitif ve yanlış negatif üretebilir. "Organic", "manipülasyon deseni bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe aynı token için karar da değişir. Yatırım tavsiyesi değildir.',
     aboutTitle:'UAVSX Hakkında',
     aboutSub:'Solana için zincir üstü arz dağıtımı adli analizi',
-    aboutP1:'UAVSX bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On iki bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
+    aboutP1:'UAVSX bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On üç bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
     aboutVerdictH:'Karar',
     aboutBundled:'arz dağıtımı üretilmiş görünüyor — birden çok sert sinyal aynı yönü gösteriyor ve koordineli alım görülüyor.',
     aboutCabaled:'dağıtım insider ağırlıklı ya da olağandışı, ama bir bundle\'ın sert imzaları yok.',
     aboutOrganic:'koordineli dağıtım deseni bulunamadı. Bu "güvenli" ya da "yükselecek" demek değildir.',
+    aboutInconclusive:'karar vermeye yetecek zincir verisi çekilemedi — genelde cüzdan geçmişleri sorgu bütçesini aşan çok aktif ya da eski bir token.',
+    aboutAgedH:'Eski tokenlar',
+    aboutAgedP:'En büyük hesaplar sorgusu bir tokenın ŞU ANKİ en büyük cüzdanlarını verir, lansmanı snipe\'layan cüzdanları değil. Bir haftadan eski bir token için orijinal paket çoktan dağılmış olabilir; tarama mevcut holder yapısını yansıtır. UAVSX bunu sonuçta belirtir.',
     aboutNumbersH:'İki sayı',
     aboutNumbersP:'Her tarama bir skor (token atandığı kategoriye ne kadar uyuyor — fiyat tahmini değil) ve bir güven (karar verilirken ne kadar veri vardı) döndürür.',
     aboutLimitsH:'Sınırlar',
@@ -576,7 +586,7 @@ const STR = {
   },
 };
 
-// English labels for the 12 signals, keyed by backend signal key.
+// English labels for the 13 signals, keyed by backend signal key.
 // (Turkish labels come from the backend as-is.)
 const SIG_EN = {
   wallet_age_cluster:'Wallet birth cluster',
@@ -586,6 +596,7 @@ const SIG_EN = {
   fee_fingerprint:'Fee fingerprint',
   fresh_wallets:'Fresh-wallet ratio',
   flagged_wallets:'Previously flagged wallets',
+  supply_whale:'Single-wallet dominance',
   top10_concentration:'Top-10 concentration',
   funding_profile:'Funding-source profile',
   mint_authority:'Mint / freeze authority',
@@ -597,6 +608,7 @@ const SUMMARY_EN = {
   bundled:'Supply distribution looks manufactured — coordinated buying patterns detected.',
   cabaled:'Distribution is insider-heavy or unusual; without the hard signatures of a bundle.',
   organic:'No coordinated distribution pattern found. This does not mean "safe".',
+  inconclusive:'Not enough on-chain data was collected to make a call — result is inconclusive.',
 };
 const SCAN_LOG = {
   en: [
@@ -609,7 +621,7 @@ const SCAN_LOG = {
     [11000, 'tracing first funding transactions — where did the SOL come from?'],
     [17000, 'collecting priority-fee fingerprints'],
     [23000, 'merging DexScreener market data'],
-    [27000, 'computing 12 independent signals'],
+    [27000, 'computing 13 independent signals'],
     [31000, 'applying convergence rule'],
     [35000, 'preparing verdict, score and confidence'],
   ],
@@ -623,7 +635,7 @@ const SCAN_LOG = {
     [11000, 'ilk fonlama işlemleri izleniyor — SOL nereden geldi?'],
     [17000, 'öncelik ücreti parmak izleri toplanıyor'],
     [23000, 'DexScreener piyasa verisi birleştiriliyor'],
-    [27000, '12 bağımsız sinyal hesaplanıyor'],
+    [27000, '13 bağımsız sinyal hesaplanıyor'],
     [31000, 'yakınsama kuralı uygulanıyor'],
     [35000, 'karar, skor ve güven hazırlanıyor'],
   ],
@@ -692,7 +704,7 @@ function scanReset(){
   $('scanElapsed').textContent = '0.0s';
   $('statHolders').textContent = '0';
   $('statRpc').textContent = '0';
-  $('statSignals').textContent = '0/12';
+  $('statSignals').textContent = '0/13';
   $('radarBlips').querySelectorAll('.radar-blip').forEach(b=>b.classList.remove('lit'));
 }
 function scanStart(){
@@ -718,7 +730,7 @@ function scanStart(){
     const signals = s > 26 ? Math.min(12, Math.floor((s - 26) * 1.7)) : 0;
     $('statHolders').textContent = holders;
     $('statRpc').textContent = rpc;
-    $('statSignals').textContent = signals + '/12';
+    $('statSignals').textContent = signals + '/13';
     blips.forEach((b,i)=> b.classList.toggle('lit', i < holders * 12 / 19));
   }, 120);
 }
