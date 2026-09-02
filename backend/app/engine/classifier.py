@@ -26,6 +26,7 @@ HARD_SIGNALS = {
     "fee_fingerprint",
     "flagged_wallets",
     "supply_whale",
+    "funding_tree",
 }
 
 # Klasik yol: taze lansman paketleri — çok sayıda sert sinyal.

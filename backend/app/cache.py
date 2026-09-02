@@ -55,6 +55,17 @@ CREATE TABLE IF NOT EXISTS track (
     settled       INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
+
+CREATE TABLE IF NOT EXISTS appeals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    mint        TEXT NOT NULL,
+    verdict     TEXT,
+    contact     TEXT,
+    body        TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'open'
+);
+CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
 """
 
 
@@ -200,6 +211,29 @@ class ScanCache:
             d["age_sec"] = now - d["scored_at"]
             out.append(d)
         return out
+
+    # ---- itiraz akışı ---------------------------------------------------
+
+    def add_appeal(
+        self, mint: str, verdict: str | None, contact: str | None, body: str
+    ) -> int:
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO appeals (mint, verdict, contact, body, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (mint, verdict, (contact or "")[:200], body[:4000], int(time.time())),
+            )
+            return int(cur.lastrowid)
+
+    def appeals_today(self, contact: str | None, ip_key: str) -> int:
+        """Basit istismar önleme: son 24 saatte kaç itiraz."""
+        since = int(time.time()) - 86_400
+        row = self.conn.execute(
+            "SELECT COUNT(*) c FROM appeals WHERE created_at >= ? AND "
+            "(contact = ? OR contact = ?)",
+            (since, contact or "\x00", ip_key),
+        ).fetchone()
+        return int(row["c"]) if row else 0
 
     def history(self, mint: str, limit: int = 20) -> list[dict]:
         """Aynı tokenın geçmiş kararları — verdict'in zamanla değiştiğini gösterir."""

@@ -31,7 +31,7 @@
   --display:'Oswald',system-ui,sans-serif;
 
   /* özgün arma — kalkan + yayılmış kanat siluети (kendi çizimimiz) */
-  --crest:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z' fill='none' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M32 15 L39 23 H35 L43 32 H37 L46 43 H32 V15 Z M32 15 L25 23 H29 L21 32 H27 L18 43 H32' fill='%23000'/%3E%3Ccircle cx='32' cy='12' r='2.6' fill='%23000'/%3E%3C/svg%3E");
+  --crest:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z' fill='none' stroke='%23000' stroke-width='3'/%3E%3Cpath d='M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z' fill='%23000'/%3E%3Ccircle cx='32' cy='12' r='2.6' fill='%23000'/%3E%3C/svg%3E");
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -170,6 +170,25 @@ td.addr{color:var(--text)}
 .caveats li{margin-bottom:4px}
 .caveats ul{margin:0;padding-left:18px}
 
+.sharebox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
+  background:var(--panel);padding:16px;border-radius:2px}
+.sharebox .head{font-family:var(--display);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:12px}
+.sharebtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sharebtns button,.sharebtns a{
+  background:transparent;border:1px solid var(--rule);color:var(--muted);cursor:pointer;
+  font-family:var(--display);font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+  font-size:11px;padding:8px 14px;border-radius:2px;text-decoration:none;
+}
+.sharebtns button:hover,.sharebtns a:hover{color:var(--gold);border-color:var(--gold)}
+.sharebtns button.danger:hover{color:var(--bundled);border-color:var(--bundled)}
+#embedCode,#appealForm input,#appealForm textarea{
+  width:100%;margin-top:10px;background:var(--ink);border:1px solid var(--rule);color:var(--text);
+  font-family:var(--mono);font-size:12px;padding:9px 11px;border-radius:2px;resize:vertical;
+}
+#appealForm p{font-size:12px;color:var(--muted);margin:12px 0 0}
+.amsg{font-size:12px;color:var(--gold)}
+
 footer{border-top:1px solid var(--rule);padding:22px 0 40px;color:var(--dim);font-size:12px}
 footer p{margin:0 0 6px;max-width:76ch}
 
@@ -302,6 +321,10 @@ footer p{margin:0 0 6px;max-width:76ch}
 .about .verdefs{display:grid;gap:8px;margin:12px 0 4px}
 .about .vd{border-left:2px solid var(--sig);padding:9px 14px;background:var(--panel);font-size:13px;color:var(--muted);max-width:72ch}
 .about .vd b{color:var(--sig);font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;font-size:12px;margin-right:8px}
+.about .siglist{list-style:none;margin:12px 0 4px;padding:0;display:grid;gap:6px;max-width:78ch}
+.about .siglist li{border-left:2px solid var(--rule);padding:8px 14px;background:var(--panel);font-size:12.5px;color:var(--muted)}
+.about .siglist li b{color:var(--text);font-family:var(--display);font-weight:500;letter-spacing:.03em;margin-right:8px}
+.about .siglist li .dir{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);float:right}
 .about .back{margin-top:36px;border:1px solid var(--rule);padding:10px 20px;border-radius:2px;
   font-family:var(--display);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:11px;
   color:var(--muted);cursor:pointer;background:transparent}
@@ -320,7 +343,7 @@ footer p{margin:0 0 6px;max-width:76ch}
     <div class="brand">
       <svg class="crest" viewBox="0 0 64 64" aria-hidden="true">
         <path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/>
-        <path d="M32 15 L39 23 H35 L43 32 H37 L46 43 H32 Z M32 15 L25 23 H29 L21 32 H27 L18 43 H32" fill="currentColor"/>
+        <path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/>
         <circle cx="32" cy="12" r="2.6" fill="currentColor"/>
       </svg>
       <span>america<i>.sx</i></span>
@@ -341,7 +364,7 @@ footer p{margin:0 0 6px;max-width:76ch}
     <div class="wrap">
       <div class="kicker" data-i18n="kicker">Solana · launch forensics</div>
       <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
-      <p class="lede" data-i18n="lede">Paste a mint address. Fourteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
+      <p class="lede" data-i18n="lede">Paste a mint address. Fifteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
       <div class="search">
         <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
                spellcheck="false" autocomplete="off" aria-label="Mint address">
@@ -405,7 +428,7 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <div class="scan-stat"><b id="statSignals">0/14</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="statSignals">0/15</b><span data-i18n="statSignalsLbl">signals</span></div>
       </div>
 
       <div class="scan-grid" id="scanGrid"></div>
@@ -432,6 +455,25 @@ footer p{margin:0 0 6px;max-width:76ch}
           </div>
           <div class="grid" id="grid"></div>
           <div id="caveats"></div>
+          <div class="sharebox" id="shareBox" hidden>
+            <div class="head" data-i18n="shareHead">Share this determination</div>
+            <div class="sharebtns">
+              <button type="button" id="shareLink" data-i18n="shareCopy">Copy link</button>
+              <a id="shareX" target="_blank" rel="noopener" data-i18n="shareX">Post on X</a>
+              <button type="button" id="shareEmbed" data-i18n="shareEmbed">Embed badge</button>
+              <button type="button" id="shareAppeal" class="danger" data-i18n="shareAppeal">Appeal</button>
+            </div>
+            <textarea id="embedCode" readonly hidden rows="2"></textarea>
+            <form id="appealForm" hidden>
+              <p data-i18n="appealIntro">Think this verdict is wrong? Tell us why. Reviewed manually.</p>
+              <input id="appealContact" type="text" data-i18n-ph="appealContact" placeholder="Contact (optional)">
+              <textarea id="appealBody" rows="4" data-i18n-ph="appealBody" placeholder="What's wrong, and what's the evidence?"></textarea>
+              <div class="sharebtns">
+                <button type="submit" id="appealSend" data-i18n="appealSend">Send</button>
+                <span id="appealMsg" class="amsg"></span>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -460,7 +502,7 @@ footer p{margin:0 0 6px;max-width:76ch}
     <h2 data-i18n="aboutTitle">About america.sx</h2>
     <div class="sub" data-i18n="aboutSub">On-chain launch & supply-distribution forensics for Solana</div>
 
-    <p data-i18n="aboutP1">america.sx takes a Solana token mint address and examines how its supply was acquired. It runs fourteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
+    <p data-i18n="aboutP1">america.sx takes a Solana token mint address and examines how its supply was acquired. It runs fifteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
 
     <h3 data-i18n="aboutVerdictH">The verdict</h3>
     <div class="verdefs">
@@ -470,8 +512,11 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="vd" style="--sig:#8b9bb4"><b>Inconclusive</b><span data-i18n="aboutInconclusive">too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.</span></div>
     </div>
 
-    <h3 data-i18n="aboutAgedH">Aged tokens</h3>
-    <p data-i18n="aboutAgedP">The largest-accounts query returns a token's current top holders, not the wallets that sniped the launch. For a token more than a week old the original bundle may have already distributed, so a scan reflects the present holder structure. america.sx flags this in the result.</p>
+    <h3 data-i18n="aboutLaunchH">Launch analysis</h3>
+    <p data-i18n="aboutLaunchP">The core of the engine. Using the pump.fun bonding-curve address (or the DEX pair) as an anchor, we page the token's signatures back to block one and parse the first ~40 transactions to reconstruct the actual launch buyers. The bundle signals run on those wallets — not on today's whales. When the launch history is too long to reach within budget, the engine falls back to current holders and says so.</p>
+
+    <h3 data-i18n="aboutSignalsH">The fifteen signals</h3>
+    <ul class="siglist" id="methSignals"></ul>
 
     <h3 data-i18n="aboutNumbersH">Two numbers</h3>
     <p data-i18n="aboutNumbersP">Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).</p>
@@ -498,7 +543,8 @@ footer p{margin:0 0 6px;max-width:76ch}
 // If you host the frontend separately, define window.SOLSCOPE_API in a
 // separate <script> before this one.
 const API = window.SOLSCOPE_API ?? '';
-const COLORS = {bundled:'#ff4d5e', cabaled:'#ffa726', organic:'#4d9fff', inconclusive:'#8b9bb4'};
+const COLORS = {bundled:'#d5433f', cabaled:'#d5932f', organic:'#5c8fd6', inconclusive:'#8b9bb4'};
+const SIGNALS_N = 15;  // ızgara/iskelet için sabit; sonuçta d.signals.length kullanılır
 const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic', inconclusive:'Inconclusive' };
 
 const $ = id => document.getElementById(id);
@@ -511,10 +557,19 @@ try{ const s = (localStorage.getItem('americasx_lang') || localStorage.getItem('
 const STR = {
   en: {
     navHome:'Home',
-    navAbout:'About',
+    navAbout:'Method',
+    shareHead:'Share this determination',
+    shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
+    copied:'Copied',
+    shareTweet: (label, score) => `america.sx read this Solana token as ${label} (score ${score}).`,
+    appealIntro:'Think this verdict is wrong? Tell us why — reviewed manually.',
+    appealContact:'Contact (optional — email or @handle)',
+    appealBody:"What's wrong, and what's the on-chain evidence?",
+    appealSend:'Send', appealShort:'Please add a bit more detail (20+ chars).',
+    appealOk:'Received. Thank you.', appealErr:'Could not send — try again later.',
     kicker:'Solana · launch forensics',
     h1:"See who took a token's supply, and how.",
-    lede:'Paste a mint address. Fourteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
+    lede:'Paste a mint address. Fifteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
     mintPh:'Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
     hint:'Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.',
@@ -527,7 +582,7 @@ const STR = {
     footerBody:'Each classification is the current output of heuristic rules applied to public on-chain data. It describes a pattern; it carries no claim of intent, fraud or crime. It can produce false positives and false negatives. "Organic" means "no manipulation pattern found" — not "safe" or "will go up". As data changes, the verdict for the same token changes too. Not investment advice.',
     aboutTitle:'About america.sx',
     aboutSub:'On-chain launch & supply-distribution forensics for Solana',
-    aboutP1:"america.sx takes a Solana token mint address and examines how its supply was acquired. It runs fourteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
+    aboutP1:"america.sx takes a Solana token mint address and examines how its supply was acquired. It runs fifteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
     aboutVerdictH:'The verdict',
     aboutBundled:'supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.',
     aboutCabaled:'distribution is insider-heavy or unusual, but without the hard signatures of a bundle.',
@@ -535,12 +590,15 @@ const STR = {
     aboutInconclusive:'too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.',
     aboutAgedH:'Aged tokens',
     aboutAgedP:"The largest-accounts query returns a token's current top holders, not the wallets that sniped the launch. For a token more than a week old the original bundle may have already distributed, so a scan reflects the present holder structure. america.sx flags this in the result.",
+    aboutLaunchH:'Launch analysis',
+    aboutLaunchP:"The core of the engine. Using the pump.fun bonding-curve address (or the DEX pair) as an anchor, we page the token's signatures back to block one and parse the first ~40 transactions to reconstruct the actual launch buyers. The bundle signals run on those wallets — not on today's whales. When the launch history is too long to reach within budget, the engine falls back to current holders and says so.",
+    aboutSignalsH:'The fifteen signals',
     aboutNumbersH:'Two numbers',
     aboutNumbersP:'Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).',
     aboutLimitsH:'Limits',
     aboutLimitsP:'Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.',
     aboutDataH:'Data & cost',
-    aboutDataP:'One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for 15 minutes so popular tokens are not re-scanned on every request.',
+    aboutDataP:'A deep scan is roughly 150–250 RPC calls against Solana infrastructure, plus DexScreener and pump.fun for market and launch data. Results are cached for 15 minutes so popular tokens are not re-scanned on every request.',
     aboutBack:'← Back to scanner',
     // dynamic
     errNoAddr:'Enter a mint address.',
@@ -573,10 +631,19 @@ const STR = {
   },
   tr: {
     navHome:'Ana sayfa',
-    navAbout:'Hakkında',
+    navAbout:'Yöntem',
+    shareHead:'Bu kararı paylaş',
+    shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
+    copied:'Kopyalandı',
+    shareTweet: (label, score) => `america.sx bu Solana tokenını ${label} okudu (skor ${score}).`,
+    appealIntro:'Bu kararın yanlış olduğunu mu düşünüyorsun? Nedenini yaz — elle inceleniyor.',
+    appealContact:'İletişim (opsiyonel — e-posta veya @kullanıcı)',
+    appealBody:'Ne yanlış ve zincir üstü kanıtı ne?',
+    appealSend:'Gönder', appealShort:'Lütfen biraz daha detay ekle (20+ karakter).',
+    appealOk:'Alındı. Teşekkürler.', appealErr:'Gönderilemedi — sonra tekrar dene.',
     kicker:'Solana · lansman adli analizi',
     h1:'Bir tokenın arzını kimin, nasıl aldığını görün.',
-    lede:'Mint adresini yapıştırın. On dört bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
+    lede:'Mint adresini yapıştırın. On beş bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
     mintPh:'Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
     hint:'Sonuçlar 15 dakika önbellekte tutulur. Derin tarama genelde 25–75 saniye sürer.',
@@ -589,7 +656,7 @@ const STR = {
     footerBody:'Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz. Yanlış pozitif ve yanlış negatif üretebilir. "Organic", "manipülasyon deseni bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe aynı token için karar da değişir. Yatırım tavsiyesi değildir.',
     aboutTitle:'america.sx Hakkında',
     aboutSub:'Solana için zincir üstü lansman ve arz dağıtımı adli analizi',
-    aboutP1:'america.sx bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On dört bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
+    aboutP1:'america.sx bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On beş bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
     aboutVerdictH:'Karar',
     aboutBundled:'arz dağıtımı üretilmiş görünüyor — birden çok sert sinyal aynı yönü gösteriyor ve koordineli alım görülüyor.',
     aboutCabaled:'dağıtım insider ağırlıklı ya da olağandışı, ama bir bundle\'ın sert imzaları yok.',
@@ -597,12 +664,15 @@ const STR = {
     aboutInconclusive:'karar vermeye yetecek zincir verisi çekilemedi — genelde cüzdan geçmişleri sorgu bütçesini aşan çok aktif ya da eski bir token.',
     aboutAgedH:'Eski tokenlar',
     aboutAgedP:'En büyük hesaplar sorgusu bir tokenın ŞU ANKİ en büyük cüzdanlarını verir, lansmanı snipe\'layan cüzdanları değil. Bir haftadan eski bir token için orijinal paket çoktan dağılmış olabilir; tarama mevcut holder yapısını yansıtır. america.sx bunu sonuçta belirtir.',
+    aboutLaunchH:'Lansman analizi',
+    aboutLaunchP:'Motorun çekirdeği. pump.fun bonding curve adresini (ya da DEX pair\'ini) çıpa alıp tokenın imzalarını ilk bloğa kadar sayfalarız ve ilk ~40 işlemi parse ederek gerçek lansman alıcılarını yeniden kurarız. Bundle sinyalleri bugünün balinalarında değil, o cüzdanlarda çalışır. Lansman geçmişi bütçe içinde başa ulaşılamayacak kadar uzunsa motor mevcut holder\'lara düşer ve bunu belirtir.',
+    aboutSignalsH:'On beş sinyal',
     aboutNumbersH:'İki sayı',
     aboutNumbersP:'Her tarama bir skor (token atandığı kategoriye ne kadar uyuyor — fiyat tahmini değil) ve bir güven (karar verilirken ne kadar veri vardı) döndürür.',
     aboutLimitsH:'Sınırlar',
     aboutLimitsP:'Sonuçlar algoritmik görüştür, olgusal tespit değildir. Yanlış pozitif ve yanlış negatif üretebilir; veri değiştikçe karar da değişir. Yatırım tavsiyesi değildir.',
     aboutDataH:'Veri ve maliyet',
-    aboutDataP:'Bir tarama yaklaşık 125 RPC çağrısı ile Solana altyapısına, bir de piyasa verisi için DexScreener\'a gider. Sonuçlar 15 dakika önbellekte tutulur; popüler tokenlar her istekte yeniden taranmaz.',
+    aboutDataP:'Derin bir tarama yaklaşık 150–250 RPC çağrısı ile Solana altyapısına, ayrıca piyasa ve lansman verisi için DexScreener ve pump.fun\'a gider. Sonuçlar 15 dakika önbellekte tutulur; popüler tokenlar her istekte yeniden taranmaz.',
     aboutBack:'← Tarayıcıya dön',
     errNoAddr:'Bir mint adresi girin.',
     errBadAddr:'Bu geçerli bir Solana adresi değil.',
@@ -639,6 +709,7 @@ const STR = {
 const SIG_EN = {
   wallet_age_cluster:'Wallet birth cluster',
   common_funder:'Common funder',
+  funding_tree:'Funding tree (2-hop)',
   same_slot_entry:'Simultaneous entry',
   identical_balances:'Identical balances',
   fee_fingerprint:'Fee fingerprint',
@@ -670,7 +741,7 @@ const SCAN_LOG = {
     [24000, 'tracing launch buyers: wallet age + funding source'],
     [34000, 'where did the SOL come from? mapping the funding graph'],
     [42000, 'checking deployer history — serial launcher?'],
-    [46000, 'computing 14 independent signals'],
+    [46000, 'computing 15 independent signals'],
     [49000, 'applying convergence rule'],
     [52000, 'preparing verdict, score and confidence'],
   ],
@@ -684,7 +755,7 @@ const SCAN_LOG = {
     [24000, 'lansman alıcıları: cüzdan yaşı + fonlama kaynağı'],
     [34000, 'SOL nereden geldi? fonlama grafiği çıkarılıyor'],
     [42000, 'deployer geçmişi kontrol ediliyor — seri lansman cüzdanı mı?'],
-    [46000, '14 bağımsız sinyal hesaplanıyor'],
+    [46000, '15 bağımsız sinyal hesaplanıyor'],
     [49000, 'yakınsama kuralı uygulanıyor'],
     [52000, 'karar, skor ve güven hazırlanıyor'],
   ],
@@ -706,9 +777,67 @@ function applyI18n(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = L(el.dataset.i18nPh); });
   document.querySelectorAll('.langsel button').forEach(b=> b.classList.toggle('on', b.dataset.lang === lang));
   if(!SCAN.on) $('scanBtn').textContent = L('scanBtn');
+  renderMethSignals();
   if(lastResult) render(lastResult);
   if(lastRecent) renderRecent(lastRecent);
   if(lastTrack) renderTrack(lastTrack);
+}
+
+const SIG_CATALOG = [
+  ['wallet_age_cluster','bundled',
+    'Wallets that all opened in the 24h before launch.',
+    'Lansmandan önceki 24 saatte açılmış cüzdanlar.'],
+  ['common_funder','bundled',
+    'Several launch buyers got their first SOL from one address.',
+    'Birden çok lansman alıcısının ilk SOL\'u tek adresten.'],
+  ['funding_tree','bundled',
+    'Different direct funders that trace back to one source (2-hop).',
+    'Tek üst kaynağa çıkan farklı direkt fonlayıcılar (2-hop).'],
+  ['same_slot_entry','bundled',
+    'Buyers that entered within a few slots — one bundled transaction.',
+    'Birkaç slot içinde giren alıcılar — tek işlem paketi.'],
+  ['identical_balances','bundled',
+    'Cohorts holding near-identical amounts.',
+    'Neredeyse birebir aynı miktarı tutan gruplar.'],
+  ['fee_fingerprint','bundled',
+    'Entries paying the exact same priority fee — same bot.',
+    'Birebir aynı öncelik ücretini ödeyen girişler — aynı bot.'],
+  ['fresh_wallets','bundled',
+    'Share of buyers with almost no prior transaction history.',
+    'Geçmişi neredeyse boş alıcıların oranı.'],
+  ['flagged_wallets','bundled',
+    'Addresses seen in a bundle on a token we scanned before.',
+    'Daha önce taradığımız bir tokende pakette görülmüş adresler.'],
+  ['supply_whale','bundled',
+    'One non-exchange wallet holding a large slice of supply.',
+    'Arzın büyük kısmını tutan tek borsa-dışı cüzdan.'],
+  ['deployer_history','cabaled',
+    'Deployer\'s prior tokens, and how many of them died / rugged.',
+    'Deployer\'ın önceki tokenları ve kaçının öldüğü / rug olduğu.'],
+  ['top10_concentration','cabaled',
+    'Combined supply held by the top 10 non-infra wallets.',
+    'İlk 10 altyapı-dışı cüzdanın toplam payı.'],
+  ['funding_profile','cabaled',
+    'Which exchanges / mixers the buyers were funded from.',
+    'Alıcıların hangi borsa / mixer\'lardan fonlandığı.'],
+  ['liquidity_health','cabaled',
+    'Liquidity as a fraction of market cap — exit depth.',
+    'Piyasa değerine oran olarak likidite — çıkış derinliği.'],
+  ['mint_authority','cabaled',
+    'Whether mint / freeze authority is still live.',
+    'Mint / freeze yetkisinin hâlâ açık olup olmadığı.'],
+  ['wallet_age_diversity','organic',
+    'Positive signal: a genuinely wide spread of wallet ages.',
+    'Pozitif sinyal: gerçekten geniş bir cüzdan yaşı dağılımı.'],
+];
+function renderMethSignals(){
+  const ul = $('methSignals'); if(!ul) return;
+  ul.innerHTML = SIG_CATALOG.map(([key,dir,en,tr])=>{
+    const name = (lang === 'en' && SIG_EN[key]) ? SIG_EN[key] : (SIG_EN[key] || key);
+    const desc = lang === 'en' ? en : tr;
+    const col = COLORS[dir] || 'var(--dim)';
+    return `<li style="border-left-color:${col}"><span class="dir">${dir}</span><b>${name}</b>${desc}</li>`;
+  }).join('');
 }
 function setLang(l){
   lang = (l === 'tr') ? 'tr' : 'en';
@@ -737,7 +866,7 @@ function scanLine(text){
 }
 function scanSkeleton(){
   const g = $('scanGrid'); g.innerHTML = '';
-  for(let i=0;i<12;i++){
+  for(let i=0;i<SIGNALS_N;i++){
     const d = document.createElement('div');
     d.className = 'skel';
     d.style.animationDelay = (i*0.09) + 's';
@@ -753,7 +882,7 @@ function scanReset(){
   $('scanElapsed').textContent = '0.0s';
   $('statHolders').textContent = '0';
   $('statRpc').textContent = '0';
-  $('statSignals').textContent = '0/14';
+  $('statSignals').textContent = '0/'+SIGNALS_N;
   $('radarBlips').querySelectorAll('.radar-blip').forEach(b=>b.classList.remove('lit'));
 }
 function scanStart(){
@@ -776,10 +905,10 @@ function scanStart(){
 
     const buyers = Math.min(26, Math.floor(s / 1.4));
     const rpc = Math.min(190, Math.floor(s * 3.4));
-    const signals = s > 44 ? Math.min(14, Math.floor((s - 44) * 1.8)) : 0;
+    const signals = s > 44 ? Math.min(SIGNALS_N, Math.floor((s - 44) * 1.8)) : 0;
     $('statHolders').textContent = buyers;
     $('statRpc').textContent = rpc;
-    $('statSignals').textContent = signals + '/14';
+    $('statSignals').textContent = signals + '/'+SIGNALS_N;
     blips.forEach((b,i)=> b.classList.toggle('lit', i < buyers * 12 / 26));
   }, 120);
 }
@@ -1016,7 +1145,59 @@ function render(d){
     <thead><tr><th>${L('thWallet')}</th><th>${L('thShare')}</th><th>${L('thBalance')}</th><th>${L('thTxns')}</th><th>${L('thFunder')}</th><th>${L('thTag')}</th></tr></thead>
     <tbody>${rows || `<tr><td colspan="6">${L('noHolders')}</td></tr>`}</tbody>`;
   $('holderNote').textContent = d.cached ? L('cacheAge', d.cache_age_s) : L('ms', d.duration_ms);
+  wireShare(d);
 }
+
+/* ---------------- paylaşım / rozet / itiraz ---------------- */
+function wireShare(d){
+  const box = $('shareBox'); box.hidden = false;
+  const origin = location.origin;
+  const url = `${origin}/t/${d.mint}`;
+  const v = d.verdict || {};
+  const label = VERDICT_LABEL[v.kind] || v.kind || '';
+  $('embedCode').value =
+    `<a href="${url}"><img src="${origin}/badge/${d.mint}.svg" alt="america.sx: ${label}" height="46"></a>`;
+  const tweet = L('shareTweet', label, v.score);
+  $('shareX').href =
+    `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}&url=${encodeURIComponent(url)}`;
+  // reset toggles
+  $('embedCode').hidden = true; $('appealForm').hidden = true;
+  $('appealMsg').textContent = ''; $('appealBody').value = ''; $('appealContact').value = '';
+  $('appealForm').dataset.mint = d.mint;
+  $('appealForm').dataset.verdict = v.kind || '';
+
+  $('shareLink').onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(url); flash($('shareLink'), L('copied')); }
+    catch(e){ prompt(L('shareCopy'), url); }
+  };
+  $('shareEmbed').onclick = ()=>{
+    const t = $('embedCode'); t.hidden = !t.hidden;
+    if(!t.hidden){ t.focus(); t.select(); }
+  };
+  $('shareAppeal').onclick = ()=>{ $('appealForm').hidden = !$('appealForm').hidden; };
+}
+function flash(btn, text){
+  const o = btn.textContent; btn.textContent = text;
+  setTimeout(()=>{ btn.textContent = o; }, 1400);
+}
+document.addEventListener('submit', async e=>{
+  if(e.target.id !== 'appealForm') return;
+  e.preventDefault();
+  const f = e.target, body = $('appealBody').value.trim();
+  if(body.length < 20){ $('appealMsg').textContent = L('appealShort'); return; }
+  $('appealSend').disabled = true;
+  try{
+    const r = await fetch(`${API}/api/appeal`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mint:f.dataset.mint, verdict:f.dataset.verdict,
+        contact:$('appealContact').value.trim(), body })
+    });
+    const j = await r.json();
+    $('appealMsg').textContent = r.ok ? L('appealOk') : (j.detail || L('appealErr'));
+    if(r.ok){ $('appealBody').value = ''; }
+  }catch(err){ $('appealMsg').textContent = L('appealErr'); }
+  finally{ $('appealSend').disabled = false; }
+});
 
 function evidenceHtml(e){
   if(!e || !Object.keys(e).length) return '';
@@ -1074,6 +1255,12 @@ applyI18n();
 loadRecent();
 loadTrack();
 setInterval(loadTrack, 60000);
+
+// /t/{mint} sayfası: sunucu window.__PREFILL_MINT__ enjekte eder → otomatik tara
+if(window.__PREFILL_MINT__ && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(window.__PREFILL_MINT__)){
+  $('mint').value = window.__PREFILL_MINT__;
+  scan(window.__PREFILL_MINT__);
+}
 </script>
 </body>
 </html>

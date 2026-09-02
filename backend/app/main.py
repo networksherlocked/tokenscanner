@@ -20,13 +20,14 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .cache import ScanCache
 from .engine.scanner import scan_token, TokenTooSmall
+from .render_card import render_badge_svg, render_png
 from .rpc.market import fetch_market
 from .rpc.pool import RpcPool, RpcError
 
@@ -235,6 +236,111 @@ async def track(limit: int = 20):
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "providers": state["pool"].stats()}
+
+
+# --- Paylaşım: kart, rozet, OG sayfası -----------------------------------
+
+_VLABEL = {
+    "bundled": "Bundled", "cabaled": "Cabaled",
+    "organic": "Organic", "inconclusive": "Inconclusive",
+}
+
+
+def _cached_scan(mint: str) -> dict | None:
+    try:
+        mint = _validate(mint)
+    except HTTPException:
+        return None
+    return state["cache"].get(mint)
+
+
+@app.get("/card/{mint}.png")
+async def card_png(mint: str):
+    scan = _cached_scan(mint)
+    png = render_png(scan, mint)
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/badge/{mint}.svg")
+async def badge_svg(mint: str):
+    scan = _cached_scan(mint)
+    return Response(
+        content=render_badge_svg(scan, mint),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@app.get("/t/{mint}", response_class=HTMLResponse)
+async def share_page(mint: str, request: Request):
+    """Arayüzün aynısı ama <head>'e o tokenın OG etiketleri enjekte edilmiş."""
+    if not _FRONTEND_DIR.is_dir():
+        raise HTTPException(404, "frontend yok")
+    doc = (_FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    scan = _cached_scan(mint)
+    base = str(request.base_url).rstrip("/")
+
+    # mint _validate'ten geçti — yalnızca base58, HTML/JS'e güvenli.
+    mint = _validate(mint)
+    if scan:
+        tok = scan.get("token") or {}
+        v = scan.get("verdict") or {}
+        label = _VLABEL.get(v.get("kind"), "Scanned")
+        sym = tok.get("symbol") or mint[:6]
+        title = f"{label} — {sym} · america.sx"
+        desc = (
+            f"{label} · score {v.get('score')} · confidence {v.get('confidence')}. "
+            f"{v.get('summary', '')}"
+        )[:200]
+    else:
+        title = "america.sx — Solana launch forensics"
+        desc = "Paste a Solana mint. Fifteen independent on-chain signals decide."
+
+    def esc(s: str) -> str:
+        return (
+            s.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;")
+        )
+
+    og = (
+        f'<meta property="og:type" content="website">'
+        f'<meta property="og:title" content="{esc(title)}">'
+        f'<meta property="og:description" content="{esc(desc)}">'
+        f'<meta property="og:image" content="{base}/card/{mint}.png">'
+        f'<meta property="og:url" content="{base}/t/{mint}">'
+        f'<meta name="twitter:card" content="summary_large_image">'
+        f'<meta name="twitter:title" content="{esc(title)}">'
+        f'<meta name="twitter:description" content="{esc(desc)}">'
+        f'<meta name="twitter:image" content="{base}/card/{mint}.png">'
+        f'<script>window.__PREFILL_MINT__="{mint}";</script>'
+    )
+    doc = doc.replace("</head>", og + "</head>", 1)
+    return HTMLResponse(doc)
+
+
+@app.post("/api/appeal")
+async def appeal(request: Request, payload: dict = Body(...)):
+    mint = _validate(str(payload.get("mint", "")))
+    body = str(payload.get("body", "")).strip()
+    contact = str(payload.get("contact", "")).strip() or None
+    if len(body) < 20:
+        raise HTTPException(422, "Lütfen itirazını biraz daha açık yaz (en az 20 karakter).")
+    if len(body) > 4000:
+        body = body[:4000]
+    ip = request.client.host if request.client else "unknown"
+    cache = state["cache"]
+    if cache.appeals_today(contact, ip) >= 5:
+        raise HTTPException(429, "Bugünlük itiraz limitine ulaştın. Yarın tekrar dene.")
+    cached = cache.get(mint)
+    verdict = (cached or {}).get("verdict", {}).get("kind")
+    # IP'yi contact yoksa istismar anahtarı olarak sakla (e-posta değil)
+    aid = cache.add_appeal(mint, verdict, contact or ip, body)
+    log.info("İtiraz #%s — %s (%s)", aid, mint, verdict)
+    return {"ok": True, "id": aid}
 
 
 @app.exception_handler(Exception)

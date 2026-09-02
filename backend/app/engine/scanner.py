@@ -18,6 +18,7 @@ import time
 
 from ..rpc.launch import (
     analyze_deployer,
+    build_funding_tree,
     collect_launch_snapshot,
     enrich_launch_buyers,
 )
@@ -79,6 +80,7 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         launch = await collect_launch_snapshot(pool, mint, anchor, source)
         if launch.available:
             await enrich_launch_buyers(pool, launch.buyers)
+            launch.funding_tree = await build_funding_tree(pool, launch.buyers)
             if not launch_ts:
                 times = [b.first_block_time for b in launch.buyers if b.first_block_time]
                 launch_ts = min(times) if times else None
@@ -189,7 +191,11 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
                 "address": deployer.address if deployer else None,
                 "prior_tokens": deployer.prior_tokens if deployer else 0,
                 "checked": deployer.checked if deployer else False,
+                "checked_tokens": deployer.checked_tokens if deployer else 0,
+                "dead_tokens": deployer.dead_tokens if deployer else 0,
+                "dead_rate": round(deployer.dead_rate, 2) if deployer else 0.0,
             },
+            "funding_tree": (launch.funding_tree if launch_ok else {}),
         },
         "data_quality": {
             "chain_coverage": chain.coverage,

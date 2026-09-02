@@ -526,8 +526,30 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
         s.detail = "Deployer geçmişi çıkarılamadı (Helius DAS gerekli)."
         return s
     n = getattr(dep, "prior_tokens", 0)
-    s.evidence = {"deployer": getattr(dep, "address", None), "prior_tokens": n}
-    if n >= 10:
+    checked = getattr(dep, "checked_tokens", 0)
+    dead = getattr(dep, "dead_tokens", 0)
+    rate = getattr(dep, "dead_rate", 0.0)
+    s.evidence = {
+        "deployer": getattr(dep, "address", None),
+        "prior_tokens": n,
+        "checked": checked,
+        "dead": dead,
+        "dead_rate": round(rate, 2),
+    }
+    if n == 0:
+        s.detail = "Deployer'ın ilk tokeni."
+        return s
+
+    # Seri lansman + yüksek ölüm oranı = güçlü kırmızı bayrak.
+    if checked >= 3 and rate >= 0.6:
+        s.fired = True
+        s.direction = "bundled"
+        s.strength = max(0.6, _ramp(rate, 0.5, 1.0))
+        s.detail = (
+            f"Deployer {n} token basmış; kontrol edilen {checked}'inin "
+            f"{dead}'i (%{rate * 100:.0f}) ölmüş/likidite çekilmiş — seri rug profili."
+        )
+    elif n >= 10:
         s.fired = True
         s.direction = "bundled"
         s.strength = _ramp(n, 10, 40)
@@ -535,11 +557,52 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
     elif n >= 3:
         s.fired = True
         s.strength = _ramp(n, 3, 12)
-        s.detail = f"Deployer daha önce {n} token basmış."
+        extra = f", {dead}/{checked}'i ölü" if checked else ""
+        s.detail = f"Deployer daha önce {n} token basmış{extra}."
     else:
+        s.detail = f"Deployer'ın {n} önceki tokeni var — olağan."
+    return s
+
+
+def sig_funding_tree(ctx: SignalContext) -> Signal:
+    """2-hop fonlama: farklı direkt fonlayıcılar tek bir üst kaynağa çıkıyorsa,
+    cüzdanlar bağımsız görünse bile koordinasyon vardır."""
+    s = Signal(
+        key="funding_tree",
+        label="Fonlama ağacı (2-hop)",
+        direction="bundled",
+        weight=1.0,
+    )
+    tree = {}
+    if ctx.launch and getattr(ctx.launch, "available", False):
+        tree = getattr(ctx.launch, "funding_tree", {}) or {}
+    grand = tree.get("grandfunders") or {}
+    fb = tree.get("funder_buyers") or {}
+    if not fb:
+        s.data_ok = False
+        s.detail = "2-hop fonlama ağacı çıkarılamadı."
+        return s
+
+    best_gf, best_funders = None, []
+    for gf, funders in grand.items():
+        if len(funders) > len(best_funders):
+            best_gf, best_funders = gf, funders
+    reached = sum(len(fb.get(f, [])) for f in best_funders)
+    s.evidence = {
+        "grandfunder": best_gf,
+        "direct_funders": len(best_funders),
+        "buyers_reached": reached,
+    }
+    if len(best_funders) >= 2 and reached >= 3:
+        s.fired = True
+        s.strength = _count_strength(reached, 3, span=5)
         s.detail = (
-            "İlk token" if n == 0 else f"Deployer'ın {n} önceki tokeni var — olağan."
+            f"{len(best_funders)} farklı fonlayıcı tek bir üst kaynaktan "
+            f"({best_gf[:6]}…{best_gf[-4:]}) besleniyor — bu fonlayıcılar "
+            f"{reached} lansman alıcısına para göndermiş."
         )
+    else:
+        s.detail = "Fonlayıcılar ayrı üst kaynaklardan — 2-hop koordinasyon yok."
     return s
 
 
@@ -651,6 +714,7 @@ ALL_SIGNALS: list[Callable[[SignalContext], Signal]] = [
     sig_supply_whale,
     sig_top10_concentration,
     sig_funding_profile,
+    sig_funding_tree,
     sig_deployer_history,
     sig_mint_authority,
     sig_liquidity_health,

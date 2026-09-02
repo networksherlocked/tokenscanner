@@ -51,7 +51,13 @@ class LaunchBuyer:
 class DeployerInfo:
     address: str | None = None
     prior_tokens: int = 0
+    checked_tokens: int = 0      # kaç önceki tokenın piyasası kontrol edildi
+    dead_tokens: int = 0         # likidite ~0 / çift yok = ölmüş/rug
     checked: bool = False
+
+    @property
+    def dead_rate(self) -> float:
+        return self.dead_tokens / self.checked_tokens if self.checked_tokens else 0.0
 
 
 @dataclass
@@ -62,6 +68,8 @@ class LaunchSnapshot:
     launch_slot: int | None = None
     reached_start: bool = False
     note: str = ""             # "budget" = bütçe doldu, başlangıç görülemedi
+    # 2-hop fonlama ağacı: grandfunder -> beslediği direkt fonlayıcılar
+    funding_tree: dict = field(default_factory=dict)
 
 
 async def _pages_to_oldest(
@@ -210,6 +218,44 @@ async def enrich_launch_buyers(
     await asyncio.gather(*(one(b) for b in ordered[:LAUNCH_ENRICH_MAX]))
 
 
+async def build_funding_tree(
+    pool: RpcPool, buyers: list[LaunchBuyer], max_funders: int = 12
+) -> dict:
+    """2. hop: her direkt fonlayıcıyı KİM fonladı? Farklı direkt fonlayıcılar
+    tek bir 'grandfunder'a çıkıyorsa, cüzdanlar farklı görünse bile koordinasyon
+    vardır."""
+    funders: dict[str, list[str]] = {}
+    for b in buyers:
+        if b.funder and not registry.is_infrastructure(b.funder):
+            funders.setdefault(b.funder, []).append(b.owner)
+    picks = list(funders)[:max_funders]
+    if not picks:
+        return {}
+
+    sem = asyncio.Semaphore(6)
+    grand: dict[str, str] = {}
+
+    async def one(f: str) -> None:
+        async with sem:
+            oldest, _, reached = await solana._oldest_signature(pool, f, max_pages=2)
+            if oldest and reached:
+                sig = oldest.get("signature")
+                if sig:
+                    gf = await solana._find_funder(pool, sig, f)
+                    if gf and not registry.is_infrastructure(gf):
+                        grand[f] = gf
+
+    await asyncio.gather(*(one(f) for f in picks))
+
+    tree: dict[str, list[str]] = {}
+    for f, gf in grand.items():
+        tree.setdefault(gf, []).append(f)
+    return {
+        "grandfunders": {gf: fs for gf, fs in tree.items() if len(fs) >= 1},
+        "funder_buyers": funders,
+    }
+
+
 async def analyze_deployer(
     pool: RpcPool, creator: str, mint: str
 ) -> DeployerInfo:
@@ -231,8 +277,28 @@ async def analyze_deployer(
         log.info("deployer DAS sorgusu düştü %s: %s", creator, exc)
         return info
     items = (res or {}).get("items") or []
-    ids = {it.get("id") for it in items}
+    ids = {it.get("id") for it in items if it.get("id")}
     ids.discard(mint)
     info.prior_tokens = len(ids)
     info.checked = True
+
+    # Geçmiş tokenların kaçı ölmüş/rug? DexScreener (anahtarsız) ile bak.
+    from .market import fetch_market
+
+    sample = list(ids)[:12]
+    if sample:
+        sem = asyncio.Semaphore(6)
+
+        async def check(tid: str) -> bool:
+            async with sem:
+                try:
+                    m = await fetch_market(tid, timeout=8.0)
+                except Exception:  # noqa: BLE001
+                    return False
+                # çift yok ya da likidite $1k altı = pratikte ölü
+                return not m.available or (m.liquidity_usd or 0) < 1000
+
+        results = await asyncio.gather(*(check(t) for t in sample))
+        info.checked_tokens = len(results)
+        info.dead_tokens = sum(1 for r in results if r)
     return info

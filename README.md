@@ -7,8 +7,23 @@
 > `americasx_lang` (eski `uavsx_lang` geriye dönük okunuyor).
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
-Bir mint adresi alır, 14 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
+Bir mint adresi alır, **15 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
 Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
+
+**Paylaşım & şeffaflık (v5):**
+- `GET /card/{mint}.png` — X/OG için 1200×630 kart (Pillow). `GET /t/{mint}` bu
+  karta OG etiketleriyle işaret eder ve arayüzü o mint'le otomatik başlatır.
+- `GET /badge/{mint}.svg` — projeler sitelerine gömebilir (`<img src=…>`).
+- `POST /api/appeal` — karara itiraz (SQLite `appeals`, elle inceleme kuyruğu).
+- Sonuç panelinde "Bu kararı paylaş": link kopyala · X'te paylaş · rozet göm · itiraz.
+- "Yöntem" sayfası: 15 sinyalin tam listesi + lansman analizi açıklaması.
+
+**Motor doğruluğu (v5):**
+- `deployer_history` artık deployer'ın önceki tokenlarının kaç tanesinin
+  öldüğünü/rug olduğunu da kontrol ediyor (DexScreener, ~12 örnek). Seri rug
+  profili → güçlü bundled sinyali.
+- Yeni `funding_tree` sinyali (2-hop): farklı direkt fonlayıcılar tek bir üst
+  kaynağa çıkıyorsa koordinasyon var demektir.
 
 **İki katmanlı analiz** (v4):
 - **Lansman** — pump.fun `bonding_curve` (yoksa DEX pair) çıpasından imzalar en
