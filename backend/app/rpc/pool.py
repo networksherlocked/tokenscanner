@@ -103,6 +103,36 @@ class RpcPool:
             timeout=timeout, limits=httpx.Limits(max_connections=32)
         )
         self._id = itertools.count(1)
+        # Helius DAS (getAsset, getAssetsByCreator) yalnızca Helius uçlarında var.
+        self._das = [p for p in self.providers if "helius" in p.url.lower()]
+
+    @property
+    def has_das(self) -> bool:
+        return bool(self._das)
+
+    async def das(self, method: str, params: Any) -> Any:
+        """DAS çağrısı — yalnızca Helius sağlayıcısına gider (named params)."""
+        if not self._das:
+            raise RpcError("DAS için Helius uç noktası yok.")
+        provider = min(self._das, key=lambda p: p.cooldown_until)
+        await provider.bucket.acquire()
+        provider.calls += 1
+        payload = {
+            "jsonrpc": "2.0",
+            "id": next(self._id),
+            "method": method,
+            "params": params,
+        }
+        try:
+            resp = await self._client.post(provider.url, json=payload)
+            resp.raise_for_status()
+            body = resp.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            provider.penalise(20.0)
+            raise RpcError(f"DAS {method}: {exc}") from exc
+        if "error" in body:
+            raise RpcError(f"DAS {method}: {body['error']}")
+        return body.get("result")
 
     async def aclose(self) -> None:
         await self._client.aclose()

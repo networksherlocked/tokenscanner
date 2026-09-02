@@ -289,6 +289,7 @@ footer p{margin:0 0 6px;max-width:76ch}
   <div class="wrap bar">
     <div class="brand">uavsx<i>_</i></div>
     <nav>
+      <button class="navbtn" id="navHome" data-i18n="navHome">Home</button>
       <button class="navbtn" id="navAbout" data-i18n="navAbout">About</button>
       <span class="langsel">
         <button type="button" data-lang="en">EN</button>
@@ -303,14 +304,14 @@ footer p{margin:0 0 6px;max-width:76ch}
     <div class="wrap">
       <div class="kicker" data-i18n="kicker">Solana · distribution forensics</div>
       <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
-      <p class="lede" data-i18n="lede">Paste a mint address. Thirteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
+      <p class="lede" data-i18n="lede">Paste a mint address. Fourteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
       <div class="search">
         <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
                spellcheck="false" autocomplete="off" aria-label="Mint address">
         <button id="scanBtn" data-i18n="scanBtn">Scan</button>
         <button id="pasteBtn" class="ghost" type="button" data-i18n="pasteBtn">Paste</button>
       </div>
-      <div class="hint" id="hint" data-i18n="hint">Results are cached for 15 minutes. A scan usually takes 15–40 seconds.</div>
+      <div class="hint" id="hint" data-i18n="hint">Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.</div>
       <div class="err" id="err" hidden></div>
     </div>
   </section>
@@ -365,9 +366,9 @@ footer p{margin:0 0 6px;max-width:76ch}
       </div>
 
       <div class="scan-stats">
-        <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">wallets found</span></div>
+        <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <div class="scan-stat"><b id="statSignals">0/13</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="statSignals">0/14</b><span data-i18n="statSignalsLbl">signals</span></div>
       </div>
 
       <div class="scan-grid" id="scanGrid"></div>
@@ -422,7 +423,7 @@ footer p{margin:0 0 6px;max-width:76ch}
     <h2 data-i18n="aboutTitle">About UAVSX</h2>
     <div class="sub" data-i18n="aboutSub">On-chain supply-distribution forensics for Solana</div>
 
-    <p data-i18n="aboutP1">UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs thirteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
+    <p data-i18n="aboutP1">UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs fourteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.</p>
 
     <h3 data-i18n="aboutVerdictH">The verdict</h3>
     <div class="verdefs">
@@ -472,15 +473,16 @@ try{ const s = localStorage.getItem('uavsx_lang'); if(s === 'tr' || s === 'en') 
 
 const STR = {
   en: {
+    navHome:'Home',
     navAbout:'About',
     kicker:'Solana · distribution forensics',
     h1:"See who took a token's supply, and how.",
-    lede:'Paste a mint address. Thirteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
+    lede:'Paste a mint address. Fourteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
     mintPh:'Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
-    hint:'Results are cached for 15 minutes. A scan usually takes 15–40 seconds.',
+    hint:'Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.',
     scanTitle:'Scanning chain',
-    statHoldersLbl:'wallets found', statRpcLbl:'RPC calls', statSignalsLbl:'signals',
+    statHoldersLbl:'launch buyers', statRpcLbl:'RPC calls', statSignalsLbl:'signals',
     scanCancel:'Stop scan',
     recentHead:'Recently scanned tokens',
     sigGrid:'Signal grid', largestWallets:'Largest wallets',
@@ -488,7 +490,7 @@ const STR = {
     footerBody:'Each classification is the current output of heuristic rules applied to public on-chain data. It describes a pattern; it carries no claim of intent, fraud or crime. It can produce false positives and false negatives. "Organic" means "no manipulation pattern found" — not "safe" or "will go up". As data changes, the verdict for the same token changes too. Not investment advice.',
     aboutTitle:'About UAVSX',
     aboutSub:'On-chain supply-distribution forensics for Solana',
-    aboutP1:"UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs thirteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
+    aboutP1:"UAVSX takes a Solana token mint address and examines how its supply was acquired. It runs fourteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth and more — then checks how many of them point the same way. One signal never decides on its own.",
     aboutVerdictH:'The verdict',
     aboutBundled:'supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.',
     aboutCabaled:'distribution is insider-heavy or unusual, but without the hard signatures of a bundle.',
@@ -511,6 +513,10 @@ const STR = {
     clipFail:'Could not read the clipboard — paste manually.',
     alignScore:'Alignment score', confidence:'Confidence',
     noName:'No name data', marketCap:'Market cap', liquidity:'Liquidity', age:'Age',
+    basis:'Analysis basis',
+    basisLaunch: n => `launch buyers (${n})`,
+    basisCurrent:'current holders only',
+    deployerLine: n => `Deployer has launched ${n} prior token${n===1?'':'s'}`,
     hours: n => `${n} h`,
     firedOf: (a,b) => `${a} / ${b} fired`,
     clean:'clean', noDataShort:'no data',
@@ -529,15 +535,16 @@ const STR = {
     predWas: v => `predicted ${v}`,
   },
   tr: {
+    navHome:'Ana sayfa',
     navAbout:'Hakkında',
     kicker:'Solana · dağıtım adli analizi',
     h1:'Bir tokenın arzını kimin, nasıl aldığını görün.',
-    lede:'Mint adresini yapıştırın. On üç bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
+    lede:'Mint adresini yapıştırın. On dört bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
     mintPh:'Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
-    hint:'Sonuçlar 15 dakika önbellekte tutulur. Tarama genelde 15–40 saniye sürer.',
+    hint:'Sonuçlar 15 dakika önbellekte tutulur. Derin tarama genelde 25–75 saniye sürer.',
     scanTitle:'Zincir taranıyor',
-    statHoldersLbl:'cüzdan bulundu', statRpcLbl:'RPC çağrısı', statSignalsLbl:'sinyal',
+    statHoldersLbl:'lansman alıcısı', statRpcLbl:'RPC çağrısı', statSignalsLbl:'sinyal',
     scanCancel:'Taramayı durdur',
     recentHead:'Son taranan tokenlar',
     sigGrid:'Sinyal ızgarası', largestWallets:'En büyük cüzdanlar',
@@ -545,7 +552,7 @@ const STR = {
     footerBody:'Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz. Yanlış pozitif ve yanlış negatif üretebilir. "Organic", "manipülasyon deseni bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe aynı token için karar da değişir. Yatırım tavsiyesi değildir.',
     aboutTitle:'UAVSX Hakkında',
     aboutSub:'Solana için zincir üstü arz dağıtımı adli analizi',
-    aboutP1:'UAVSX bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On üç bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
+    aboutP1:'UAVSX bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On dört bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
     aboutVerdictH:'Karar',
     aboutBundled:'arz dağıtımı üretilmiş görünüyor — birden çok sert sinyal aynı yönü gösteriyor ve koordineli alım görülüyor.',
     aboutCabaled:'dağıtım insider ağırlıklı ya da olağandışı, ama bir bundle\'ın sert imzaları yok.',
@@ -567,6 +574,10 @@ const STR = {
     clipFail:'Pano okunamadı — elle yapıştırın.',
     alignScore:'Uyum skoru', confidence:'Güven',
     noName:'İsim verisi yok', marketCap:'Piyasa değeri', liquidity:'Likidite', age:'Yaş',
+    basis:'Analiz temeli',
+    basisLaunch: n => `lansman alıcıları (${n})`,
+    basisCurrent:'yalnızca mevcut holder\'lar',
+    deployerLine: n => `Deployer daha önce ${n} token basmış`,
     hours: n => `${n} saat`,
     firedOf: (a,b) => `${a} / ${b} tetiklendi`,
     clean:'temiz', noDataShort:'veri yok',
@@ -595,6 +606,7 @@ const SIG_EN = {
   identical_balances:'Identical balances',
   fee_fingerprint:'Fee fingerprint',
   fresh_wallets:'Fresh-wallet ratio',
+  deployer_history:'Deployer history',
   flagged_wallets:'Previously flagged wallets',
   supply_whale:'Single-wallet dominance',
   top10_concentration:'Top-10 concentration',
@@ -613,31 +625,31 @@ const SUMMARY_EN = {
 const SCAN_LOG = {
   en: [
     [200,   'RPC pool ready · provider connected'],
-    [700,   'resolving mint account'],
-    [1500,  'read supply, decimals and mint/freeze authority'],
-    [2400,  'fetching top 20 token accounts'],
-    [4200,  'matching owner wallets (getMultipleAccounts)'],
-    [6500,  'scanning wallet transaction histories'],
-    [11000, 'tracing first funding transactions — where did the SOL come from?'],
-    [17000, 'collecting priority-fee fingerprints'],
-    [23000, 'merging DexScreener market data'],
-    [27000, 'computing 13 independent signals'],
-    [31000, 'applying convergence rule'],
-    [35000, 'preparing verdict, score and confidence'],
+    [1200,  'fetching DexScreener + pump.fun launch metadata'],
+    [3000,  'resolving mint · supply, decimals, mint/freeze authority'],
+    [5000,  'reading current top holders (getTokenLargestAccounts)'],
+    [8000,  'walking the bonding curve back to block 1…'],
+    [16000, 'parsing the first ~40 transactions — who bought at launch?'],
+    [24000, 'tracing launch buyers: wallet age + funding source'],
+    [34000, 'where did the SOL come from? mapping the funding graph'],
+    [42000, 'checking deployer history — serial launcher?'],
+    [46000, 'computing 14 independent signals'],
+    [49000, 'applying convergence rule'],
+    [52000, 'preparing verdict, score and confidence'],
   ],
   tr: [
     [200,   'RPC havuzu hazır · sağlayıcıya bağlanıldı'],
-    [700,   'mint hesabı çözümleniyor'],
-    [1500,  'arz, ondalık ve mint/freeze yetkisi okundu'],
-    [2400,  'en büyük 20 token hesabı çekiliyor'],
-    [4200,  'sahip cüzdanlar eşleştiriliyor (getMultipleAccounts)'],
-    [6500,  'cüzdan işlem geçmişleri taranıyor'],
-    [11000, 'ilk fonlama işlemleri izleniyor — SOL nereden geldi?'],
-    [17000, 'öncelik ücreti parmak izleri toplanıyor'],
-    [23000, 'DexScreener piyasa verisi birleştiriliyor'],
-    [27000, '13 bağımsız sinyal hesaplanıyor'],
-    [31000, 'yakınsama kuralı uygulanıyor'],
-    [35000, 'karar, skor ve güven hazırlanıyor'],
+    [1200,  'DexScreener + pump.fun lansman meta verisi çekiliyor'],
+    [3000,  'mint çözülüyor · arz, ondalık, mint/freeze yetkisi'],
+    [5000,  'mevcut en büyük holder\'lar okunuyor'],
+    [8000,  'bonding curve ilk bloğa kadar geri sarılıyor…'],
+    [16000, 'ilk ~40 işlem parse ediliyor — lansmanda kim aldı?'],
+    [24000, 'lansman alıcıları: cüzdan yaşı + fonlama kaynağı'],
+    [34000, 'SOL nereden geldi? fonlama grafiği çıkarılıyor'],
+    [42000, 'deployer geçmişi kontrol ediliyor — seri lansman cüzdanı mı?'],
+    [46000, '14 bağımsız sinyal hesaplanıyor'],
+    [49000, 'yakınsama kuralı uygulanıyor'],
+    [52000, 'karar, skor ve güven hazırlanıyor'],
   ],
 };
 
@@ -704,7 +716,7 @@ function scanReset(){
   $('scanElapsed').textContent = '0.0s';
   $('statHolders').textContent = '0';
   $('statRpc').textContent = '0';
-  $('statSignals').textContent = '0/13';
+  $('statSignals').textContent = '0/14';
   $('radarBlips').querySelectorAll('.radar-blip').forEach(b=>b.classList.remove('lit'));
 }
 function scanStart(){
@@ -721,17 +733,17 @@ function scanStart(){
   SCAN.tick = setInterval(()=>{
     const s = (Date.now() - SCAN.t0) / 1000;
     $('scanElapsed').textContent = s.toFixed(1) + 's';
-    SCAN.pct = Math.max(SCAN.pct, 96 * (1 - Math.exp(-s / 15)));
+    SCAN.pct = Math.max(SCAN.pct, 96 * (1 - Math.exp(-s / 24)));
     $('scanBarFill').style.width = SCAN.pct + '%';
     $('scanPct').textContent = Math.round(SCAN.pct) + '%';
 
-    const holders = Math.min(19, Math.floor(s / 0.32));
-    const rpc = Math.min(126, Math.floor(s * 3.6));
-    const signals = s > 26 ? Math.min(12, Math.floor((s - 26) * 1.7)) : 0;
-    $('statHolders').textContent = holders;
+    const buyers = Math.min(26, Math.floor(s / 1.4));
+    const rpc = Math.min(190, Math.floor(s * 3.4));
+    const signals = s > 44 ? Math.min(14, Math.floor((s - 44) * 1.8)) : 0;
+    $('statHolders').textContent = buyers;
     $('statRpc').textContent = rpc;
-    $('statSignals').textContent = signals + '/13';
-    blips.forEach((b,i)=> b.classList.toggle('lit', i < holders * 12 / 19));
+    $('statSignals').textContent = signals + '/14';
+    blips.forEach((b,i)=> b.classList.toggle('lit', i < buyers * 12 / 26));
   }, 120);
 }
 function scanFinish(){
@@ -887,6 +899,8 @@ function render(d){
 
   const summary = lang === 'en' ? (SUMMARY_EN[v.kind] || v.summary) : v.summary;
   const confLbl = lang === 'en' ? (CONF_EN[v.confidence_label] || v.confidence_label) : v.confidence_label;
+  const lu = d.launch || { available:false, buyer_count:0 };
+  const dep = (d.launch && d.launch.deployer) || {};
 
   const t = d.token || {};
   $('verdict').innerHTML = `
@@ -907,6 +921,10 @@ function render(d){
       <div>${L('marketCap')} <b>${usd(t.market_cap)}</b></div>
       <div>${L('liquidity')} <b>${usd(t.liquidity_usd)}</b></div>
       <div>${L('age')} <b>${t.age_hours!=null ? L('hours', t.age_hours) : '—'}</b></div>
+      <div>${L('basis')} <b style="color:${lu.available ? 'var(--live)' : 'var(--cabaled)'}">${
+        lu.available ? L('basisLaunch', lu.buyer_count) : L('basisCurrent')}</b></div>
+      ${dep && dep.checked && dep.prior_tokens > 0
+        ? `<div>${L('deployerLine', dep.prior_tokens)}</div>` : ''}
       <div style="color:var(--dim);word-break:break-all;padding-top:6px">${d.mint}</div>
     </div>`;
   requestAnimationFrame(()=>{
@@ -971,11 +989,20 @@ function evidenceHtml(e){
   return rows.length ? `<div style="margin-top:8px;font-size:11px;color:var(--dim)">${rows.join('<br>')}</div>` : '';
 }
 
-/* ---------------- hakkında görünümü ---------------- */
+/* ---------------- görünüm geçişi ---------------- */
 function showAbout(on){
   $('mainView').hidden = on;
   $('aboutView').hidden = !on;
   window.scrollTo(0, 0);
+}
+function goHome(){
+  showAbout(false);
+  $('result').classList.remove('on');
+  scanStop();
+  clearError();
+  $('mint').value = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  $('mint').focus();
 }
 
 /* ---------------- olay bağlantıları ---------------- */
@@ -1000,7 +1027,10 @@ document.addEventListener('keydown', e=>{
 });
 
 $('navAbout').onclick = ()=> showAbout(true);
+$('navHome').onclick = goHome;
 $('aboutBack').onclick = ()=> showAbout(false);
+document.querySelector('.brand').style.cursor = 'pointer';
+document.querySelector('.brand').onclick = goHome;
 document.querySelectorAll('.langsel button').forEach(b=>{ b.onclick = ()=> setLang(b.dataset.lang); });
 
 applyI18n();

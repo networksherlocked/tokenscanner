@@ -1,14 +1,29 @@
-"""Tarama orkestratörü: veri topla → sinyalleri çalıştır → kararı ver."""
+"""Tarama orkestratörü: veri topla → sinyalleri çalıştır → kararı ver.
+
+İki katmanlı analiz:
+  1. LANSMAN  — bonding curve / pool çıpasından ilk ~30 alıcı. Bundle sinyalleri
+                (yaş kümesi, ortak fonlayıcı, eşzamanlı giriş, eşit bakiye, ücret
+                parmak izi, taze cüzdan) BUNLARIN üzerinde çalışır.
+  2. MEVCUT YAPI — getTokenLargestAccounts'tan şu anki top 20. Yoğunlaşma, balina,
+                likidite, mint yetkisi buradan.
+Lansman verisi çekilemezse (çok yüksek hacimli/eski token, bütçe doldu) bundle
+sinyalleri mevcut holder'lara düşer ve sonuçta bu belirtilir.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import time
 
+from ..rpc.launch import (
+    analyze_deployer,
+    collect_launch_snapshot,
+    enrich_launch_buyers,
+)
 from ..rpc.market import fetch_market
 from ..rpc.pool import RpcPool
+from ..rpc.pumpfun import fetch_pumpfun
 from ..rpc.solana import collect_chain_snapshot
 from . import registry
 from .classifier import classify
@@ -16,7 +31,6 @@ from .signals import SignalContext, run_signals
 
 log = logging.getLogger(__name__)
 
-# Bu eşiğin altındaki tokenlar hiç taranmaz — zincir sorgusu bile yapılmaz.
 MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP_USD", "10000"))
 
 
@@ -27,8 +41,7 @@ class TokenTooSmall(Exception):
 async def scan_token(pool: RpcPool, mint: str) -> dict:
     started = time.monotonic()
 
-    # Önce piyasa verisi (anahtarsız, ucuz). Eşiği geçemiyorsa ~125 RPC
-    # çağrısı harcamadan burada dururuz.
+    # 1) Piyasa + pump.fun meta (ikisi de anahtarsız, ucuz).
     market = await fetch_market(mint)
     if not market.market_cap or market.market_cap < MIN_MARKET_CAP:
         seen = f"${market.market_cap:,.0f}" if market.market_cap else "unknown"
@@ -38,24 +51,96 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
             f"yalnızca ${MIN_MARKET_CAP:,.0f} üzerindeki tokenları tarar."
         )
 
-    chain = await collect_chain_snapshot(pool, mint)
+    pump = await fetch_pumpfun(mint)
 
-    # Tokenin doğum zamanı: pazar çiftinin oluşumu, yoksa en erken holder girişi.
-    launch_ts = market.pair_created_at
-    if not launch_ts:
-        times = [h.first_block_time for h in chain.holders if h.first_block_time]
-        launch_ts = min(times) if times else None
+    # Lansman zamanı: pump.fun created_timestamp en doğrusu; yoksa pair oluşumu.
+    launch_ts = (pump.created_ts if pump and pump.created_ts else None) or \
+        market.pair_created_at
 
-    ctx = SignalContext(chain=chain, market=market, launch_ts=launch_ts)
+    # 2) Mevcut yapı — hafif (yalnızca sahip + bakiye).
+    chain = await collect_chain_snapshot(pool, mint, deep=False)
+
+    # 3) Lansman anlık görüntüsü.
+    anchor, source = None, ""
+    if pump and pump.bonding_curve:
+        anchor, source = pump.bonding_curve, "bonding_curve"
+    elif market.pair_address:
+        anchor, source = market.pair_address, "pair"
+
+    # Raydium native pool sonsuza dek işlem biriktirir; çok eskiyse imzaları
+    # başa kadar saymak bütçeyi boşa harcar. Bonding curve ise migration'dan
+    # sonra dondu — geçmişi sınırlı, yaşı ne olursa olsun denenir.
+    age_hours_guess = (time.time() - launch_ts) / 3600 if launch_ts else None
+    skip_launch = (
+        source == "pair" and age_hours_guess and age_hours_guess > 14 * 24
+    )
+    launch = None
+    if anchor and not skip_launch:
+        launch = await collect_launch_snapshot(pool, mint, anchor, source)
+        if launch.available:
+            await enrich_launch_buyers(pool, launch.buyers)
+            if not launch_ts:
+                times = [b.first_block_time for b in launch.buyers if b.first_block_time]
+                launch_ts = min(times) if times else None
+
+    # 4) Deployer geçmişi.
+    deployer = None
+    creator = pump.creator if pump else None
+    if creator:
+        deployer = await analyze_deployer(pool, creator, mint)
+
+    # Lansman da mevcut yapı da holder yaşı vermediyse eski fallback: derin tarama.
+    launch_ok = bool(launch and launch.available)
+    if not launch_ok:
+        chain = await collect_chain_snapshot(pool, mint, deep=True)
+
+    ctx = SignalContext(
+        chain=chain,
+        market=market,
+        launch=launch,
+        deployer=deployer,
+        launch_ts=launch_ts,
+    )
     signals = run_signals(ctx)
+
+    # Güven için "coverage": lansman varsa ilk alıcıların yaş+fonlayıcı çözüm
+    # oranı; yoksa mevcut holder taramasının oranı.
+    if launch_ok:
+        b = launch.buyers
+        fields = sum(bool(x.owner_created_at) + bool(x.funder) for x in b)
+        coverage = round(fields / (len(b) * 2), 3) if b else 0.0
+    else:
+        coverage = chain.coverage
 
     age_hours = (time.time() - launch_ts) / 3600 if launch_ts else None
     verdict = classify(
         signals,
-        coverage=chain.coverage,
+        coverage=coverage,
         market_available=market.available,
         token_age_hours=age_hours,
+        launch_available=launch_ok,
     )
+
+    bundle_src = "launch" if launch_ok else "current_holders"
+    launch_buyers_out = []
+    if launch_ok:
+        launch_buyers_out = [
+            {
+                "owner": b.owner,
+                "amount": b.amount_raw / (10 ** chain.mint_info.decimals)
+                if chain.mint_info.decimals
+                else b.amount_raw,
+                "share": round(b.share, 2),
+                "slot": b.first_slot,
+                "tx_count": b.owner_tx_count,
+                "created_at": b.owner_created_at,
+                "funder": b.funder,
+                "funder_tag": registry.classify_address(b.funder)["name"]
+                if b.funder
+                else None,
+            }
+            for b in launch.buyers
+        ]
 
     return {
         "mint": mint,
@@ -95,9 +180,21 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
             }
             for h in chain.holders
         ],
+        "launch": {
+            "source": bundle_src,
+            "available": launch_ok,
+            "buyer_count": len(launch_buyers_out),
+            "buyers": launch_buyers_out,
+            "deployer": {
+                "address": deployer.address if deployer else None,
+                "prior_tokens": deployer.prior_tokens if deployer else 0,
+                "checked": deployer.checked if deployer else False,
+            },
+        },
         "data_quality": {
             "chain_coverage": chain.coverage,
             "market_available": market.available,
+            "bundle_source": bundle_src,
             "errors": chain.errors,
         },
     }

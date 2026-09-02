@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.engine.classifier import classify  # noqa: E402
 from app.engine.signals import SignalContext, run_signals  # noqa: E402
+from app.rpc.launch import LaunchBuyer, LaunchSnapshot  # noqa: E402
 from app.rpc.market import MarketSnapshot  # noqa: E402
 from app.rpc.solana import ChainSnapshot, HolderRecord, MintInfo  # noqa: E402
 
@@ -166,15 +167,66 @@ def aged_whale_case() -> tuple[ChainSnapshot, MarketSnapshot]:
     return snap, _market(liq=2_900_000.0, mcap=269_000_000.0)
 
 
+def launch_bundle_case():
+    """MEVCUT holder'lar temiz görünüyor (yaşlı borsa cüzdanları) ama LANSMAN
+    ilk alıcıları klasik paket: aynı fonlayıcı, aynı slot, eşit bakiye, aynı
+    ücret, taze cüzdanlar. Motor lansman verisini kullanıp Bundled demeli."""
+    # temiz mevcut holder'lar
+    holders = []
+    for i in range(12):
+        holders.append(
+            HolderRecord(
+                token_account=f"HA{i:040d}",
+                owner=f"HOLD{i:039d}",
+                amount_raw=int(SUPPLY * (0.03 - i * 0.001)),
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    chain = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=1.0)
+
+    funder = "LAUNCHFUNDERxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    buyers = []
+    for i in range(9):
+        buyers.append(
+            LaunchBuyer(
+                owner=f"SNIPE{i:038d}",
+                amount_raw=int(SUPPLY * 0.021) + i * 700,
+                first_slot=310_000_000 + (i % 2),
+                first_block_time=LAUNCH + 8,
+                entry_fee=91_007,
+                first_signature=f"sig{i}",
+                owner_created_at=LAUNCH - 3600,
+                owner_tx_count=3,
+                funder=funder,
+            )
+        )
+    total = sum(b.amount_raw for b in buyers)
+    for b in buyers:
+        b.share = b.amount_raw / total * 100
+    launch = LaunchSnapshot(available=True, source="bonding_curve", buyers=buyers)
+    return chain, _market(liq=18_000.0, mcap=400_000.0), launch, True
+
+
 def run(name: str, builder, age_hours: float = 8.0) -> str:
-    chain, market = builder()
-    ctx = SignalContext(chain=chain, market=market, launch_ts=LAUNCH)
+    out = builder()
+    chain, market = out[0], out[1]
+    launch = out[2] if len(out) > 2 else None
+    launch_avail = out[3] if len(out) > 3 else True
+    ctx = SignalContext(
+        chain=chain, market=market, launch=launch, launch_ts=LAUNCH
+    )
     signals = run_signals(ctx)
+    cov = chain.coverage
+    if launch and getattr(launch, "available", False):
+        b = launch.buyers
+        cov = sum(bool(x.owner_created_at) + bool(x.funder) for x in b) / (len(b) * 2)
     verdict = classify(
         signals,
-        coverage=chain.coverage,
+        coverage=cov,
         market_available=market.available,
         token_age_hours=age_hours,
+        launch_available=launch_avail,
     )
     print(f"\n{'=' * 66}\n{name}\n{'=' * 66}")
     print(f"  KARAR: {verdict.label}  |  skor {verdict.score}  |  güven {verdict.confidence} ({verdict.confidence_label})")
@@ -192,13 +244,17 @@ if __name__ == "__main__":
         "BUNDLE SENARYOSU": run("BUNDLE SENARYOSU", bundled_case),
         "ORGANİK SENARYO": run("ORGANİK SENARYO", organic_case),
         "CABAL SENARYOSU": run("CABAL SENARYOSU", cabaled_case),
-        "ESKİ TOKEN + BALİNA": run("ESKİ TOKEN + BALİNA", aged_whale_case, age_hours=1847.0),
+        "ESKİ TOKEN + BALİNA": run(
+            "ESKİ TOKEN + BALİNA", lambda: (*aged_whale_case(), None, False), age_hours=1847.0
+        ),
+        "LANSMAN PAKETİ": run("LANSMAN PAKETİ", launch_bundle_case, age_hours=1200.0),
     }
     expected = {
         "BUNDLE SENARYOSU": "bundled",
         "ORGANİK SENARYO": "organic",
         "CABAL SENARYOSU": "cabaled",
         "ESKİ TOKEN + BALİNA": "bundled",
+        "LANSMAN PAKETİ": "bundled",
     }
     print(f"\n{'=' * 66}")
     ok = True

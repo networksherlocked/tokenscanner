@@ -112,6 +112,7 @@ def classify(
     coverage: float,
     market_available: bool,
     token_age_hours: float | None,
+    launch_available: bool = True,
 ) -> Verdict:
     fired = [s for s in signals if s.fired]
     hard_fired = [s for s in fired if s.key in HARD_SIGNALS]
@@ -166,17 +167,17 @@ def classify(
     conf = 0.55 * signal_coverage + 0.30 * coverage + 0.15 * (1.0 if market_available else 0.0)
 
     caveats: list[str] = []
+    if not launch_available:
+        conf *= 0.8
+        caveats.append(
+            "Lansman işlem verisi çekilemedi (çok yüksek hacimli / eski token). "
+            "Bundle sinyalleri lansmandaki ilk alıcılar yerine ŞU ANKİ en büyük "
+            "cüzdanlar üzerinde çalıştı — koordineli bir lansmanı kaçırmış olabiliriz."
+        )
     if token_age_hours is not None and token_age_hours < 6:
-        conf *= 0.65
+        conf *= 0.7
         caveats.append(
             "Token 6 saatten yeni — işlem geçmişi bir desen çıkarmaya yetmeyebilir."
-        )
-    if token_age_hours is not None and token_age_hours > WEEK_HOURS:
-        caveats.append(
-            "Token bir haftadan eski. getTokenLargestAccounts yalnızca ŞU ANKİ en "
-            "büyük cüzdanları verir — lansmandaki orijinal paket cüzdanları çoktan "
-            "dağılmış olabilir. Bu analiz mevcut holder yapısını yansıtır, "
-            "lansman anını değil."
         )
     whale = next((s for s in signals if s.key == "supply_whale" and s.fired), None)
     if whale:

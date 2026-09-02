@@ -266,8 +266,16 @@ async def fetch_entry_fees(
     await asyncio.gather(*(one(h) for h in holders))
 
 
-async def collect_chain_snapshot(pool: RpcPool, mint: str) -> ChainSnapshot:
-    """Tam zincir anlık görüntüsü. ~120-140 RPC çağrısı."""
+async def collect_chain_snapshot(
+    pool: RpcPool, mint: str, deep: bool = True
+) -> ChainSnapshot:
+    """Zincir anlık görüntüsü.
+
+    deep=True  : eski davranış — her holder için yaş + fonlayıcı + ücret (~125 çağrı).
+    deep=False : yalnızca sahip + bakiye (~3 çağrı). Bundle sinyalleri lansman
+                 alıcılarından geldiğinde mevcut holder'lar sadece yoğunlaşma /
+                 balina / likidite için lazım.
+    """
     mint_info = await get_mint_info(pool, mint)
     holders = await get_top_holders(pool, mint, mint_info.decimals)
 
@@ -278,19 +286,25 @@ async def collect_chain_snapshot(pool: RpcPool, mint: str) -> ChainSnapshot:
         return snapshot
 
     await resolve_owners(pool, holders)
-    await asyncio.gather(
-        enrich_token_accounts(pool, holders),
-        enrich_owners(pool, holders),
-    )
-    await fetch_entry_fees(pool, holders)
+
+    if deep:
+        await asyncio.gather(
+            enrich_token_accounts(pool, holders),
+            enrich_owners(pool, holders),
+        )
+        await fetch_entry_fees(pool, holders)
 
     total = mint_info.supply_raw or sum(h.amount_raw for h in holders)
     for h in holders:
         h.share = (h.amount_raw / total * 100) if total else 0.0
 
-    # Veri tamlığı: kaç holder için sahip + yaş + fonlayıcı çözebildik?
-    fields_ok = sum(
-        bool(h.owner) + bool(h.owner_created_at) + bool(h.funder) for h in holders
-    )
-    snapshot.coverage = round(fields_ok / (len(holders) * 3), 3)
+    if deep:
+        fields_ok = sum(
+            bool(h.owner) + bool(h.owner_created_at) + bool(h.funder)
+            for h in holders
+        )
+        snapshot.coverage = round(fields_ok / (len(holders) * 3), 3)
+    else:
+        resolved = sum(1 for h in holders if h.owner)
+        snapshot.coverage = round(resolved / len(holders), 3)
     return snapshot

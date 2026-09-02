@@ -80,17 +80,38 @@ class Signal:
 class SignalContext:
     chain: ChainSnapshot
     market: MarketSnapshot
-    launch_ts: int | None = None  # tokenin tahmini doğum zamanı
+    launch: object | None = None      # rpc.launch.LaunchSnapshot (duck-typed)
+    deployer: object | None = None    # rpc.launch.DeployerInfo
+    launch_ts: int | None = None      # tokenin tahmini doğum zamanı
 
     @property
     def real_holders(self) -> list[HolderRecord]:
-        """Altyapı adreslerini (LP, CEX, burn) dışlanmış holder listesi."""
+        """Altyapı adreslerini (LP, CEX, burn) dışlanmış MEVCUT holder listesi."""
         return [
             h
             for h in self.chain.holders
             if not (h.owner and registry.is_infrastructure(h.owner))
             and not registry.is_infrastructure(h.token_account)
         ]
+
+    @property
+    def launch_ok(self) -> bool:
+        return bool(
+            self.launch
+            and getattr(self.launch, "available", False)
+            and len(getattr(self.launch, "buyers", [])) >= 4
+        )
+
+    @property
+    def bundle_wallets(self) -> list:
+        """Bundle sinyallerinin çalışacağı cüzdanlar.
+
+        Lansman verisi varsa İLK ALICILAR (asıl paket burada görünür); yoksa
+        mevcut top holder'lara düşülür ve classifier bunu bir caveat'la belirtir.
+        """
+        if self.launch_ok:
+            return list(self.launch.buyers)
+        return self.real_holders
 
 
 def _ramp(value: float, low: float, high: float) -> float:
@@ -193,7 +214,7 @@ def sig_fresh_wallets(ctx: SignalContext) -> Signal:
         direction="bundled",
         weight=0.8,
     )
-    holders = [h for h in ctx.real_holders if h.owner_tx_count]
+    holders = [h for h in ctx.bundle_wallets if h.owner_tx_count]
     if len(holders) < 4:
         s.data_ok = False
         return s
@@ -226,7 +247,7 @@ def sig_wallet_age_cluster(ctx: SignalContext) -> Signal:
     if not ctx.launch_ts:
         s.data_ok = False
         return s
-    ages = [h.owner_created_at for h in ctx.real_holders if h.owner_created_at]
+    ages = [h.owner_created_at for h in ctx.bundle_wallets if h.owner_created_at]
     if len(ages) < 4:
         s.data_ok = False
         return s
@@ -265,7 +286,7 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
         direction="bundled",
         weight=1.0,
     )
-    resolved = [h.funder for h in ctx.real_holders if h.funder]
+    resolved = [h.funder for h in ctx.bundle_wallets if h.funder]
     if len(resolved) < 2:
         s.data_ok = False
         return s
@@ -289,7 +310,7 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
     }
     # Ortak fonlayıcının fonladığı cüzdanlar arzın ne kadarını tutuyor?
     shared_share = sum(
-        h.share for h in ctx.real_holders if h.funder == top_funder
+        h.share for h in ctx.bundle_wallets if h.funder == top_funder
     )
     s.evidence["shared_holder_share"] = round(shared_share, 2)
     # Normalde 3 cüzdan; ama ortak fonlayıcı büyük bir payı (>%10) besliyorsa
@@ -317,7 +338,7 @@ def sig_same_slot_entry(ctx: SignalContext) -> Signal:
         direction="bundled",
         weight=1.0,
     )
-    slots = sorted(h.first_slot for h in ctx.real_holders if h.first_slot)
+    slots = sorted(h.first_slot for h in ctx.bundle_wallets if h.first_slot)
     if len(slots) < 3:
         s.data_ok = False
         return s
@@ -353,7 +374,7 @@ def sig_identical_balances(ctx: SignalContext) -> Signal:
         direction="bundled",
         weight=0.9,
     )
-    holders = [h for h in ctx.real_holders if h.amount_raw > 0]
+    holders = [h for h in ctx.bundle_wallets if h.amount_raw > 0]
     if len(holders) < 4:
         s.data_ok = False
         return s
@@ -387,7 +408,7 @@ def sig_fee_fingerprint(ctx: SignalContext) -> Signal:
         direction="bundled",
         weight=0.7,
     )
-    fees = [h.entry_fee for h in ctx.real_holders if h.entry_fee]
+    fees = [h.entry_fee for h in ctx.bundle_wallets if h.entry_fee]
     if len(fees) < 4:
         s.data_ok = False
         return s
@@ -413,7 +434,7 @@ def sig_funding_profile(ctx: SignalContext) -> Signal:
         direction="cabaled",
         weight=0.9,
     )
-    funders = [h.funder for h in ctx.real_holders if h.funder]
+    funders = [h.funder for h in ctx.bundle_wallets if h.funder]
     if len(funders) < 3:
         s.data_ok = False
         return s
@@ -473,7 +494,7 @@ def sig_flagged_wallets(ctx: SignalContext) -> Signal:
         weight=1.0,
     )
     hits = []
-    for h in ctx.real_holders:
+    for h in ctx.bundle_wallets:
         for addr in (h.owner, h.funder):
             if addr and addr in registry.FLAGGED_WALLETS:
                 hits.append(addr)
@@ -484,6 +505,41 @@ def sig_flagged_wallets(ctx: SignalContext) -> Signal:
         s.detail = f"{len(set(hits))} adres kendi kayıtlarımızda daha önce işaretlenmiş."
     else:
         s.detail = "Bilinen işaretli cüzdan yok."
+    return s
+
+
+def sig_deployer_history(ctx: SignalContext) -> Signal:
+    """Deployer cüzdanının geçmiş token sayısı (Helius DAS ile).
+
+    Seri token basan bir cüzdan tek başına suç değil ama güçlü bir bağlam
+    sinyalidir — özellikle diğer bundle işaretleriyle birlikte.
+    """
+    s = Signal(
+        key="deployer_history",
+        label="Deployer geçmişi",
+        direction="cabaled",
+        weight=0.8,
+    )
+    dep = ctx.deployer
+    if not dep or not getattr(dep, "checked", False):
+        s.data_ok = False
+        s.detail = "Deployer geçmişi çıkarılamadı (Helius DAS gerekli)."
+        return s
+    n = getattr(dep, "prior_tokens", 0)
+    s.evidence = {"deployer": getattr(dep, "address", None), "prior_tokens": n}
+    if n >= 10:
+        s.fired = True
+        s.direction = "bundled"
+        s.strength = _ramp(n, 10, 40)
+        s.detail = f"Deployer daha önce {n} token basmış — seri lansman cüzdanı."
+    elif n >= 3:
+        s.fired = True
+        s.strength = _ramp(n, 3, 12)
+        s.detail = f"Deployer daha önce {n} token basmış."
+    else:
+        s.detail = (
+            "İlk token" if n == 0 else f"Deployer'ın {n} önceki tokeni var — olağan."
+        )
     return s
 
 
@@ -553,10 +609,10 @@ def sig_wallet_age_diversity(ctx: SignalContext) -> Signal:
         direction="organic",
         weight=0.8,
     )
-    ages = [h.owner_created_at for h in ctx.real_holders if h.owner_created_at]
+    ages = [h.owner_created_at for h in ctx.bundle_wallets if h.owner_created_at]
     # Cüzdanların yarısından azının gerçek yaşını çözebildiysek "organik" demek
     # için yeterli veri yok — sessizce organiğe puan vermeyelim.
-    need = max(5, int(len(ctx.real_holders) * 0.5))
+    need = max(5, int(len(ctx.bundle_wallets) * 0.5))
     if len(ages) < need or not ctx.launch_ts:
         s.data_ok = False
         s.detail = (
@@ -595,6 +651,7 @@ ALL_SIGNALS: list[Callable[[SignalContext], Signal]] = [
     sig_supply_whale,
     sig_top10_concentration,
     sig_funding_profile,
+    sig_deployer_history,
     sig_mint_authority,
     sig_liquidity_health,
     sig_wallet_age_diversity,

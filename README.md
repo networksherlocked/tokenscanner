@@ -4,8 +4,21 @@
 > ve "Hakkında" sayfası içerir. Render servis adı ve URL'i `solscope` olarak kaldı.
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
-Bir mint adresi alır, 13 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
+Bir mint adresi alır, 14 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /
 Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
+
+**İki katmanlı analiz** (v4):
+- **Lansman** — pump.fun `bonding_curve` (yoksa DEX pair) çıpasından imzalar en
+  eskiye kadar sayılır, ilk ~40 işlem parse edilerek **lansmandaki ilk alıcılar**
+  çıkarılır. Bundle sinyalleri (yaş kümesi, ortak fonlayıcı, eşzamanlı giriş,
+  eşit bakiye, ücret parmak izi, taze cüzdan) BUNLARIN üzerinde çalışır — çünkü
+  `getTokenLargestAccounts` eski bir tokende paket cüzdanlarını değil, ikincil
+  piyasadan alan balinaları gösterir.
+- **Mevcut yapı** — top 20 holder'dan yoğunlaşma, tek cüzdan baskınlığı, likidite.
+- **Deployer** — pump.fun `creator` + Helius DAS `getAssetsByCreator` ile seri
+  lansman tespiti.
+- Lansman verisi çekilemezse (çok yüksek hacimli / eski Raydium tokeni) bundle
+  sinyalleri mevcut holder'lara düşer ve sonuçta bu açıkça belirtilir.
 
 - **$10k eşiği:** market cap'i `MIN_MARKET_CAP_USD` (varsayılan 10.000$) altındaki
   tokenlar hiç taranmaz — zincir sorgusu bile yapılmadan 422 döner.
@@ -137,8 +150,12 @@ Sıradaki en yüksek getirili işler:
 1. **Fonlama grafiğinde derinlik.** Şu an her cüzdanın 1 adım gerisine
    bakıyoruz. 2–3 hop geriye gidip A→B→C dallanma desenlerini yakalamak
    bundle tespitini belirgin biçimde güçlendirir.
-2. **Deployer geçmişi.** Metaplex metadata'sından creator adresini çek, o
-   adresin geçmiş mintlerini listele. Seri rug atan cüzdanlar burada görünür.
+2. ~~**Deployer geçmişi.**~~ v4'te eklendi (Helius DAS). Bir sonraki adım: o
+   geçmiş tokenların kaçının rug olduğunu (fiyat −%99, likidite çekilmiş)
+   kontrol etmek.
+3. **Yüksek hacimli eski tokenlar için lansman verisi.** Bonding curve /
+   pair imza taraması bütçesi dolduğunda Bitquery / Birdeye (`sort_type=asc`)
+   gibi bir kaynaktan ilk trade'leri çekmek.
 3. **`registry.FLAGGED_WALLETS`'ı büyüt.** Motorun en değerli parçası bu.
    Her Bundled kararında kümedeki cüzdanları otomatik kaydet — sistem
    kullandıkça keskinleşir.
