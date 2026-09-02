@@ -1,7 +1,10 @@
 # SolScope
 
-> Arayüz **UAVSX** adıyla yayında; iki dilli (EN varsayılan / TR), tarama konsolu
-> ve "Hakkında" sayfası içerir. Render servis adı ve URL'i `solscope` olarak kaldı.
+> Arayüz **america.sx** adıyla yayında (özgün "resmi belge" teması — koyu lacivert /
+> eski-altın / parşömen, kartal arması, Oswald başlık fontu). İki dilli
+> (EN varsayılan / TR), tarama konsolu ve "Hakkında" sayfası içerir. Render
+> servis adı ve URL'i `solscope` olarak kaldı; `localStorage` dil anahtarı
+> `americasx_lang` (eski `uavsx_lang` geriye dönük okunuyor).
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
 Bir mint adresi alır, 14 bağımsız sinyal çalıştırır ve **Bundled / Cabaled /

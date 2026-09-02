@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
     await state["pool"].aclose()
 
 
-app = FastAPI(title="SolScope", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="america.sx", version="0.4.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
