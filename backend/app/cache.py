@@ -44,9 +44,13 @@ CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 CREATE TABLE IF NOT EXISTS appeals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, verdict TEXT,
     contact TEXT, body TEXT NOT NULL, created_at INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'open'
+    status TEXT NOT NULL DEFAULT 'open', note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS flagged (
+    address TEXT PRIMARY KEY, note TEXT, created_at INTEGER NOT NULL
+);
 """
 
 _SCHEMA_PG = """
@@ -73,9 +77,13 @@ CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 CREATE TABLE IF NOT EXISTS appeals (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
     verdict TEXT, contact TEXT, body TEXT NOT NULL, created_at BIGINT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'open'
+    status TEXT NOT NULL DEFAULT 'open', note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS flagged (
+    address TEXT PRIMARY KEY, note TEXT, created_at BIGINT NOT NULL
+);
 """
 
 
@@ -111,6 +119,15 @@ class ScanCache:
             self.conn.row_factory = sqlite3.Row
             self.conn.executescript(_SCHEMA_SQLITE)
             self.conn.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        # Eski kurulumlar için eklenen kolonlar (IF NOT EXISTS her yerde yok).
+        for stmt in ("ALTER TABLE appeals ADD COLUMN note TEXT",):
+            try:
+                self._write(stmt)
+            except Exception:  # noqa: BLE001  (kolon zaten var)
+                pass
 
     def close(self) -> None:
         if self.pg:
@@ -284,6 +301,66 @@ class ScanCache:
             (since, contact or "\x00", ip_key),
         )
         return int(row["c"]) if row else 0
+
+    # ---- admin ---------------------------------------------------------
+
+    def appeals_list(self, status: str | None = None, limit: int = 100) -> list[dict]:
+        if status:
+            return self._rows(
+                "SELECT * FROM appeals WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                (status, limit),
+            )
+        return self._rows(
+            "SELECT * FROM appeals ORDER BY created_at DESC LIMIT ?", (limit,)
+        )
+
+    def appeal_set_status(self, appeal_id: int, status: str, note: str | None) -> None:
+        self._write(
+            "UPDATE appeals SET status = ?, note = ? WHERE id = ?",
+            (status, (note or "")[:2000] or None, appeal_id),
+        )
+
+    def cache_delete(self, mint: str) -> None:
+        self._write("DELETE FROM scans WHERE mint = ?", (mint,))
+
+    def track_delete(self, mint: str) -> None:
+        self._write("DELETE FROM track WHERE mint = ?", (mint,))
+
+    def flagged_list(self) -> list[dict]:
+        return self._rows(
+            "SELECT address, note, created_at FROM flagged ORDER BY created_at DESC"
+        )
+
+    def flagged_add(self, address: str, note: str | None) -> None:
+        self._write(
+            "INSERT INTO flagged (address, note, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(address) DO UPDATE SET note=excluded.note",
+            (address, (note or "")[:500] or None, int(time.time())),
+        )
+
+    def flagged_remove(self, address: str) -> None:
+        self._write("DELETE FROM flagged WHERE address = ?", (address,))
+
+    def stats(self) -> dict:
+        def n(sql, params=()):
+            r = self._one(sql, params)
+            return int(next(iter(r.values()))) if r else 0
+
+        settled = self._rows(
+            "SELECT outcome FROM track WHERE settled = 1 AND outcome IS NOT NULL"
+        )
+        hits = sum(1 for r in settled if r["outcome"] in ("hit", "clear"))
+        return {
+            "scans_cached": n("SELECT COUNT(*) FROM scans"),
+            "scans_total": n("SELECT COUNT(*) FROM scan_history"),
+            "track_open": n("SELECT COUNT(*) FROM track WHERE settled = 0"),
+            "track_settled": len(settled),
+            "track_correct": hits,
+            "appeals_open": n("SELECT COUNT(*) FROM appeals WHERE status = 'open'"),
+            "appeals_total": n("SELECT COUNT(*) FROM appeals"),
+            "flagged": n("SELECT COUNT(*) FROM flagged"),
+            "backend": "postgres" if self.pg else "sqlite",
+        }
 
     def history(self, mint: str, limit: int = 20) -> list[dict]:
         return self._rows(

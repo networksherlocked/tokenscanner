@@ -109,6 +109,20 @@ karne ve itirazlar sıfırlanır. Kalıcı olması için ücretsiz Supabase Post
 SQLite ve Postgres aynı kodu paylaşır (`cache.py`); yerelde `DATABASE_URL`
 vermezsen SQLite ile çalışır.
 
+### Admin paneli — `/admin`
+
+`ADMIN_TOKEN` env verilirse `<servis>/admin` adresinde bir panel açılır
+(verilmezse 404). Token'ı `X-Admin-Token` başlığıyla gönderir. Panel:
+
+- **Genel** — istatistikler, RPC sağlayıcı durumu, aktif config
+- **İtirazlar** — kuyruk; çöz / yok say + not
+- **Karne** — tüm izlenen tokenlar; kayıt sil
+- **Önbellek / Tarama** — bir mint'in önbelleğini sil ya da zorla yeniden tara
+- **İşaretli cüzdanlar** — DB'de tutulur, motorun `flagged_wallets` sinyalinde
+  **anında** kullanılır (yeniden dağıtım gerekmez)
+
+Token üret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+
 ### Motoru RPC'siz test etme
 
 ```bash

@@ -16,16 +16,18 @@ import asyncio
 import logging
 import os
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .cache import ScanCache
+from .engine import registry
 from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
 from .rpc.market import fetch_market
@@ -117,6 +119,13 @@ async def lifespan(app: FastAPI):
         len(state["pool"].providers),
         "Postgres" if dsn else "SQLite",
     )
+    try:
+        rows = {r["address"]: (r["note"] or "flagged") for r in state["cache"].flagged_list()}
+        registry.set_runtime_flagged(rows)
+        if rows:
+            log.info("İşaretli cüzdan yüklendi: %s", len(rows))
+    except Exception:  # noqa: BLE001
+        log.exception("İşaretli cüzdan listesi yüklenemedi")
     track_task = asyncio.create_task(_track_loop())
     yield
     track_task.cancel()
@@ -346,6 +355,117 @@ async def appeal(request: Request, payload: dict = Body(...)):
     aid = cache.add_appeal(mint, verdict, contact or ip, body)
     log.info("İtiraz #%s — %s (%s)", aid, mint, verdict)
     return {"ok": True, "id": aid}
+
+
+# --- Admin paneli --------------------------------------------------------
+
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN") or ""
+
+
+def _admin(request: Request) -> None:
+    if not ADMIN_TOKEN:
+        raise HTTPException(404, "Admin paneli kapalı (ADMIN_TOKEN tanımsız).")
+    given = request.headers.get("X-Admin-Token") or ""
+    if not given:
+        auth = request.headers.get("Authorization", "")
+        given = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not given or not secrets.compare_digest(given, ADMIN_TOKEN):
+        raise HTTPException(401, "Yetkisiz.")
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page():
+    f = _FRONTEND_DIR / "admin.html"
+    if not f.is_file():
+        raise HTTPException(404, "admin.html yok")
+    return HTMLResponse(f.read_text(encoding="utf-8"))
+
+
+@app.get("/api/admin/overview", dependencies=[Depends(_admin)])
+async def admin_overview():
+    return {
+        "stats": state["cache"].stats(),
+        "providers": state["pool"].stats(),
+        "config": {
+            "track_window_sec": TRACK_WINDOW,
+            "track_drop_pct": TRACK_DROP,
+            "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
+            "rate_limit_per_min": RATE_LIMIT,
+        },
+    }
+
+
+@app.get("/api/admin/appeals", dependencies=[Depends(_admin)])
+async def admin_appeals(status: str | None = None):
+    return {"appeals": state["cache"].appeals_list(status)}
+
+
+@app.post("/api/admin/appeals/{appeal_id}", dependencies=[Depends(_admin)])
+async def admin_appeal_update(appeal_id: int, payload: dict = Body(...)):
+    status = str(payload.get("status", "")).strip()
+    if status not in ("open", "resolved", "dismissed"):
+        raise HTTPException(422, "status: open | resolved | dismissed")
+    state["cache"].appeal_set_status(appeal_id, status, payload.get("note"))
+    return {"ok": True}
+
+
+@app.get("/api/admin/track", dependencies=[Depends(_admin)])
+async def admin_track():
+    return {"records": state["cache"].track_list(200), "window_sec": TRACK_WINDOW}
+
+
+@app.delete("/api/admin/track/{mint}", dependencies=[Depends(_admin)])
+async def admin_track_delete(mint: str):
+    state["cache"].track_delete(_validate(mint))
+    return {"ok": True}
+
+
+@app.delete("/api/admin/cache/{mint}", dependencies=[Depends(_admin)])
+async def admin_cache_delete(mint: str):
+    state["cache"].cache_delete(_validate(mint))
+    return {"ok": True}
+
+
+@app.post("/api/admin/rescan/{mint}", dependencies=[Depends(_admin)])
+async def admin_rescan(mint: str):
+    mint = _validate(mint)
+    state["cache"].cache_delete(mint)
+    try:
+        return await _run_scan(mint)
+    except TokenTooSmall as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except (ValueError, RpcError) as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@app.get("/api/admin/flagged", dependencies=[Depends(_admin)])
+async def admin_flagged():
+    return {"flagged": state["cache"].flagged_list()}
+
+
+@app.post("/api/admin/flagged", dependencies=[Depends(_admin)])
+async def admin_flagged_add(payload: dict = Body(...)):
+    addr = str(payload.get("address", "")).strip()
+    if not BASE58.match(addr):
+        raise HTTPException(422, "Geçersiz Solana adresi.")
+    state["cache"].flagged_add(addr, payload.get("note"))
+    _reload_flagged()
+    return {"ok": True}
+
+
+@app.delete("/api/admin/flagged/{address}", dependencies=[Depends(_admin)])
+async def admin_flagged_remove(address: str):
+    state["cache"].flagged_remove(address.strip())
+    _reload_flagged()
+    return {"ok": True}
+
+
+def _reload_flagged() -> None:
+    rows = {
+        r["address"]: (r["note"] or "flagged")
+        for r in state["cache"].flagged_list()
+    }
+    registry.set_runtime_flagged(rows)
 
 
 @app.exception_handler(Exception)

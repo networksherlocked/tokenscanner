@@ -62,9 +62,26 @@ FLAGGED_WALLETS: dict[str, str] = {
     # "adres": "daha önce X tokenında bundle kümesinde görüldü (2026-08-11)"
 }
 
+# Admin panelinden çalışma anında eklenen işaretli cüzdanlar (DB'den yüklenir).
+RUNTIME_FLAGGED: dict[str, str] = {}
+
 KOL_WALLETS: dict[str, str] = {
     # "adres": "takma ad / bilinen influencer"
 }
+
+
+def set_runtime_flagged(rows: dict[str, str]) -> None:
+    """Admin/DB kaynaklı işaretli cüzdan listesini değiştirir (canlı)."""
+    RUNTIME_FLAGGED.clear()
+    RUNTIME_FLAGGED.update(rows)
+
+
+def flagged_name(address: str) -> str | None:
+    return FLAGGED_WALLETS.get(address) or RUNTIME_FLAGGED.get(address)
+
+
+def is_flagged(address: str) -> bool:
+    return address in FLAGGED_WALLETS or address in RUNTIME_FLAGGED
 
 
 # --- Yardımcılar ------------------------------------------------------------
@@ -79,8 +96,8 @@ def classify_address(address: str) -> dict[str, str | None]:
         return {"kind": "cex", "name": name, "tier": tier}
     if address in PROTOCOL_ACCOUNTS:
         return {"kind": "protocol", "name": PROTOCOL_ACCOUNTS[address], "tier": None}
-    if address in FLAGGED_WALLETS:
-        return {"kind": "flagged", "name": FLAGGED_WALLETS[address], "tier": None}
+    if is_flagged(address):
+        return {"kind": "flagged", "name": flagged_name(address), "tier": None}
     if address in KOL_WALLETS:
         return {"kind": "kol", "name": KOL_WALLETS[address], "tier": None}
     return {"kind": "unknown", "name": None, "tier": None}

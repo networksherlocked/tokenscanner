@@ -34,3 +34,6 @@ services:
       # kullanılır (yeniden başlatmada karne/itiraz sıfırlanır).
       - key: DATABASE_URL
         sync: false
+      # /admin paneli. Boşsa panel kapalı (404). Uzun rastgele bir değer ver.
+      - key: ADMIN_TOKEN
+        sync: false

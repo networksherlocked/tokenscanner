@@ -496,7 +496,7 @@ def sig_flagged_wallets(ctx: SignalContext) -> Signal:
     hits = []
     for h in ctx.bundle_wallets:
         for addr in (h.owner, h.funder):
-            if addr and addr in registry.FLAGGED_WALLETS:
+            if addr and registry.is_flagged(addr):
                 hits.append(addr)
     s.evidence = {"hits": sorted(set(hits))}
     if hits:
