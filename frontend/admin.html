@@ -47,10 +47,11 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 .msg{font-size:12px;color:var(--gold);min-height:16px;margin:8px 0}
 .login{max-width:360px;margin:80px auto;text-align:center}
 .login h1{font-family:var(--disp);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-.hidden{display:none}
+.hidden{display:none!important}
 .muted{color:var(--dim);font-size:11px}
 .modal-bg{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
   background:rgba(8,15,28,.72);backdrop-filter:blur(3px);padding:20px}
+.modal-bg.hidden{display:none}
 .modal{width:100%;max-width:380px;border:1px solid var(--gold-dim,#8a7440);background:var(--panel);
   border-radius:3px;padding:20px}
 .modal h2{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 14px;color:var(--gold)}
