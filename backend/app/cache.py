@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS lessons (
     deployer TEXT, detail TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
+
+CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT);
 """
 
 _SCHEMA_PG = """
@@ -105,6 +107,8 @@ CREATE TABLE IF NOT EXISTS lessons (
     wallets_flagged INTEGER NOT NULL DEFAULT 0, deployer TEXT, detail TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
+
+CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT);
 """
 
 
@@ -393,6 +397,19 @@ class ScanCache:
         return self._one(
             "SELECT 1 AS x FROM flagged WHERE address = ?", (address,)
         ) is not None
+
+    # ---- config (k/v) -------------------------------------------------
+
+    def config_get(self, key: str) -> str | None:
+        row = self._one("SELECT v FROM config WHERE k = ?", (key,))
+        return row["v"] if row else None
+
+    def config_set(self, key: str, value: str) -> None:
+        self._write(
+            "INSERT INTO config (k, v) VALUES (?, ?) "
+            "ON CONFLICT(k) DO UPDATE SET v = excluded.v",
+            (key, value),
+        )
 
     # ---- öğrenme / dersler --------------------------------------------
 

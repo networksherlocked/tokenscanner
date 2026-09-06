@@ -54,7 +54,11 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 <body>
 <header><div class="wrap">
   <div class="brand">america<i>.sx</i><em>admin</em></div>
-  <button class="ghost" id="logout">Çıkış</button>
+  <div style="display:flex;gap:8px">
+    <a class="ghost" href="/" style="display:inline-block;padding:9px 16px;border:1px solid var(--rule);border-radius:2px;text-decoration:none;color:var(--muted);font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px">Ana sayfa</a>
+    <button class="ghost" id="chpw">Şifre değiştir</button>
+    <button class="ghost" id="logout">Çıkış</button>
+  </div>
 </div></header>
 
 <div class="wrap">
@@ -111,6 +115,16 @@ $('#loginBtn').onclick = async ()=>{
 };
 $('#tok').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#loginBtn').click(); });
 $('#logout').onclick = ()=>{ TOKEN=''; try{localStorage.removeItem('asx_admin');}catch(e){} showLogin(''); };
+$('#chpw').onclick = async ()=>{
+  const a = prompt('Yeni şifre (en az 8 karakter):'); if(!a) return;
+  if(a.length < 8) return alert('En az 8 karakter olmalı.');
+  if(prompt('Yeni şifreyi tekrar gir:') !== a) return alert('Şifreler eşleşmedi.');
+  try{
+    await api('/password', {method:'POST', body:JSON.stringify({new:a})});
+    TOKEN = a; try{ localStorage.setItem('asx_admin', a); }catch(e){}
+    flash('şifre değiştirildi');
+  }catch(e){ alert(e.message); }
+};
 $('#tabs').onclick = e=>{ const b=e.target.closest('button'); if(!b) return;
   document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on', x===b)); route(b.dataset.t); };
 
@@ -133,15 +147,23 @@ function renderOverview(d){
     ['track_open','izlenen'],['track_settled','sonuçlanan'],['track_correct','doğru'],['track_miss','kaçırılan'],
     ['appeals_open','açık itiraz'],['flagged','işaretli cüzdan'],['lessons','ders'],
   ].map(([k,l])=>`<div class="card stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
-  const prov = Object.entries(d.providers||{}).map(([k,p])=>
+  const prov = Object.entries(d.providers||{});
+  const totalCalls = prov.reduce((n,[,p])=>n+(p.calls||0),0);
+  const provRows = prov.map(([k,p])=>
     `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td><td>${p.available?'✓':'cooldown'}</td></tr>`).join('');
+  const q = c.rpc_quota||0;
+  const rpcCard = q
+    ? `<div class="card stat"><b>${Math.max(0,q-totalCalls).toLocaleString()}</b><span>kalan RPC sorgusu (~${Math.floor(Math.max(0,q-totalCalls)/200)} tarama)</span></div>`
+    : `<div class="card stat"><b>${totalCalls.toLocaleString()}</b><span>RPC sorgusu (instance başından)</span></div>`;
   $('#view').innerHTML = `
-    <div class="grid">${cards}</div>
+    <div class="grid">${cards}${rpcCard}</div>
     <div class="card"><b class="muted">DEPO:</b> ${esc(s.backend)} &nbsp; · &nbsp;
       izleme ${c.track_window_sec/3600}sa &nbsp; · &nbsp; çöküş eşiği %${Math.round(c.track_drop_pct*100)} &nbsp; · &nbsp;
-      min mcap $${c.min_market_cap} &nbsp; · &nbsp; rate ${c.rate_limit_per_min}/dk</div>
+      min mcap $${c.min_market_cap} &nbsp; · &nbsp; rate ${c.rate_limit_per_min}/dk
+      ${q?`&nbsp; · &nbsp; RPC kotası ${q.toLocaleString()}/ay`:''}
+      <div class="muted" style="margin-top:6px">RPC sayacı instance yeniden başladığında sıfırlanır (aylık gerçek kullanımı Helius panelinden gör).</div></div>
     <div class="card"><table><thead><tr><th>RPC sağlayıcı</th><th>çağrı</th><th>hata</th><th>durum</th></tr></thead>
-      <tbody>${prov||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>`;
+      <tbody>${provRows||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>`;
 }
 
 async function renderAppeals(){

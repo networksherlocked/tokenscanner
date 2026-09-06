@@ -37,3 +37,6 @@ services:
       # /admin paneli. Boşsa panel kapalı (404). Uzun rastgele bir değer ver.
       - key: ADMIN_TOKEN
         sync: false
+      # RPC aylık kotası (Helius free = 1000000). Admin'de "kalan sorgu" için.
+      - key: RPC_MONTHLY_QUOTA
+        value: "1000000"

@@ -463,17 +463,46 @@ async def appeal(request: Request, payload: dict = Body(...)):
 
 # --- Admin paneli --------------------------------------------------------
 
+import hashlib
+
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN") or ""
+RPC_QUOTA = int(os.getenv("RPC_MONTHLY_QUOTA", "0"))  # 0 = bilinmiyor
+
+
+def _sha(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest()
+
+
+def _admin_enabled() -> bool:
+    if ADMIN_TOKEN:
+        return True
+    try:
+        return bool(state["cache"].config_get("admin_token_sha256"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _admin_ok(given: str) -> bool:
+    if not given:
+        return False
+    db_hash = None
+    try:
+        db_hash = state["cache"].config_get("admin_token_sha256")
+    except Exception:  # noqa: BLE001
+        pass
+    if db_hash:
+        return secrets.compare_digest(_sha(given), db_hash)
+    return bool(ADMIN_TOKEN) and secrets.compare_digest(given, ADMIN_TOKEN)
 
 
 def _admin(request: Request) -> None:
-    if not ADMIN_TOKEN:
+    if not _admin_enabled():
         raise HTTPException(404, "Admin paneli kapalı (ADMIN_TOKEN tanımsız).")
     given = request.headers.get("X-Admin-Token") or ""
     if not given:
         auth = request.headers.get("Authorization", "")
         given = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
-    if not given or not secrets.compare_digest(given, ADMIN_TOKEN):
+    if not _admin_ok(given):
         raise HTTPException(401, "Yetkisiz.")
 
 
@@ -495,8 +524,19 @@ async def admin_overview():
             "track_drop_pct": TRACK_DROP,
             "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
             "rate_limit_per_min": RATE_LIMIT,
+            "rpc_quota": RPC_QUOTA,
         },
     }
+
+
+@app.post("/api/admin/password", dependencies=[Depends(_admin)])
+async def admin_password(payload: dict = Body(...)):
+    new = str(payload.get("new", "")).strip()
+    if len(new) < 8:
+        raise HTTPException(422, "Yeni şifre en az 8 karakter olmalı.")
+    state["cache"].config_set("admin_token_sha256", _sha(new))
+    log.info("Admin şifresi değiştirildi.")
+    return {"ok": True}
 
 
 @app.get("/api/admin/appeals", dependencies=[Depends(_admin)])
