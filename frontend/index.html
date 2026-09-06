@@ -319,38 +319,51 @@ footer p{margin:0 0 6px;max-width:76ch}
 .hero-eagle .eye.r{left:var(--eye-rx,52%);top:var(--eye-ry,32%);background:radial-gradient(circle,#ffeafe,#e879f9 60%,transparent)}
 
 /* tarama arenası: kartal ORTADA, kutucuklar etrafında, sinyaller kartaldan gider */
-.eagle-arena{position:relative;max-width:780px;margin:0 auto 16px;height:clamp(280px,42vw,360px);
-  border:1px solid var(--rule);border-radius:3px;overflow:hidden;
-  background:radial-gradient(120% 100% at 50% 42%,#16294a,#0a1220 74%)}
-.ea-eagle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
-  width:min(34%,180px);height:auto;
-  filter:drop-shadow(0 0 26px rgba(34,211,238,.28)) drop-shadow(0 0 40px rgba(232,121,249,.18));
+.eagle-arena{position:relative;max-width:940px;margin:0 auto 18px;height:clamp(360px,54vw,480px);
+  border:1px solid var(--gold-dim);border-radius:3px;overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 90px rgba(0,0,0,.5);
+  background:radial-gradient(130% 110% at 50% 44%,#172c4e,#080f1c 76%)}
+.eagle-arena::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:
+    repeating-linear-gradient(0deg,rgba(200,164,92,.05) 0 1px,transparent 1px 40px),
+    repeating-linear-gradient(90deg,rgba(200,164,92,.05) 0 1px,transparent 1px 40px)}
+/* kartalı ortalayan sarmalayıcı — animasyon transform'u merkezlemeyi bozmasın */
+.ea-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
+  width:min(30%,190px);pointer-events:none}
+.ea-center img{width:100%;height:auto;display:block;
+  filter:drop-shadow(0 0 30px rgba(34,211,238,.32)) drop-shadow(0 0 46px rgba(232,121,249,.2));
   animation:eaglehover 5s ease-in-out infinite alternate}
-.eagle-arena.no-img .ea-eagle{display:none}
-.eagle-arena .crest{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-  width:120px;height:120px;color:var(--gold);z-index:4;display:none}
-.eagle-arena.no-img .crest{display:block}
-.ea-origin{position:absolute;left:50%;top:38%}   /* sinyallerin çıkış noktası (kartal başı) */
-.ea-eye{position:absolute;left:50%;top:38%;width:8px;height:8px;border-radius:50%;z-index:5;
-  transform:translate(-50%,-50%);opacity:.5;animation:eyepulse 2s ease-in-out infinite}
-.ea-eye.l{margin-left:-9px;background:radial-gradient(circle,#eafcff,#22d3ee 60%,transparent)}
-.ea-eye.r{margin-left:9px;background:radial-gradient(circle,#ffeafe,#e879f9 60%,transparent)}
-.eagle-arena.firing .ea-eye{opacity:1;box-shadow:0 0 14px 3px currentColor}
+.eagle-arena.no-img .ea-center img{display:none}
+.ea-center .crest{width:120px;height:120px;color:var(--gold);display:none;margin:0 auto}
+.eagle-arena.no-img .ea-center .crest{display:block}
+.ea-eye{position:absolute;left:50%;top:36%;width:9px;height:9px;border-radius:50%;z-index:5;
+  transform:translate(-50%,-50%);opacity:.55;animation:eyepulse 2s ease-in-out infinite}
+.ea-eye.l{margin-left:-11px;background:radial-gradient(circle,#eafcff,#22d3ee 60%,transparent)}
+.ea-eye.r{margin-left:11px;background:radial-gradient(circle,#ffeafe,#e879f9 60%,transparent)}
+.eagle-arena.firing .ea-eye{opacity:1;box-shadow:0 0 16px 4px currentColor}
 
-.scan-box{position:absolute;width:46px;height:32px;transform:translate(-50%,-50%);z-index:2;
-  border:1px solid var(--rule);border-radius:2px;background:rgba(18,30,54,.55);
-  transition:border-color .3s,box-shadow .3s,background .3s}
-.scan-box.scanning{border-color:var(--live);box-shadow:0 0 14px var(--live);background:rgba(224,179,82,.14)}
-.scan-box.scanned{border-left:2px solid var(--live);background:rgba(224,179,82,.05)}
+.scan-box{position:absolute;width:58px;height:40px;transform:translate(-50%,-50%);z-index:2;
+  border:1px solid var(--rule);border-radius:2px;background:rgba(16,28,50,.6);
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .3s,box-shadow .3s,background .3s,transform .2s}
+.scan-box::after{content:"";width:5px;height:5px;border-radius:50%;background:var(--dim);transition:background .3s,box-shadow .3s}
+.scan-box.scanning{border-color:var(--live);box-shadow:0 0 18px var(--live);background:rgba(224,179,82,.16);transform:translate(-50%,-50%) scale(1.08)}
+.scan-box.scanning::after{background:var(--live);box-shadow:0 0 8px var(--live)}
+.scan-box.scanned{border-color:var(--gold-dim);border-left:2px solid var(--live);background:rgba(224,179,82,.06)}
+.scan-box.scanned::after{background:var(--live)}
 
-.ea-beam{position:absolute;left:50%;top:38%;height:2px;transform-origin:0 50%;z-index:3;pointer-events:none;
-  opacity:0;background:linear-gradient(90deg,var(--bc),transparent);filter:drop-shadow(0 0 6px var(--bc))}
-.ea-beam.show{animation:eabeam .5s ease-out forwards}
-@keyframes eabeam{0%{opacity:.95}100%{opacity:0}}
-.ea-signal{position:absolute;width:9px;height:9px;border-radius:50%;z-index:5;
+.ea-beam{position:absolute;left:50%;top:36%;height:2px;transform-origin:0 50%;z-index:3;pointer-events:none;
+  background:linear-gradient(90deg,var(--bc),transparent 92%);filter:drop-shadow(0 0 7px var(--bc));
+  opacity:0}
+.ea-beam.show{animation:eabeam .6s ease-out forwards}
+@keyframes eabeam{
+  0%{opacity:1;clip-path:inset(0 100% 0 0)}
+  32%{opacity:1;clip-path:inset(0 0 0 0)}
+  100%{opacity:0;clip-path:inset(0 0 0 0)}}
+.ea-signal{position:absolute;width:10px;height:10px;border-radius:50%;z-index:5;
   transform:translate(-50%,-50%);background:var(--bc);
-  box-shadow:0 0 12px 3px var(--bc);
-  transition:left .5s cubic-bezier(.45,0,.55,1),top .5s cubic-bezier(.45,0,.55,1),opacity .25s}
+  box-shadow:0 0 14px 4px var(--bc), 0 0 26px 8px var(--bc);
+  transition:left .5s cubic-bezier(.4,0,.5,1),top .5s cubic-bezier(.4,0,.5,1),opacity .3s}
 
 .scan-console{border:1px solid var(--rule);background:#0c1830;border-radius:2px;padding:14px 16px;
   font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#d8c48a;
@@ -453,8 +466,10 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="scan-bar"><div class="scan-bar-fill" id="scanBarFill"></div></div>
 
       <div class="eagle-arena" id="eagleArena">
-        <img class="ea-eagle" src="/eagle.png" alt="" onerror="eagleImgFail(this)">
-        <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
+        <div class="ea-center">
+          <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+          <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
+        </div>
         <span class="ea-eye l"></span><span class="ea-eye r"></span>
       </div>
 
@@ -925,12 +940,12 @@ function scanSkeleton(){
 /* --- kartal arenası: kutucuklar + kartaldan giden tarama sinyalleri --- */
 // kutu konumları (arena yüzdesi) — kartalın merkezini (35–65% x, 30–70% y) boş bırakır
 const EA_BOXES = [
-  [13,15],[34,9],[66,9],[87,15],
-  [7,34],[93,34],
-  [7,52],[93,52],
-  [7,70],[93,70],
-  [13,89],[34,93],[66,93],[87,89],
-  [24,26],[76,26],[24,76],[76,76],
+  [10,13],[30,8],[50,7],[70,8],[90,13],
+  [6,32],[94,32],
+  [6,50],[94,50],
+  [6,68],[94,68],
+  [10,88],[30,93],[50,94],[70,93],[90,88],
+  [20,24],[80,24],[20,78],[80,78],
 ];
 const EA = { boxEls:[], order:[], idx:0, spawn:null, colorFlip:false };
 
@@ -959,33 +974,35 @@ function eaPing(){
   const box = EA.boxEls[bi];
   const [bx,by] = EA_BOXES[bi];
   const col = (EA.colorFlip = !EA.colorFlip) ? '#22d3ee' : '#e879f9';
+  const OX = 50, OY = 36;                       // çıkış noktası (kartal başı), %
   const r = arena.getBoundingClientRect();
-  const ox = r.width * 0.5, oy = r.height * 0.38;
-  const tx = r.width * bx / 100, ty = r.height * by / 100;
-  const dx = tx - ox, dy = ty - oy;
+  const dx = (bx - OX) / 100 * r.width;
+  const dy = (by - OY) / 100 * r.height;
 
-  // lazer çizgisi (kısa süreli)
+  // lazer çizgisi (kısa süreli, kartal başından kutuya)
   const beam = document.createElement('div');
   beam.className = 'ea-beam show';
   beam.style.setProperty('--bc', col);
   beam.style.width = Math.hypot(dx, dy) + 'px';
   beam.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
   arena.appendChild(beam);
-  setTimeout(()=>beam.remove(), 550);
+  setTimeout(()=>beam.remove(), 600);
 
   // uçan sinyal noktası
   const sig = document.createElement('div');
   sig.className = 'ea-signal';
   sig.style.setProperty('--bc', col);
-  sig.style.left = '50%'; sig.style.top = '38%';
+  sig.style.left = OX + '%'; sig.style.top = OY + '%';
   arena.appendChild(sig);
-  requestAnimationFrame(()=>{ sig.style.left = bx + '%'; sig.style.top = by + '%'; });
+  requestAnimationFrame(()=> requestAnimationFrame(()=>{
+    sig.style.left = bx + '%'; sig.style.top = by + '%';
+  }));
   setTimeout(()=>{
     box.classList.add('scanning');
     sig.style.opacity = '0';
-    setTimeout(()=>sig.remove(), 260);
-    setTimeout(()=>{ box.classList.remove('scanning'); box.classList.add('scanned'); }, 420);
-  }, 500);
+    setTimeout(()=>sig.remove(), 300);
+    setTimeout(()=>{ box.classList.remove('scanning'); box.classList.add('scanned'); }, 480);
+  }, 520);
 }
 
 function scanReset(){
