@@ -78,6 +78,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
   margin:0 0 12px;letter-spacing:.005em;max-width:22ch;text-transform:uppercase}
 .lede{color:var(--muted);max-width:62ch;margin:0 0 26px}
 .search{display:flex;gap:10px;flex-wrap:wrap}
+@media(max-width:560px){.search{justify-content:flex-end}.search input{flex:1 1 100%}}
 .search input{
   flex:1 1 340px;background:var(--panel);border:1px solid var(--rule);color:var(--text);
   font-family:var(--mono);font-size:14px;padding:15px 16px;border-radius:2px;
@@ -226,6 +227,7 @@ footer p{margin:0 0 6px;max-width:76ch}
 .recitem:focus-visible{outline:2px solid var(--live);outline-offset:2px}
 .recitem .rv{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--sig,var(--muted))}
 .recitem .rm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text)}
+.recitem .rmc{font-size:11px;color:var(--muted);white-space:nowrap}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
 
 /* ---------- karne / track record ---------- */
@@ -309,7 +311,7 @@ footer p{margin:0 0 6px;max-width:76ch}
 @media(max-width:860px){.hero .wrap{grid-template-columns:1fr}}
 .hero-eagle{position:relative;order:0}
 .hero-text{order:1}
-@media(max-width:860px){.hero-eagle{max-width:200px;margin:0 auto;order:1}.hero-text{order:0}}
+@media(max-width:860px){.hero-eagle{max-width:200px;margin:0 auto 4px;order:0}.hero-text{order:1}}
 .hero-eagle img{width:100%;height:auto;display:block;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
 .hero-eagle.no-img{display:none}
@@ -540,12 +542,6 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="vd" style="--sig:#8b9bb4"><b>Inconclusive</b><span data-i18n="aboutInconclusive">too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.</span></div>
     </div>
 
-    <h3 data-i18n="aboutLaunchH">Launch analysis</h3>
-    <p data-i18n="aboutLaunchP">The core of the engine. Using the pump.fun bonding-curve address (or the DEX pair) as an anchor, we page the token's signatures back to block one and parse the first ~40 transactions to reconstruct the actual launch buyers. The bundle signals run on those wallets — not on today's whales. When the launch history is too long to reach within budget, the engine falls back to current holders and says so.</p>
-
-    <h3 data-i18n="aboutSignalsH">The fifteen signals</h3>
-    <ul class="siglist" id="methSignals"></ul>
-
     <h3 data-i18n="aboutNumbersH">Two numbers</h3>
     <p data-i18n="aboutNumbersP">Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).</p>
 
@@ -588,7 +584,7 @@ try{ const s = (localStorage.getItem('americasx_lang') || localStorage.getItem('
 const STR = {
   en: {
     navHome:'Home',
-    navAbout:'Method',
+    navAbout:'About',
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
     copied:'Copied',
@@ -666,7 +662,7 @@ const STR = {
   },
   tr: {
     navHome:'Ana sayfa',
-    navAbout:'Yöntem',
+    navAbout:'Hakkında',
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
     copied:'Kopyalandı',
@@ -816,7 +812,6 @@ function applyI18n(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = L(el.dataset.i18nPh); });
   document.querySelectorAll('.langsel button').forEach(b=> b.classList.toggle('on', b.dataset.lang === lang));
   if(!SCAN.on) $('scanBtn').textContent = L('scanBtn');
-  renderMethSignals();
   if(lastResult) render(lastResult);
   if(lastRecent) renderRecent(lastRecent);
   if(lastTrack) renderTrack(lastTrack);
@@ -1119,7 +1114,8 @@ function renderRecent(scans){
     b.title = s.mint;
     b.innerHTML = `
       <span class="rv">${label}</span>
-      <span class="rm">${s.symbol ? s.symbol : short(s.mint)}</span>
+      <span class="rm">${esc(s.symbol || short(s.mint))}</span>
+      <span class="rmc">${mcapShort(s.market_cap)}</span>
       <span class="rt">${relTime(s.created_at)}</span>`;
     b.onclick = ()=>{ $('mint').value = s.mint; scan(s.mint); };
     box.appendChild(b);

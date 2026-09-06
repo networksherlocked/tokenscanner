@@ -248,6 +248,7 @@ class ScanCache:
                 pass
             d["symbol"] = token.get("symbol")
             d["name"] = token.get("name")
+            d["market_cap"] = token.get("market_cap")
             out.append(d)
         return out
 
