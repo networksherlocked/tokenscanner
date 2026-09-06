@@ -125,6 +125,24 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .tokline{border-top:1px solid var(--rule);padding-top:14px;font-size:12px;color:var(--muted);display:grid;gap:5px}
 .tokline b{color:var(--text);font-weight:500}
 
+/* taranan token başlığı — durum kutusunun üstünde */
+.tokhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  border-bottom:1px solid var(--gold-dim);padding-bottom:16px;margin-bottom:24px}
+.tokhead .sym{font-family:var(--display);font-weight:700;font-size:clamp(30px,4.4vw,48px);
+  line-height:1;text-transform:uppercase;letter-spacing:.02em;color:var(--text)}
+.tokhead .nm{font-size:15px;color:var(--muted)}
+.tokhead .mnt{margin-left:auto;font-size:11px;color:var(--dim);word-break:break-all;max-width:44ch;text-align:right}
+.tokhead .vpill{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.1em;
+  text-transform:uppercase;padding:5px 12px;border:1px solid currentColor;border-radius:2px}
+
+/* sinyal özeti / lejant */
+.siglegend{display:flex;gap:18px;flex-wrap:wrap;margin:-4px 0 14px;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.siglegend b{font-weight:700}
+.siglegend .lg-fired b{color:var(--bundled)}
+.siglegend .lg-clean b{color:var(--organic)}
+.siglegend .lg-nd b{color:var(--muted)}
+
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
 .cell{
   border:1px solid var(--rule);background:var(--panel);padding:12px 13px;border-radius:2px;
@@ -137,10 +155,14 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .cell:focus-visible{outline:2px solid var(--live);outline-offset:2px}
 .cell::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--dim)}
 .cell.fired::before{background:var(--sig,var(--bundled))}
-.cell.nodata{opacity:.45}
+.cell.clean::before{background:var(--organic)}
+.cell.nodata{opacity:.5}
+.cell.nodata::before{background:var(--dim)}
 .cell .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+.cell.clean .k{color:var(--organic)}
+.cell .k .tick{font-family:var(--mono)}
 .cell .n{font-family:var(--display);font-weight:500;font-size:13px;margin-top:5px;color:var(--muted)}
-.cell.fired .n{color:var(--text)}
+.cell.fired .n,.cell.clean .n{color:var(--text)}
 .cell .bar{margin-top:9px;height:2px;background:var(--rule)}
 .cell .bar span{display:block;height:100%;width:0;background:var(--sig,var(--dim));transition:width .7s ease .2s}
 .cell .why{display:none;margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5;border-top:1px solid var(--rule);padding-top:9px}
@@ -207,38 +229,42 @@ footer p{margin:0 0 6px;max-width:76ch}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
 
 /* ---------- karne / track record ---------- */
-.track{padding:30px 0 46px;border-top:1px solid var(--gold-dim)}
+.track{padding:34px 0 50px;border-top:1px solid var(--gold-dim)}
 .track .head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
-  font-family:var(--display);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
-.track .tscore{font-family:var(--display);font-weight:700;letter-spacing:.04em;color:var(--live)}
-.tlist{display:grid;gap:6px}
+  font-family:var(--display);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.track .subhead{font-size:11px;color:var(--dim);margin-bottom:16px}
+.track .tscore{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.04em;color:var(--gold)}
+.tlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
 .titem{
-  display:grid;grid-template-columns:96px minmax(70px,1fr) auto auto auto;gap:14px;align-items:center;
-  width:100%;text-align:left;background:var(--panel);border:1px solid var(--rule);
-  border-left:2px solid var(--sig,var(--dim));border-radius:2px;padding:10px 14px;
-  cursor:pointer;font-family:var(--mono);color:inherit;transition:border-color .2s,background .2s;
+  display:block;width:100%;text-align:left;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  border:1px solid var(--rule);border-top:2px solid var(--sig,var(--dim));border-radius:2px;
+  padding:13px 15px 12px;cursor:pointer;font-family:var(--mono);color:inherit;
+  transition:border-color .2s,transform .12s;
 }
-.titem:hover{background:var(--panel-2);border-color:var(--muted)}
-.titem:focus-visible{outline:2px solid var(--live);outline-offset:2px}
-.titem .tv{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--sig,var(--muted))}
-.titem .tsym{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titem:hover{border-color:var(--gold-dim);transform:translateY(-1px)}
+.titem:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.titem .row1{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.titem .tv{font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--sig,var(--muted));border:1px solid currentColor;padding:2px 7px;border-radius:2px;flex:none}
+.titem .tsym{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.02em;color:var(--text);
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titem .tage{margin-left:auto;font-size:10px;color:var(--dim);white-space:nowrap;flex:none}
+.titem .row2{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .titem .tflow{font-size:12px;color:var(--muted);white-space:nowrap}
-.titem .tdelta{font-size:12px;font-weight:600;white-space:nowrap}
+.titem .tflow s{color:var(--dim);text-decoration:none}
+.titem .tdelta{font-family:var(--display);font-weight:700;font-size:20px;line-height:1;white-space:nowrap}
 .titem .tdelta.down{color:var(--bundled)}
-.titem .tdelta.up{color:var(--live)}
+.titem .tdelta.up{color:#6fbf73}
 .titem .tdelta.flat{color:var(--dim)}
-.titem .tout{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
-.tout.hit{color:var(--live)} .tout.clear{color:var(--organic)}
+.titem .prog{margin-top:10px}
+.titem .prog .pbar{height:3px;background:var(--rule);border-radius:2px;overflow:hidden}
+.titem .prog .pbar i{display:block;height:100%;background:var(--gold);border-radius:2px}
+.titem .prog .plabel{font-size:10px;color:var(--dim);letter-spacing:.06em;margin-top:5px;text-transform:uppercase}
+.titem .tout{display:block;margin-top:10px;font-family:var(--display);font-weight:700;font-size:12px;
+  letter-spacing:.06em;text-transform:uppercase}
+.tout.hit{color:#6fbf73} .tout.clear{color:var(--organic)}
 .tout.miss{color:var(--bundled)} .tout.no_dump{color:var(--muted)} .tout.open{color:var(--dim)}
-.track .tnote{margin-top:12px;font-size:11px;color:var(--dim);max-width:76ch}
-@media(max-width:640px){
-  .titem{grid-template-columns:1fr auto;grid-auto-rows:min-content;gap:4px 12px}
-  .titem .tv{grid-column:1}
-  .titem .tsym{grid-column:2;grid-row:1;text-align:right}
-  .titem .tflow{grid-column:1/-1}
-  .titem .tdelta{grid-column:1}
-  .titem .tout{grid-column:2;grid-row:3;text-align:right}
-}
+.track .tnote{margin-top:16px;font-size:11px;color:var(--dim);max-width:76ch}
 
 /* ---------- tarama konsolu ---------- */
 .scanning{display:none;padding:30px 0 46px;border-bottom:1px solid var(--rule);position:relative;overflow:hidden}
@@ -437,6 +463,7 @@ footer p{margin:0 0 6px;max-width:76ch}
 
   <section class="result" id="result">
     <div class="wrap">
+      <div class="tokhead" id="tokHead"></div>
       <div class="split">
         <aside class="verdict" id="verdict"></aside>
         <div>
@@ -444,6 +471,7 @@ footer p{margin:0 0 6px;max-width:76ch}
             <span data-i18n="sigGrid">Signal grid</span>
             <span id="firedCount"></span>
           </div>
+          <div class="siglegend" id="sigLegend"></div>
           <div class="grid" id="grid"></div>
           <div id="caveats"></div>
           <div class="sharebox" id="shareBox" hidden>
@@ -482,8 +510,9 @@ footer p{margin:0 0 6px;max-width:76ch}
         <span data-i18n="trackHead">america.sx track record</span>
         <span class="tscore" id="trackScore"></span>
       </div>
+      <div class="subhead" data-i18n="trackSub">Every scanned token, watched for 24 hours.</div>
       <div class="tlist" id="tlist"></div>
-      <div class="tnote" data-i18n="trackNote">After each scan, america.sx follows the token's market cap for 30 minutes. A drop of more than 35% from the scan-time value counts as a crash.</div>
+      <div class="tnote" data-i18n="trackNote">After each scan, america.sx follows the token's market cap for 24 hours. A drop of more than 35% from the scan-time value counts as a crash.</div>
     </div>
   </section>
 </main>
@@ -540,6 +569,7 @@ const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic',
 
 const $ = id => document.getElementById(id);
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
 /* ---------------- i18n ---------------- */
 let lang = 'en';
@@ -606,6 +636,8 @@ const STR = {
     hours: n => `${n} h`,
     firedOf: (a,b) => `${a} / ${b} fired`,
     clean:'clean', noDataShort:'no data',
+    determination:'Determination',
+    lgFired:'fired', lgClean:'clean', lgNoData:'no data',
     whatLimits:'What limits this reading',
     noSignalData:'No data to compute this signal.',
     thWallet:'Wallet', thShare:'Share', thBalance:'Balance', thTxns:'Txns', thFunder:'Funded by', thTag:'Tag',
@@ -614,10 +646,12 @@ const STR = {
     scanDone:'done — fetching result',
     relNow: s => `${s}s ago`, relMin: m => `${m}m ago`, relHr: h => `${h}h ago`, relDay: d => `${d}d ago`,
     trackHead:'america.sx track record',
-    trackNote:"After each scan, america.sx follows the token's market cap for 30 minutes. A drop of more than 35% from the scan-time value counts as a crash. Not a backtest — a live, running log.",
+    trackSub:'Every scanned token, watched for 24 hours.',
+    trackWatching: n => `${n} watching`,
+    trackNote:"After each scan, america.sx follows the token's market cap for 24 hours. A drop of more than 35% below the scan-time value counts as a crash. Not a backtest — a live, running log.",
     trackScore: (n,m) => `${n} / ${m} correct`,
     outHit:'✓ called it', outMiss:'✗ missed', outNoDump:'— no dump yet', outClear:'✓ held up',
-    outOpen: m => `tracking · ${m}m left`,
+    outOpen: left => `watching · ${left} left`,
     predWas: v => `predicted ${v}`,
   },
   tr: {
@@ -679,6 +713,8 @@ const STR = {
     hours: n => `${n} saat`,
     firedOf: (a,b) => `${a} / ${b} tetiklendi`,
     clean:'temiz', noDataShort:'veri yok',
+    determination:'Karar',
+    lgFired:'tetiklendi', lgClean:'temiz', lgNoData:'veri yok',
     whatLimits:'Bu okumayı sınırlayanlar',
     noSignalData:'Bu sinyali hesaplayacak veri bulunamadı.',
     thWallet:'Cüzdan', thShare:'Pay', thBalance:'Bakiye', thTxns:'İşlem', thFunder:'Fonlayan', thTag:'Etiket',
@@ -687,10 +723,12 @@ const STR = {
     scanDone:'tamamlandı — sonuç getiriliyor',
     relNow: s => `${s} sn önce`, relMin: m => `${m} dk önce`, relHr: h => `${h} sa önce`, relDay: d => `${d} gün önce`,
     trackHead:'america.sx karnesi',
-    trackNote:'Her taramadan sonra america.sx, tokenın market cap\'ini 30 dakika izler. Tarama anına göre %35\'ten fazla düşüş "çöktü" sayılır. Bu bir geriye dönük test değil — canlı, işleyen bir kayıt.',
+    trackSub:'Taranan her token, 24 saat izlenir.',
+    trackWatching: n => `${n} izleniyor`,
+    trackNote:'Her taramadan sonra america.sx, tokenın market cap\'ini 24 saat izler. Tarama anına göre %35\'ten fazla düşüş "çöktü" sayılır. Bu bir geriye dönük test değil — canlı, işleyen bir kayıt.',
     trackScore: (n,m) => `${n} / ${m} doğru`,
     outHit:'✓ isabet', outMiss:'✗ kaçırdı', outNoDump:'— henüz düşüş yok', outClear:'✓ korudu',
-    outOpen: m => `izleniyor · ${m} dk kaldı`,
+    outOpen: left => `izleniyor · ${left} kaldı`,
     predWas: v => `${v} dedi`,
   },
 };
@@ -984,7 +1022,7 @@ async function loadRecent(){
 
 /* ---------------- karne / track record ---------------- */
 let lastTrack = null;
-let trackWindow = 1800;
+let trackWindow = 86400;
 
 const mcapShort = n => {
   if(n == null) return '—';
@@ -994,11 +1032,16 @@ const mcapShort = n => {
   return '$' + Math.round(n);
 };
 
+function fmtLeft(sec){
+  const s = Math.max(0, sec);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h >= 1 ? `${h}h ${m}m` : `${m}m`;
+}
 function renderTrack(rec){
   if(!rec || !rec.length){ $('trackSection').hidden = true; return; }
   $('trackSection').hidden = false;
   const box = $('tlist'); box.innerHTML = '';
-  let correct = 0, settled = 0;
+  let correct = 0, settled = 0, watching = 0;
 
   rec.forEach(t=>{
     const col = COLORS[t.verdict] || 'var(--dim)';
@@ -1010,15 +1053,20 @@ function renderTrack(rec){
       deltaTxt = (chg > 0 ? '+' : '') + Math.round(chg * 100) + '%';
     }
 
-    let outCls, outTxt;
+    let footer;
     if(!t.settled){
-      const leftMin = Math.max(0, Math.ceil((trackWindow - t.age_sec) / 60));
-      outCls = 'open'; outTxt = L('outOpen', leftMin);
+      watching++;
+      const left = trackWindow - t.age_sec;
+      const pct = Math.max(2, Math.min(100, t.age_sec / trackWindow * 100));
+      footer = `<div class="prog">
+        <div class="pbar"><i style="width:${pct}%"></i></div>
+        <div class="plabel">${L('outOpen', fmtLeft(left))}</div></div>`;
     }else{
       settled++;
-      outCls = t.outcome || 'open';
-      outTxt = { hit:L('outHit'), miss:L('outMiss'), no_dump:L('outNoDump'), clear:L('outClear') }[t.outcome] || '—';
+      const cls = t.outcome || 'open';
+      const txt = { hit:L('outHit'), miss:L('outMiss'), no_dump:L('outNoDump'), clear:L('outClear') }[t.outcome] || '—';
       if(t.outcome === 'hit' || t.outcome === 'clear') correct++;
+      footer = `<span class="tout ${cls}">${txt}</span>`;
     }
 
     const b = document.createElement('button');
@@ -1026,16 +1074,21 @@ function renderTrack(rec){
     b.style.setProperty('--sig', col);
     b.title = `${t.mint} — ${L('predWas', label)}`;
     b.innerHTML = `
-      <span class="tv">${label}</span>
-      <span class="tsym">${t.symbol ? t.symbol : short(t.mint)}</span>
-      <span class="tflow">${mcapShort(t.mcap_at_scan)} → ${mcapShort(t.mcap_latest)}</span>
-      <span class="tdelta ${deltaCls}">${deltaTxt}</span>
-      <span class="tout ${outCls}">${outTxt}</span>`;
+      <div class="row1">
+        <span class="tv">${label}</span>
+        <span class="tsym">${esc(t.symbol || short(t.mint))}</span>
+        <span class="tage">${relTime(t.scored_at)}</span>
+      </div>
+      <div class="row2">
+        <span class="tflow"><s>${mcapShort(t.mcap_at_scan)}</s> → ${mcapShort(t.mcap_latest)}</span>
+        <span class="tdelta ${deltaCls}">${deltaTxt}</span>
+      </div>
+      ${footer}`;
     b.onclick = ()=>{ $('mint').value = t.mint; scan(t.mint); };
     box.appendChild(b);
   });
 
-  $('trackScore').textContent = settled ? L('trackScore', correct, settled) : '';
+  $('trackScore').textContent = settled ? L('trackScore', correct, settled) : L('trackWatching', watching);
 }
 async function loadTrack(){
   try{
@@ -1060,7 +1113,16 @@ function render(d){
   const dep = (d.launch && d.launch.deployer) || {};
 
   const t = d.token || {};
+
+  // --- taranan token başlığı (durum kutusunun üstünde) ---
+  $('tokHead').innerHTML = `
+    <span class="sym" style="color:${c}">${t.symbol ? esc(t.symbol) : L('noName')}</span>
+    ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ''}
+    <span class="vpill" style="color:${c}">${v.label}</span>
+    <span class="mnt">${d.mint}</span>`;
+
   $('verdict').innerHTML = `
+    <div class="stamp">${L('determination')}</div>
     <div class="tag" style="color:${c}">${v.label}</div>
     <p>${summary}</p>
     <div class="meters">
@@ -1091,18 +1153,27 @@ function render(d){
 
   const grid = $('grid'); grid.innerHTML = '';
   const fired = d.signals.filter(s=>s.fired).length;
+  const clean = d.signals.filter(s=>!s.fired && s.data_available).length;
+  const nd = d.signals.filter(s=>!s.data_available).length;
   $('firedCount').textContent = L('firedOf', fired, d.signals.length);
+  $('sigLegend').innerHTML = `
+    <span class="lg-fired">● <b>${fired}</b> ${L('lgFired')}</span>
+    <span class="lg-clean">✓ <b>${clean}</b> ${L('lgClean')}</span>
+    ${nd ? `<span class="lg-nd">— <b>${nd}</b> ${L('lgNoData')}</span>` : ''}`;
 
   const ordered = [...d.signals].sort((a,b)=> (b.fired-a.fired) || (b.strength-a.strength));
   ordered.forEach((s,i)=>{
     const col = COLORS[s.direction] || 'var(--dim)';
     const sigLabel = (lang === 'en' && SIG_EN[s.key]) ? SIG_EN[s.key] : s.label;
+    const cls = s.fired ? ' fired' : (s.data_available ? ' clean' : ' nodata');
     const el = document.createElement('button');
-    el.className = 'cell' + (s.fired?' fired':'') + (s.data_available?'':' nodata');
+    el.className = 'cell' + cls;
     el.style.setProperty('--sig', col);
     el.setAttribute('aria-expanded','false');
+    const kText = s.fired ? s.direction
+      : (s.data_available ? `<span class="tick">✓</span> ${L('clean')}` : L('noDataShort'));
     el.innerHTML = `
-      <div class="k"><span>${s.fired ? s.direction : (s.data_available ? L('clean') : L('noDataShort'))}</span>
+      <div class="k"><span>${kText}</span>
         <span>${s.fired ? Math.round(s.strength*100)+'%' : ''}</span></div>
       <div class="n">${sigLabel}</div>
       <div class="bar"><span></span></div>

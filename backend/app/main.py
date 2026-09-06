@@ -48,9 +48,9 @@ RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MIN", "10"))
 # --- Karne (outcome tracking) --------------------------------------------
 # Tarama sonrası tokenın market cap'i TRACK_WINDOW_SEC boyunca izlenir.
 # Pencerede en düşük noktaya göre düşüş TRACK_DROP_PCT'i geçtiyse "çöktü".
-TRACK_WINDOW = int(os.getenv("TRACK_WINDOW_SEC", "1800"))      # 30 dk
+TRACK_WINDOW = int(os.getenv("TRACK_WINDOW_SEC", "86400"))     # 24 saat
 TRACK_DROP = float(os.getenv("TRACK_DROP_PCT", "0.35"))        # %35
-TRACK_POLL = int(os.getenv("TRACK_POLL_SEC", "120"))
+TRACK_POLL = int(os.getenv("TRACK_POLL_SEC", "300"))
 FLAGGED_VERDICTS = {"bundled", "cabaled"}
 _last_track_refresh = 0.0
 
