@@ -249,7 +249,12 @@ async def track(limit: int = 20):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "providers": state["pool"].stats()}
+    return {
+        "status": "ok",
+        "store": "postgres" if state["cache"].pg else "sqlite",
+        "admin": bool(ADMIN_TOKEN),
+        "providers": state["pool"].stats(),
+    }
 
 
 # --- Paylaşım: kart, rozet, OG sayfası -----------------------------------

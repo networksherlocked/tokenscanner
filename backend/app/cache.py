@@ -13,9 +13,12 @@ her ikisinde de çalışır.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from pathlib import Path
+
+log = logging.getLogger("solscope")
 
 DEFAULT_TTL = 900  # 15 dakika
 
@@ -92,34 +95,46 @@ class ScanCache:
         self, path: str = "scans.db", ttl: int = DEFAULT_TTL, dsn: str | None = None
     ) -> None:
         self.ttl = ttl
-        self.pg = bool(dsn)
-        if self.pg:
-            from psycopg.rows import dict_row
-            from psycopg_pool import ConnectionPool
-
-            self.pool = ConnectionPool(
-                dsn,
-                min_size=1,
-                max_size=5,
-                open=False,
-                timeout=15,
-                max_idle=300,
-                kwargs={
-                    "row_factory": dict_row,
-                    "prepare_threshold": None,  # transaction pooler uyumu
-                    "autocommit": True,
-                },
-            )
-            self.pool.open(wait=True, timeout=20)
-            with self.pool.connection() as c:
-                c.execute(_SCHEMA_PG)
-        else:
+        self.pg = False
+        if dsn:
+            try:
+                self._init_pg(dsn)
+                self.pg = True
+            except Exception as exc:  # noqa: BLE001
+                log.error(
+                    "DATABASE_URL verildi ama Postgres'e bağlanılamadı (%s) — "
+                    "SQLite'a düşülüyor. Bağlantı dizesini kontrol et "
+                    "(Transaction pooler / port 6543 / ?sslmode=require).",
+                    exc,
+                )
+        if not self.pg:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             self.conn = sqlite3.connect(path, check_same_thread=False)
             self.conn.row_factory = sqlite3.Row
             self.conn.executescript(_SCHEMA_SQLITE)
             self.conn.commit()
         self._migrate()
+
+    def _init_pg(self, dsn: str) -> None:
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
+
+        self.pool = ConnectionPool(
+            dsn,
+            min_size=1,
+            max_size=5,
+            open=False,
+            timeout=15,
+            max_idle=300,
+            kwargs={
+                "row_factory": dict_row,
+                "prepare_threshold": None,  # transaction pooler uyumu
+                "autocommit": True,
+            },
+        )
+        self.pool.open(wait=True, timeout=15)
+        with self.pool.connection() as c:
+            c.execute(_SCHEMA_PG)
 
     def _migrate(self) -> None:
         # Eski kurulumlar için eklenen kolonlar (IF NOT EXISTS her yerde yok).
