@@ -313,36 +313,28 @@ footer p{margin:0 0 6px;max-width:76ch}
 .hero-eagle img{width:100%;height:auto;display:block;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
 .hero-eagle.no-img{display:none}
-.hero-eagle .eye{position:absolute;width:9px;height:9px;margin:-4px 0 0 -4px;border-radius:50%;
-  animation:eyepulse 2.4s ease-in-out infinite}
-.hero-eagle .eye.l{left:var(--eye-lx,34%);top:var(--eye-ly,33%);background:radial-gradient(circle,#eafcff,#22d3ee 60%,transparent)}
-.hero-eagle .eye.r{left:var(--eye-rx,52%);top:var(--eye-ry,32%);background:radial-gradient(circle,#ffeafe,#e879f9 60%,transparent)}
 
-/* tarama arenası: kartal ORTADA, kutucuklar etrafında, sinyaller kartaldan gider */
-.eagle-arena{position:relative;max-width:940px;margin:0 auto 18px;height:clamp(360px,54vw,480px);
+/* tarama arenası: kartal ORTADA + BÜYÜK, kutucuklar etrafında; dalgalı bağ + sinyal */
+.eagle-arena{position:relative;margin:0 0 16px;height:clamp(360px,46vw,520px);
   border:1px solid var(--gold-dim);border-radius:3px;overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 90px rgba(0,0,0,.5);
+  box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 100px rgba(0,0,0,.55);
   background:radial-gradient(130% 110% at 50% 44%,#172c4e,#080f1c 76%)}
 .eagle-arena::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
   background:
-    repeating-linear-gradient(0deg,rgba(200,164,92,.05) 0 1px,transparent 1px 40px),
-    repeating-linear-gradient(90deg,rgba(200,164,92,.05) 0 1px,transparent 1px 40px)}
+    repeating-linear-gradient(0deg,rgba(200,164,92,.05) 0 1px,transparent 1px 44px),
+    repeating-linear-gradient(90deg,rgba(200,164,92,.05) 0 1px,transparent 1px 44px)}
 /* kartalı ortalayan sarmalayıcı — animasyon transform'u merkezlemeyi bozmasın */
 .ea-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
-  width:min(30%,190px);pointer-events:none}
+  width:min(56%,360px);pointer-events:none}
 .ea-center img{width:100%;height:auto;display:block;
-  filter:drop-shadow(0 0 30px rgba(34,211,238,.32)) drop-shadow(0 0 46px rgba(232,121,249,.2));
+  filter:drop-shadow(0 0 34px rgba(34,211,238,.3)) drop-shadow(0 0 54px rgba(232,121,249,.2));
   animation:eaglehover 5s ease-in-out infinite alternate}
+.eagle-arena.firing .ea-center img{filter:drop-shadow(0 0 44px rgba(34,211,238,.5)) drop-shadow(0 0 72px rgba(232,121,249,.34))}
 .eagle-arena.no-img .ea-center img{display:none}
-.ea-center .crest{width:120px;height:120px;color:var(--gold);display:none;margin:0 auto}
+.ea-center .crest{width:150px;height:150px;color:var(--gold);display:none;margin:0 auto}
 .eagle-arena.no-img .ea-center .crest{display:block}
-.ea-eye{position:absolute;left:50%;top:36%;width:9px;height:9px;border-radius:50%;z-index:5;
-  transform:translate(-50%,-50%);opacity:.55;animation:eyepulse 2s ease-in-out infinite}
-.ea-eye.l{margin-left:-11px;background:radial-gradient(circle,#eafcff,#22d3ee 60%,transparent)}
-.ea-eye.r{margin-left:11px;background:radial-gradient(circle,#ffeafe,#e879f9 60%,transparent)}
-.eagle-arena.firing .ea-eye{opacity:1;box-shadow:0 0 16px 4px currentColor}
 
-.scan-box{position:absolute;width:58px;height:40px;transform:translate(-50%,-50%);z-index:2;
+.scan-box{position:absolute;width:56px;height:38px;transform:translate(-50%,-50%);z-index:2;
   border:1px solid var(--rule);border-radius:2px;background:rgba(16,28,50,.6);
   display:flex;align-items:center;justify-content:center;
   transition:border-color .3s,box-shadow .3s,background .3s,transform .2s}
@@ -352,18 +344,10 @@ footer p{margin:0 0 6px;max-width:76ch}
 .scan-box.scanned{border-color:var(--gold-dim);border-left:2px solid var(--live);background:rgba(224,179,82,.06)}
 .scan-box.scanned::after{background:var(--live)}
 
-.ea-beam{position:absolute;left:50%;top:36%;height:2px;transform-origin:0 50%;z-index:3;pointer-events:none;
-  background:linear-gradient(90deg,var(--bc),transparent 92%);filter:drop-shadow(0 0 7px var(--bc));
-  opacity:0}
-.ea-beam.show{animation:eabeam .6s ease-out forwards}
-@keyframes eabeam{
-  0%{opacity:1;clip-path:inset(0 100% 0 0)}
-  32%{opacity:1;clip-path:inset(0 0 0 0)}
-  100%{opacity:0;clip-path:inset(0 0 0 0)}}
-.ea-signal{position:absolute;width:10px;height:10px;border-radius:50%;z-index:5;
-  transform:translate(-50%,-50%);background:var(--bc);
-  box-shadow:0 0 14px 4px var(--bc), 0 0 26px 8px var(--bc);
-  transition:left .5s cubic-bezier(.4,0,.5,1),top .5s cubic-bezier(.4,0,.5,1),opacity .3s}
+.ea-links{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:visible}
+.ea-link{fill:none;stroke-width:1.4;opacity:.3;stroke-linecap:round;filter:drop-shadow(0 0 3px currentColor)}
+.ea-link-pulse{fill:none;stroke-width:3.5;stroke-linecap:round;opacity:.95;
+  filter:drop-shadow(0 0 7px currentColor) drop-shadow(0 0 16px currentColor)}
 
 .scan-console{border:1px solid var(--rule);background:#0c1830;border-radius:2px;padding:14px 16px;
   font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#d8c48a;
@@ -448,7 +432,6 @@ footer p{margin:0 0 6px;max-width:76ch}
       </div>
       <div class="hero-eagle" id="heroEagle" aria-hidden="true">
         <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
-        <span class="eye l"></span><span class="eye r"></span>
       </div>
     </div>
   </section>
@@ -470,7 +453,7 @@ footer p{margin:0 0 6px;max-width:76ch}
           <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
           <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
         </div>
-        <span class="ea-eye l"></span><span class="ea-eye r"></span>
+        <svg class="ea-links" id="eaLinks" aria-hidden="true"></svg>
       </div>
 
       <div class="scan-console" id="scanConsole"></div>
@@ -949,9 +932,13 @@ const EA_BOXES = [
 ];
 const EA = { boxEls:[], order:[], idx:0, spawn:null, colorFlip:false };
 
+const EA_SVGNS = 'http://www.w3.org/2000/svg';
+const EA_ORIGIN = [50, 34];   // kartal başı, arena yüzdesi
+
 function eaBuild(){
   const arena = $('eagleArena');
-  arena.querySelectorAll('.scan-box,.ea-signal,.ea-beam').forEach(n=>n.remove());
+  arena.querySelectorAll('.scan-box').forEach(n=>n.remove());
+  $('eaLinks').innerHTML = '';
   EA.boxEls = EA_BOXES.map(([x,y])=>{
     const b = document.createElement('div');
     b.className = 'scan-box';
@@ -962,10 +949,18 @@ function eaBuild(){
   EA.order = [...EA.boxEls.keys()].sort(()=>Math.random()-0.5);
   EA.idx = 0;
 }
+// kartaldan kutuya hafif S veren bezier yol (iki kontrol noktası perpendiküler kayık)
+function eaPath(x0,y0,x1,y1,amp){
+  const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy)||1;
+  const px=-dy/len, py=dx/len;
+  const c1x=x0+dx*0.33+px*amp, c1y=y0+dy*0.33+py*amp;
+  const c2x=x0+dx*0.66-px*amp, c2y=y0+dy*0.66-py*amp;
+  return `M${x0.toFixed(1)} ${y0.toFixed(1)} C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
 function eaPing(){
   if(!SCAN.on) return;
-  const arena = $('eagleArena');
-  if(EA.idx >= EA.order.length){                 // hepsi tarandı → sıfırla, döngü
+  const svg = $('eaLinks');
+  if(EA.idx >= EA.order.length){
     EA.boxEls.forEach(b=>b.classList.remove('scanned'));
     EA.order = [...EA.boxEls.keys()].sort(()=>Math.random()-0.5);
     EA.idx = 0;
@@ -974,35 +969,47 @@ function eaPing(){
   const box = EA.boxEls[bi];
   const [bx,by] = EA_BOXES[bi];
   const col = (EA.colorFlip = !EA.colorFlip) ? '#22d3ee' : '#e879f9';
-  const OX = 50, OY = 36;                       // çıkış noktası (kartal başı), %
-  const r = arena.getBoundingClientRect();
-  const dx = (bx - OX) / 100 * r.width;
-  const dy = (by - OY) / 100 * r.height;
 
-  // lazer çizgisi (kısa süreli, kartal başından kutuya)
-  const beam = document.createElement('div');
-  beam.className = 'ea-beam show';
-  beam.style.setProperty('--bc', col);
-  beam.style.width = Math.hypot(dx, dy) + 'px';
-  beam.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
-  arena.appendChild(beam);
-  setTimeout(()=>beam.remove(), 600);
+  const w = svg.clientWidth || svg.getBoundingClientRect().width;
+  const h = svg.clientHeight || svg.getBoundingClientRect().height;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  const x0=w*EA_ORIGIN[0]/100, y0=h*EA_ORIGIN[1]/100, x1=w*bx/100, y1=h*by/100;
+  const base = Math.min(Math.hypot(x1-x0,y1-y0)*0.16, 34);
 
-  // uçan sinyal noktası
-  const sig = document.createElement('div');
-  sig.className = 'ea-signal';
-  sig.style.setProperty('--bc', col);
-  sig.style.left = OX + '%'; sig.style.top = OY + '%';
-  arena.appendChild(sig);
+  const d1 = eaPath(x0,y0,x1,y1, base);
+  const d2 = eaPath(x0,y0,x1,y1, base*0.35);
+  const d3 = eaPath(x0,y0,x1,y1, base*0.9);
+
+  const g = document.createElementNS(EA_SVGNS,'g');
+  g.style.color = col;
+  const line = document.createElementNS(EA_SVGNS,'path');
+  line.setAttribute('class','ea-link'); line.setAttribute('d',d1); line.setAttribute('stroke',col);
+  const pulse = document.createElementNS(EA_SVGNS,'path');
+  pulse.setAttribute('class','ea-link-pulse'); pulse.setAttribute('d',d1); pulse.setAttribute('stroke',col);
+  // yol hafifçe dalgalansın
+  for(const p of [line, pulse]){
+    const a = document.createElementNS(EA_SVGNS,'animate');
+    a.setAttribute('attributeName','d');
+    a.setAttribute('values', `${d1};${d3};${d2};${d1}`);
+    a.setAttribute('dur','1.8s'); a.setAttribute('repeatCount','indefinite');
+    p.appendChild(a);
+  }
+  g.appendChild(line); g.appendChild(pulse); svg.appendChild(g);
+
+  // sinyal: kısa parlak parça yol boyunca ilerlesin
+  let L = 200; try{ L = line.getTotalLength(); }catch(e){}
+  const seg = Math.max(26, L*0.14);
+  pulse.style.strokeDasharray = `${seg} ${L+seg}`;
+  pulse.style.strokeDashoffset = L+seg;
   requestAnimationFrame(()=> requestAnimationFrame(()=>{
-    sig.style.left = bx + '%'; sig.style.top = by + '%';
+    pulse.style.transition = 'stroke-dashoffset .6s linear';
+    pulse.style.strokeDashoffset = '0';
   }));
-  setTimeout(()=>{
-    box.classList.add('scanning');
-    sig.style.opacity = '0';
-    setTimeout(()=>sig.remove(), 300);
-    setTimeout(()=>{ box.classList.remove('scanning'); box.classList.add('scanned'); }, 480);
-  }, 520);
+
+  setTimeout(()=> box.classList.add('scanning'), 560);
+  setTimeout(()=>{ box.classList.remove('scanning'); box.classList.add('scanned'); }, 1000);
+  setTimeout(()=>{ g.style.transition='opacity .4s'; g.style.opacity='0';
+                   setTimeout(()=>g.remove(), 450); }, 900);
 }
 
 function scanReset(){
