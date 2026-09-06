@@ -76,8 +76,8 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
   <div class="brand">america<i>.sx</i><em>admin</em></div>
   <div style="display:flex;gap:8px">
     <a class="ghost" href="/" style="display:inline-block;padding:9px 16px;border:1px solid var(--rule);border-radius:2px;text-decoration:none;color:var(--muted);font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px">Ana sayfa</a>
-    <button class="ghost" id="chpw">Şifre değiştir</button>
-    <button class="ghost" id="logout">Çıkış</button>
+    <button class="ghost hidden" id="chpw">Şifre değiştir</button>
+    <button class="ghost hidden" id="logout">Çıkış</button>
   </div>
 </div></header>
 
@@ -119,8 +119,15 @@ async function api(path, opts={}){
   if(!r.ok) throw new Error(j.detail || ('HTTP '+r.status));
   return j;
 }
-function showLogin(m){ $('#panel').classList.add('hidden'); $('#loginView').classList.remove('hidden'); if(m) $('#loginMsg').textContent = m; }
-function showPanel(){ $('#loginView').classList.add('hidden'); $('#panel').classList.remove('hidden'); }
+function showLogin(m){
+  $('#panel').classList.add('hidden'); $('#loginView').classList.remove('hidden');
+  $('#chpw').classList.add('hidden'); $('#logout').classList.add('hidden');
+  if(m) $('#loginMsg').textContent = m;
+}
+function showPanel(){
+  $('#loginView').classList.add('hidden'); $('#panel').classList.remove('hidden');
+  $('#chpw').classList.remove('hidden'); $('#logout').classList.remove('hidden');
+}
 function flash(m){ $('#msg').textContent = m; setTimeout(()=>{ if($('#msg').textContent===m) $('#msg').textContent=''; }, 2500); }
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const vb = v => `<span class="badge b-${v||'open'}">${esc(v||'—')}</span>`;
