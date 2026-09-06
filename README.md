@@ -91,7 +91,23 @@ aşamaları gösteren bir ilerleme penceresi çıkar.
    değişkenine `<url>|<rps>` çiftlerini virgülle ayırarak gir, servisi yeniden dağıt.
 
 Ücretsiz katman notları: 15 dk hareketsizlikte servis uykuya dalar (ilk istek
-~30 sn), disk kalıcı değil (önbellek `/tmp`'de, yeniden dağıtımda sıfırlanır).
+~30 sn). Çözüm: [.github/workflows/keepalive.yml](.github/workflows/keepalive.yml)
+her 10 dk'da `/api/health`'e vurur (repo GitHub'da olmalı, Actions açık olmalı).
+Daha güvenilir: UptimeRobot (ücretsiz, 5 dk kontrol).
+
+### Kalıcı depo (Supabase)
+
+`DATABASE_URL` boşsa SQLite `/tmp`'de tutulur — servis yeniden başladığında
+karne ve itirazlar sıfırlanır. Kalıcı olması için ücretsiz Supabase Postgres:
+
+1. supabase.com → yeni proje.
+2. **Project Settings → Database → Connection string → URI** (Transaction pooler,
+   port 6543). Sonuna `?sslmode=require` ekle.
+3. Render'da servis **Environment** → `DATABASE_URL` = bu dize.
+4. Yeniden dağıt. Log'da `depo: Postgres` yazmalı. Şema otomatik oluşur.
+
+SQLite ve Postgres aynı kodu paylaşır (`cache.py`); yerelde `DATABASE_URL`
+vermezsen SQLite ile çalışır.
 
 ### Motoru RPC'siz test etme
 

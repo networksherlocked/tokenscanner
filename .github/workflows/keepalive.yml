@@ -1,0 +1,28 @@
+name: keep-alive
+
+# Render ücretsiz web servisi 15 dk hareketsizlikte uykuya dalar. Bu iş her
+# ~10 dk'da /api/health'e vurup servisi uyanık tutar.
+# Daha güvenilir bir alternatif: UptimeRobot (5 dk kontrol, ücretsiz).
+# HEALTH_URL'i repo Settings > Secrets and variables > Actions > Variables
+# altından değiştirebilirsin.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          URL="${{ vars.HEALTH_URL || 'https://solscope-wcet.onrender.com/api/health' }}"
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL" || echo 000)
+            echo "attempt $i -> $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "servis 5 denemede uyanmadı"
+          exit 1

@@ -106,17 +106,22 @@ async def _track_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state["pool"] = RpcPool()
+    dsn = os.getenv("DATABASE_URL") or None
     state["cache"] = ScanCache(
         path=os.getenv("CACHE_PATH", "data/scans.db"),
         ttl=int(os.getenv("CACHE_TTL", "900")),
+        dsn=dsn,
     )
     log.info(
-        "Havuz hazır: %s sağlayıcı", len(state["pool"].providers)
+        "Havuz hazır: %s sağlayıcı · depo: %s",
+        len(state["pool"].providers),
+        "Postgres" if dsn else "SQLite",
     )
     track_task = asyncio.create_task(_track_loop())
     yield
     track_task.cancel()
     await state["pool"].aclose()
+    state["cache"].close()
 
 
 app = FastAPI(title="america.sx", version="0.4.0", lifespan=lifespan)

@@ -30,3 +30,7 @@ services:
       # RPC_ENDPOINTS = https://mainnet.helius-rpc.com/?api-key=XXX|10,https://solana-mainnet.g.alchemy.com/v2/YYY|25
       - key: RPC_ENDPOINTS
         sync: false
+      # Kalıcı depo: Supabase Postgres bağlantı dizesi. Boşsa /tmp SQLite
+      # kullanılır (yeniden başlatmada karne/itiraz sıfırlanır).
+      - key: DATABASE_URL
+        sync: false
