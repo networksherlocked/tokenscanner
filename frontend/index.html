@@ -365,7 +365,7 @@ footer p{margin:0 0 6px;max-width:76ch}
 .scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
 .scan-stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 
-.scan-cancel{background:transparent;border:1px solid var(--rule);color:var(--muted);
+.scan-cancel{margin-left:auto;background:transparent;border:1px solid var(--rule);color:var(--muted);
   font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   font-size:11px;padding:8px 18px;border-radius:2px;cursor:pointer;align-self:center}
 .scan-cancel:hover{color:var(--bundled);border-color:var(--bundled)}
@@ -456,8 +456,8 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
         <div class="scan-stat"><b id="statSignals">0/15</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
       </div>
     </div>
   </section>
