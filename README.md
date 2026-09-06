@@ -118,10 +118,27 @@ vermezsen SQLite ile çalışır.
 - **İtirazlar** — kuyruk; çöz / yok say + not
 - **Karne** — tüm izlenen tokenlar; kayıt sil
 - **Önbellek / Tarama** — bir mint'in önbelleğini sil ya da zorla yeniden tara
-- **İşaretli cüzdanlar** — DB'de tutulur, motorun `flagged_wallets` sinyalinde
-  **anında** kullanılır (yeniden dağıtım gerekmez)
+- **İşaretli cüzdanlar** — DB'de tutulur, motorun `flagged_wallets` /
+  `deployer_history` sinyalinde **anında** kullanılır (yeniden dağıtım gerekmez)
+- **Öğrenilenler** — aşağıya bak; işaretlemeyi "geri al" burada
 
 Token üret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+
+### Öğrenme döngüsü
+
+Bir token **organic/inconclusive** dendi ve 24 saat izlemede **sert çöktü** ise
+(`LEARN_MIN_DROP`, varsayılan %55) motor kendi kayıtlı taramasına geri döner:
+
+1. Lansman alıcıları + fonlayıcıları + 2-hop fonlama ağacı + deployer'ı inceler.
+2. **Koordinasyon izi varsa** (ortak fonlayıcı ≥2 cüzdan, taze cüzdan kümesi,
+   tek üst kaynak, eşik-altı bot imzaları) → o cüzdanları ve deployer'ı
+   `flagged` tablosuna ekler (`via = mint`, `hits` = kaç ayrı çöküşte görüldü).
+3. **İz yoksa** → hiçbir şey işaretlemez, "muhtemelen piyasa çöküşü" diye
+   ders kaydeder (masum cüzdanları kirletmemek için).
+
+Sonraki taramalarda bu cüzdanlar `sig_flagged_wallets`'i, bu deployer
+`sig_deployer_history`'yi anında tetikler — token buna göre yeniden sınıflanır.
+Yanlış bir öğrenme olursa admin → **Öğrenilenler → geri al**.
 
 ### Motoru RPC'siz test etme
 

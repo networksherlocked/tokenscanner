@@ -52,8 +52,17 @@ CREATE TABLE IF NOT EXISTS appeals (
 CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS flagged (
-    address TEXT PRIMARY KEY, note TEXT, created_at INTEGER NOT NULL
+    address TEXT PRIMARY KEY, note TEXT, created_at INTEGER NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 1, via TEXT, kind TEXT NOT NULL DEFAULT 'wallet'
 );
+
+CREATE TABLE IF NOT EXISTS lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, symbol TEXT,
+    verdict_was TEXT, outcome TEXT, drop_pct REAL, scored_at INTEGER,
+    learned_at INTEGER NOT NULL, wallets_flagged INTEGER NOT NULL DEFAULT 0,
+    deployer TEXT, detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 """
 
 _SCHEMA_PG = """
@@ -85,8 +94,17 @@ CREATE TABLE IF NOT EXISTS appeals (
 CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS flagged (
-    address TEXT PRIMARY KEY, note TEXT, created_at BIGINT NOT NULL
+    address TEXT PRIMARY KEY, note TEXT, created_at BIGINT NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 1, via TEXT, kind TEXT NOT NULL DEFAULT 'wallet'
 );
+
+CREATE TABLE IF NOT EXISTS lessons (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
+    symbol TEXT, verdict_was TEXT, outcome TEXT, drop_pct DOUBLE PRECISION,
+    scored_at BIGINT, learned_at BIGINT NOT NULL,
+    wallets_flagged INTEGER NOT NULL DEFAULT 0, deployer TEXT, detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 """
 
 
@@ -138,7 +156,12 @@ class ScanCache:
 
     def _migrate(self) -> None:
         # Eski kurulumlar için eklenen kolonlar (IF NOT EXISTS her yerde yok).
-        for stmt in ("ALTER TABLE appeals ADD COLUMN note TEXT",):
+        for stmt in (
+            "ALTER TABLE appeals ADD COLUMN note TEXT",
+            "ALTER TABLE flagged ADD COLUMN hits INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE flagged ADD COLUMN via TEXT",
+            "ALTER TABLE flagged ADD COLUMN kind TEXT NOT NULL DEFAULT 'wallet'",
+        ):
             try:
                 self._write(stmt)
             except Exception:  # noqa: BLE001  (kolon zaten var)
@@ -343,18 +366,81 @@ class ScanCache:
 
     def flagged_list(self) -> list[dict]:
         return self._rows(
-            "SELECT address, note, created_at FROM flagged ORDER BY created_at DESC"
+            "SELECT address, note, created_at, hits, via, kind FROM flagged "
+            "ORDER BY hits DESC, created_at DESC"
         )
 
-    def flagged_add(self, address: str, note: str | None) -> None:
+    def flagged_add(
+        self, address: str, note: str | None,
+        via: str = "manual", kind: str = "wallet", bump: bool = False,
+    ) -> None:
+        """bump=True ise mevcut kayıtta hits +1 ve not güncellenir."""
+        set_clause = (
+            "note=excluded.note, hits=flagged.hits+1, via=excluded.via"
+            if bump else "note=COALESCE(flagged.note, excluded.note)"
+        )
         self._write(
-            "INSERT INTO flagged (address, note, created_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(address) DO UPDATE SET note=excluded.note",
-            (address, (note or "")[:500] or None, int(time.time())),
+            "INSERT INTO flagged (address, note, created_at, hits, via, kind) "
+            "VALUES (?, ?, ?, 1, ?, ?) "
+            f"ON CONFLICT(address) DO UPDATE SET {set_clause}",
+            (address, (note or "")[:500] or None, int(time.time()), via, kind),
         )
 
     def flagged_remove(self, address: str) -> None:
         self._write("DELETE FROM flagged WHERE address = ?", (address,))
+
+    def flagged_is(self, address: str) -> bool:
+        return self._one(
+            "SELECT 1 AS x FROM flagged WHERE address = ?", (address,)
+        ) is not None
+
+    # ---- öğrenme / dersler --------------------------------------------
+
+    def scan_payload(self, mint: str) -> dict | None:
+        """TTL'e bakmadan ham kayıtlı tarama (öğrenme için)."""
+        row = self._one("SELECT payload FROM scans WHERE mint = ?", (mint,))
+        if not row:
+            return None
+        try:
+            return json.loads(row["payload"])
+        except (TypeError, ValueError):
+            return None
+
+    def add_lesson(self, **kw) -> int:
+        cols = (
+            "mint", "symbol", "verdict_was", "outcome", "drop_pct",
+            "scored_at", "learned_at", "wallets_flagged", "deployer", "detail",
+        )
+        vals = tuple(kw.get(c) for c in cols[:-1]) + ((kw.get("detail") or "")[:2000],)
+        ph = ", ".join("?" for _ in cols)
+        if self.pg:
+            with self.pool.connection() as c, c.cursor() as cur:
+                cur.execute(
+                    f"INSERT INTO lessons ({', '.join(cols)}) VALUES ({ph}) RETURNING id"
+                    .replace("?", "%s"),
+                    vals,
+                )
+                r = cur.fetchone()
+                return int(r["id"]) if r else 0
+        with self.conn:
+            cur = self.conn.execute(
+                f"INSERT INTO lessons ({', '.join(cols)}) VALUES ({ph})", vals
+            )
+            return int(cur.lastrowid)
+
+    def lessons_list(self, limit: int = 100) -> list[dict]:
+        return self._rows(
+            "SELECT * FROM lessons ORDER BY learned_at DESC LIMIT ?", (limit,)
+        )
+
+    def lesson_undo(self, mint: str) -> int:
+        """Bir dersin işaretlediği (otomatik) cüzdanları geri al."""
+        rows = self._rows(
+            "SELECT address FROM flagged WHERE via = ?", (mint,)
+        )
+        self._write("DELETE FROM flagged WHERE via = ?", (mint,))
+        self._write("DELETE FROM lessons WHERE mint = ?", (mint,))
+        return len(rows)
 
     def stats(self) -> dict:
         def n(sql, params=()):
@@ -371,9 +457,11 @@ class ScanCache:
             "track_open": n("SELECT COUNT(*) FROM track WHERE settled = 0"),
             "track_settled": len(settled),
             "track_correct": hits,
+            "track_miss": sum(1 for r in settled if r["outcome"] == "miss"),
             "appeals_open": n("SELECT COUNT(*) FROM appeals WHERE status = 'open'"),
             "appeals_total": n("SELECT COUNT(*) FROM appeals"),
             "flagged": n("SELECT COUNT(*) FROM flagged"),
+            "lessons": n("SELECT COUNT(*) FROM lessons"),
             "backend": "postgres" if self.pg else "sqlite",
         }
 

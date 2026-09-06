@@ -56,6 +56,11 @@ TRACK_POLL = int(os.getenv("TRACK_POLL_SEC", "300"))
 FLAGGED_VERDICTS = {"bundled", "cabaled"}
 _last_track_refresh = 0.0
 
+# --- Öğrenme: yanlış "organic/inconclusive" kararlardan cüzdan/deployer çıkar --
+LEARN_ENABLED = os.getenv("LEARN_ENABLED", "1") != "0"
+LEARN_MIN_DROP = float(os.getenv("LEARN_MIN_DROP", "0.55"))   # sadece sert çöküşler
+LEARN_MAX_WALLETS = int(os.getenv("LEARN_MAX_WALLETS", "12"))
+
 
 async def refresh_track() -> None:
     """İzlenen tokenların market cap'ini günceller, süresi dolanları sonuçlandırır."""
@@ -94,6 +99,100 @@ async def refresh_track() -> None:
             else:
                 outcome = "clear"
             cache.track_settle(mint, outcome)
+
+            if outcome == "miss" and LEARN_ENABLED and drop >= LEARN_MIN_DROP:
+                try:
+                    learn_from_miss(cache, row, drop)
+                except Exception:  # noqa: BLE001
+                    log.exception("Ders çıkarılamadı: %s", mint)
+
+
+def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
+    """Kayıtlı taramada koordinasyon izi var mı? Varsa şüpheli cüzdanları + kısa
+    açıklama döndür. YOKSA boş — piyasa çöküşünü bundle sanıp masum cüzdanları
+    işaretlemeyelim."""
+    launch = scan.get("launch") or {}
+    buyers = launch.get("buyers") or []
+    signals = {s.get("key"): s for s in scan.get("signals", [])}
+
+    reasons: list[str] = []
+    suspects: set[str] = set()
+
+    # 1) ortak fonlayıcı (eşik tutmamış olsa bile)
+    funders: dict[str, list[str]] = {}
+    for b in buyers:
+        f = b.get("funder")
+        if f:
+            funders.setdefault(f, []).append(b.get("owner"))
+    for f, owners in funders.items():
+        if len(owners) >= 2:
+            reasons.append(f"{len(owners)} lansman alıcısı aynı adresten fonlanmış ({f[:6]}…)")
+            suspects.update(o for o in owners if o)
+            suspects.add(f)
+
+    # 2) 2-hop fonlama ağacı
+    ft = launch.get("funding_tree") or {}
+    for gf, ffs in (ft.get("grandfunders") or {}).items():
+        if len(ffs) >= 2:
+            reasons.append(f"{len(ffs)} fonlayıcı tek üst kaynağa çıkıyor ({gf[:6]}…)")
+            suspects.add(gf)
+            suspects.update(ffs)
+
+    # 3) taze cüzdan kümesi
+    fresh = [b.get("owner") for b in buyers if 0 < (b.get("tx_count") or 0) <= 10]
+    if len(fresh) >= 3:
+        reasons.append(f"{len(fresh)} lansman alıcısı geçmişsiz (taze) cüzdan")
+        suspects.update(o for o in fresh if o)
+
+    # 4) motorun zaten "yakın" olduğu sert sinyaller
+    for key in ("common_funder", "same_slot_entry", "fee_fingerprint", "identical_balances"):
+        sg = signals.get(key)
+        if sg and (sg.get("evidence") or {}).get("cluster_size", 0) >= 2:
+            reasons.append(f"{key}: {sg['evidence']['cluster_size']} cüzdanlık küme (eşik altı)")
+
+    return sorted(suspects), " · ".join(reasons)
+
+
+def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
+    mint = row["mint"]
+    scan = cache.scan_payload(mint)
+    if not scan:
+        cache.add_lesson(
+            mint=mint, symbol=row.get("symbol"), verdict_was=row.get("verdict"),
+            outcome="miss", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
+            learned_at=int(time.time()), wallets_flagged=0, deployer=None,
+            detail="Orijinal tarama verisi yok — ders çıkarılamadı.",
+        )
+        return
+
+    suspects, why = _cluster_evidence(scan)
+    deployer = ((scan.get("launch") or {}).get("deployer") or {}).get("address")
+    pct = f"−%{drop * 100:.0f}"
+    flagged_n = 0
+
+    if suspects or deployer:
+        note = f"{row.get('symbol') or mint[:6]} '{row.get('verdict')}' dendi, {pct} çöktü"
+        for addr in suspects[:LEARN_MAX_WALLETS]:
+            if addr and not registry.is_infrastructure(addr):
+                cache.flagged_add(addr, note, via=mint, kind="wallet", bump=True)
+                flagged_n += 1
+        if deployer and not registry.is_infrastructure(deployer):
+            cache.flagged_add(
+                deployer, note + " (deployer)", via=mint, kind="deployer", bump=True
+            )
+        _reload_flagged()
+
+    detail = why or "Koordinasyon izi bulunamadı — muhtemelen piyasa çöküşü."
+    cache.add_lesson(
+        mint=mint, symbol=row.get("symbol"), verdict_was=row.get("verdict"),
+        outcome="miss", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
+        learned_at=int(time.time()), wallets_flagged=flagged_n, deployer=deployer,
+        detail=detail,
+    )
+    log.info(
+        "DERS: %s (%s → %s) · %s cüzdan işaretlendi · %s",
+        mint, row.get("verdict"), pct, flagged_n, detail[:120],
+    )
 
 
 async def _track_loop() -> None:
@@ -463,6 +562,18 @@ async def admin_flagged_remove(address: str):
     state["cache"].flagged_remove(address.strip())
     _reload_flagged()
     return {"ok": True}
+
+
+@app.get("/api/admin/lessons", dependencies=[Depends(_admin)])
+async def admin_lessons():
+    return {"lessons": state["cache"].lessons_list()}
+
+
+@app.post("/api/admin/lessons/{mint}/undo", dependencies=[Depends(_admin)])
+async def admin_lesson_undo(mint: str):
+    removed = state["cache"].lesson_undo(_validate(mint))
+    _reload_flagged()
+    return {"ok": True, "removed": removed}
 
 
 def _reload_flagged() -> None:

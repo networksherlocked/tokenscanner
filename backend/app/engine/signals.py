@@ -521,6 +521,20 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
         weight=0.8,
     )
     dep = ctx.deployer
+    addr = getattr(dep, "address", None) if dep else None
+
+    # Öğrenme: bu deployer daha önce bir "miss"te işaretlenmişse anında sert sinyal.
+    if addr and registry.is_flagged(addr):
+        s.fired = True
+        s.direction = "bundled"
+        s.strength = 0.85
+        s.evidence = {"deployer": addr, "flagged": True}
+        s.detail = (
+            f"Deployer ({addr[:6]}…{addr[-4:]}) daha önce çöken bir tokende "
+            "işaretlenmiş — kendi kayıtlarımızda seri rug profili."
+        )
+        return s
+
     if not dep or not getattr(dep, "checked", False):
         s.data_ok = False
         s.detail = "Deployer geçmişi çıkarılamadı (Helius DAS gerekli)."
@@ -530,7 +544,7 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
     dead = getattr(dep, "dead_tokens", 0)
     rate = getattr(dep, "dead_rate", 0.0)
     s.evidence = {
-        "deployer": getattr(dep, "address", None),
+        "deployer": addr,
         "prior_tokens": n,
         "checked": checked,
         "dead": dead,

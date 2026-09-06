@@ -73,6 +73,7 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
       <button data-t="track">Karne</button>
       <button data-t="tools">Önbellek / Tarama</button>
       <button data-t="flagged">İşaretli cüzdanlar</button>
+      <button data-t="lessons">Öğrenilenler</button>
     </div>
     <div class="msg" id="msg"></div>
     <div id="view"></div>
@@ -121,6 +122,7 @@ async function route(t){
     if(t==='track')    return renderTrack(await api('/track'));
     if(t==='tools')    return renderTools();
     if(t==='flagged')  return renderFlagged(await api('/flagged'));
+    if(t==='lessons')  return renderLessons(await api('/lessons'));
   }catch(e){ if(e.message!=='auth') v.innerHTML = `<p style="color:var(--red)">${esc(e.message)}</p>`; }
 }
 
@@ -128,8 +130,8 @@ function renderOverview(d){
   const s = d.stats, c = d.config;
   const cards = [
     ['scans_cached','önbellekte'],['scans_total','toplam tarama'],
-    ['track_open','izlenen'],['track_settled','sonuçlanan'],['track_correct','doğru'],
-    ['appeals_open','açık itiraz'],['appeals_total','toplam itiraz'],['flagged','işaretli cüzdan'],
+    ['track_open','izlenen'],['track_settled','sonuçlanan'],['track_correct','doğru'],['track_miss','kaçırılan'],
+    ['appeals_open','açık itiraz'],['flagged','işaretli cüzdan'],['lessons','ders'],
   ].map(([k,l])=>`<div class="card stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
   const prov = Object.entries(d.providers||{}).map(([k,p])=>
     `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td><td>${p.available?'✓':'cooldown'}</td></tr>`).join('');
@@ -222,13 +224,13 @@ function renderTools(){
 
 function renderFlagged(d){
   const rows = (d.flagged||[]).map(f=>`<tr>
-    <td class="mono">${esc(f.address)}</td>
-    <td>${esc(f.note||'')}<div class="muted">${ago(f.created_at)} önce</div></td>
+    <td class="mono">${esc(f.address)}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
+    <td><span class="badge b-open">×${f.hits||1}</span> ${esc(f.note||'')}<div class="muted">${ago(f.created_at)} önce</div></td>
     <td><button class="danger" data-x="${esc(f.address)}">kaldır</button></td>
   </tr>`).join('');
   $('#view').innerHTML = `
     <div class="card">
-      <p class="muted">Buraya eklenen adresler motorun "işaretli cüzdan" sinyalinde anında kullanılır.</p>
+      <p class="muted">Motorun "işaretli cüzdan / deployer" sinyalinde anında kullanılır. ×N = kaç ayrı çöküşte görüldü.</p>
       <div class="row">
         <input id="faddr" placeholder="cüzdan adresi" style="flex:2 1 260px">
         <input id="fnote" placeholder="not (ör. X tokende pakette görüldü)" style="flex:3 1 260px">
@@ -245,6 +247,28 @@ function renderFlagged(d){
   };
   $('#view').querySelectorAll('[data-x]').forEach(b=> b.onclick = async ()=>{
     await api('/flagged/'+encodeURIComponent(b.dataset.x), {method:'DELETE'}); flash('kaldırıldı'); route('flagged');
+  });
+}
+
+function renderLessons(d){
+  const rows = (d.lessons||[]).map(l=>`<tr>
+    <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
+    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
+    <td><b style="color:var(--red)">−%${Math.round((l.drop_pct||0)*100)}</b></td>
+    <td>${esc(l.detail||'')}${l.deployer?`<div class="muted">deployer: ${short(l.deployer)}</div>`:''}</td>
+    <td style="white-space:nowrap">${l.wallets_flagged||0} cüzdan
+      ${l.wallets_flagged?`<button class="ghost" data-u="${esc(l.mint)}">geri al</button>`:''}</td>
+  </tr>`).join('');
+  $('#view').innerHTML = `
+    <div class="card"><p class="muted">"organic/inconclusive" denip sonradan sert çöken (≥%55) tokenlar.
+      Koordinasyon izi bulunduysa o cüzdanlar/deployer işaretlendi ve sonraki taramalarda kullanılıyor.
+      Yanlışsa "geri al".</p></div>
+    <div class="card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi</th><th>eylem</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan=5 class=muted>henüz ders yok</td></tr>'}</tbody></table></div>`;
+  $('#view').querySelectorAll('[data-u]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
+    const j = await api('/lessons/'+b.dataset.u+'/undo', {method:'POST'});
+    flash((j.removed||0)+' cüzdan geri alındı'); route('lessons');
   });
 }
 
