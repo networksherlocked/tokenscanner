@@ -78,7 +78,6 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
   margin:0 0 12px;letter-spacing:.005em;max-width:22ch;text-transform:uppercase}
 .lede{color:var(--muted);max-width:62ch;margin:0 0 26px}
 .search{display:flex;gap:10px;flex-wrap:wrap}
-@media(max-width:560px){.search{justify-content:flex-end}.search input{flex:1 1 100%}}
 .search input{
   flex:1 1 340px;background:var(--panel);border:1px solid var(--rule);color:var(--text);
   font-family:var(--mono);font-size:14px;padding:15px 16px;border-radius:2px;
@@ -94,6 +93,11 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .search button:disabled{opacity:.45;cursor:progress}
 .search button.ghost{background:transparent;color:var(--muted);border:1px solid var(--rule);padding:15px 22px}
 .search button.ghost:hover{color:var(--gold);background:transparent;border-color:var(--gold)}
+@media(max-width:720px){
+  .search{justify-content:flex-end}
+  .search input{flex:1 1 100%;width:100%}
+  .search button{flex:0 0 auto}
+}
 .hint{margin-top:12px;font-size:12px;color:var(--dim)}
 .err{margin-top:14px;padding:12px 14px;border-left:2px solid var(--bundled);background:rgba(213,67,63,.09);color:#eeb0ae;font-size:13px}
 

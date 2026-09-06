@@ -49,6 +49,17 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 .login h1{font-family:var(--disp);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 .hidden{display:none!important}
 .muted{color:var(--dim);font-size:11px}
+.rpcbox{border:1px solid var(--gold-dim,#8a7440);background:var(--panel);border-radius:2px;padding:16px;margin-bottom:12px}
+.rpcbox .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.rpcbox .big{font-family:var(--disp);font-weight:700;font-size:30px;color:var(--text);line-height:1}
+.rpcbox .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.rpcbox .live{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
+.rpcbox .live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.4s ease-in-out infinite}
+@keyframes lp{0%,100%{opacity:.3}50%{opacity:1}}
+.gauge{height:12px;background:var(--ink);border:1px solid var(--rule);border-radius:6px;overflow:hidden;position:relative}
+.gauge i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--amber) 75%,var(--red));transition:width .6s ease}
+.gauge.flash i{box-shadow:0 0 12px var(--amber)}
+.rpcbox .sub{margin-top:8px;font-size:11px;color:var(--muted)}
 .modal-bg{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
   background:rgba(8,15,28,.72);backdrop-filter:blur(3px);padding:20px}
 .modal-bg.hidden{display:none}
@@ -95,9 +106,9 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
     <div class="tabs" id="tabs">
       <button data-t="overview" class="on">Genel</button>
       <button data-t="appeals">İtirazlar</button>
-      <button data-t="track">Karne</button>
       <button data-t="tools">Önbellek / Tarama</button>
       <button data-t="flagged">İşaretli cüzdanlar</button>
+      <button data-t="track">UAVSX AI izleme</button>
       <button data-t="lessons">AI tespit</button>
     </div>
     <div class="msg" id="msg"></div>
@@ -121,6 +132,7 @@ async function api(path, opts={}){
   return j;
 }
 function showLogin(m){
+  if(typeof stopOvPoll==='function') stopOvPoll();
   $('#panel').classList.add('hidden'); $('#loginView').classList.remove('hidden');
   $('#chpw').classList.add('hidden'); $('#logout').classList.add('hidden');
   if(m) $('#loginMsg').textContent = m;
@@ -142,7 +154,7 @@ $('#loginBtn').onclick = async ()=>{
   try{ await api('/overview'); showPanel(); route('overview'); }catch(e){}
 };
 $('#tok').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#loginBtn').click(); });
-$('#logout').onclick = ()=>{ TOKEN=''; try{localStorage.removeItem('asx_admin');}catch(e){} showLogin(''); };
+$('#logout').onclick = ()=>{ TOKEN=''; try{localStorage.removeItem('asx_admin');}catch(e){} stopOvPoll(); showLogin(''); };
 function pwClose(){ $('#pwModal').classList.add('hidden'); $('#pw1').value=''; $('#pw2').value=''; $('#pwMsg').textContent=''; }
 $('#chpw').onclick = ()=>{ $('#pwModal').classList.remove('hidden'); $('#pw1').focus(); };
 $('#pwCancel').onclick = pwClose;
@@ -161,7 +173,11 @@ $('#pwForm').onsubmit = async e=>{
 $('#tabs').onclick = e=>{ const b=e.target.closest('button'); if(!b) return;
   document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on', x===b)); route(b.dataset.t); };
 
+let _ovPoll = null;
+function stopOvPoll(){ if(_ovPoll){ clearInterval(_ovPoll); _ovPoll = null; } }
+
 async function route(t){
+  stopOvPoll();
   const v = $('#view'); v.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
     if(t==='overview') return renderOverview(await api('/overview'));
@@ -185,18 +201,50 @@ function renderOverview(d){
   const provRows = prov.map(([k,p])=>
     `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td><td>${p.available?'✓':'cooldown'}</td></tr>`).join('');
   const q = c.rpc_quota||0;
-  const rpcCard = q
-    ? `<div class="card stat"><b>${Math.max(0,q-totalCalls).toLocaleString()}</b><span>kalan RPC sorgusu (~${Math.floor(Math.max(0,q-totalCalls)/200)} tarama)</span></div>`
-    : `<div class="card stat"><b>${totalCalls.toLocaleString()}</b><span>RPC sorgusu (instance başından)</span></div>`;
   $('#view').innerHTML = `
-    <div class="grid">${cards}${rpcCard}</div>
+    <div id="rpcBox"></div>
+    <div class="grid">${cards}</div>
     <div class="card"><b class="muted">DEPO:</b> ${esc(s.backend)} &nbsp; · &nbsp;
       izleme ${c.track_window_sec/3600}sa &nbsp; · &nbsp; çöküş eşiği %${Math.round(c.track_drop_pct*100)} &nbsp; · &nbsp;
       min mcap $${c.min_market_cap} &nbsp; · &nbsp; rate ${c.rate_limit_per_min}/dk
       ${q?`&nbsp; · &nbsp; RPC kotası ${q.toLocaleString()}/ay`:''}
       <div class="muted" style="margin-top:6px">RPC sayacı instance yeniden başladığında sıfırlanır (aylık gerçek kullanımı Helius panelinden gör).</div></div>
     <div class="card"><table><thead><tr><th>RPC sağlayıcı</th><th>çağrı</th><th>hata</th><th>durum</th></tr></thead>
-      <tbody>${provRows||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>`;
+      <tbody id="provRows">${provRows||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>`;
+
+  paintRpc(d);
+  let _last = totalCalls;
+  _ovPoll = setInterval(async ()=>{
+    let j; try{ j = await api('/overview'); }catch(e){ return; }
+    const now = Object.values(j.providers||{}).reduce((n,p)=>n+(p.calls||0),0);
+    paintRpc(j, now !== _last);
+    _last = now;
+    const pr = $('#provRows');
+    if(pr) pr.innerHTML = Object.entries(j.providers||{}).map(([k,p])=>
+      `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td><td>${p.available?'✓':'cooldown'}</td></tr>`).join('') || '<tr><td colspan=4 class=muted>—</td></tr>';
+  }, 4000);
+}
+
+function paintRpc(d, bump){
+  const box = $('#rpcBox'); if(!box) return;
+  const q = (d.config && d.config.rpc_quota) || 0;
+  const calls = Object.values(d.providers||{}).reduce((n,p)=>n+(p.calls||0),0);
+  if(!q){
+    box.innerHTML = `<div class="rpcbox"><div class="top">
+      <div><div class="lbl">RPC sorgusu (instance başından)</div><div class="big" id="rpcNum">${calls.toLocaleString()}</div></div>
+      <span class="live"><i></i>canlı</span></div>
+      <div class="muted">Kota tanımlı değil (RPC_MONTHLY_QUOTA). Her tarama bu sayacı artırır.</div></div>`;
+    return;
+  }
+  const left = Math.max(0, q - calls);
+  const pct = Math.min(100, calls / q * 100);
+  const scans = Math.floor(left / 200);
+  box.innerHTML = `<div class="rpcbox"><div class="top">
+    <div><div class="lbl">kalan RPC sorgusu</div><div class="big" id="rpcNum">${left.toLocaleString()}</div></div>
+    <span class="live"><i></i>canlı</span></div>
+    <div class="gauge" id="rpcGauge"><i id="rpcFill" style="width:${pct.toFixed(2)}%"></i></div>
+    <div class="sub" id="rpcSub">${calls.toLocaleString()} / ${q.toLocaleString()} kullanıldı · %${pct.toFixed(1)} · ~${scans.toLocaleString()} tarama kaldı</div></div>`;
+  if(bump){ const g = $('#rpcGauge'); if(g){ g.classList.add('flash'); setTimeout(()=>g.classList.remove('flash'), 600); } }
 }
 
 async function renderAppeals(){
