@@ -300,16 +300,58 @@ footer p{margin:0 0 6px;max-width:76ch}
 .scan-body{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:stretch}
 @media(max-width:720px){.scan-body{grid-template-columns:1fr}}
 
-.scan-radar{border:1px solid var(--rule);background:radial-gradient(circle at 50% 50%,#132242,#0b1424);
-  border-radius:2px;padding:14px;display:flex;align-items:center;justify-content:center;min-height:200px}
-.scan-radar svg{width:100%;max-width:190px;height:auto}
-.radar-ring{fill:none;stroke:var(--rule);stroke-width:1}
-.radar-cross{stroke:var(--rule);stroke-width:1}
-.radar-sweep{transform-origin:100px 100px;animation:radarspin 2.6s linear infinite}
-@keyframes radarspin{to{transform:rotate(360deg)}}
-.radar-blip{fill:var(--live);opacity:0;transform-box:fill-box;transform-origin:center}
-.radar-blip.lit{animation:blip 2.6s ease-out infinite}
-@keyframes blip{0%{opacity:1;transform:scale(1.5)}30%{opacity:.9}100%{opacity:.12;transform:scale(1)}}
+/* ---------- kartal + ışın taraması ---------- */
+.eagle-scene{
+  --eye-lx:33%; --eye-ly:35%; --eye-rx:45%; --eye-ry:34%;   /* göz konumları — resme göre ayarlanır */
+  position:relative;border:1px solid var(--rule);border-radius:2px;overflow:hidden;
+  background:radial-gradient(120% 90% at 30% 20%,#16294a,#0a1220 70%);min-height:210px;
+  display:flex;align-items:center;justify-content:center;padding:10px}
+.eagle-scene .net{position:absolute;inset:0;opacity:.5}
+.eagle-scene .net svg{width:100%;height:100%}
+.net-line{stroke:var(--rule);stroke-width:1}
+.net-node{fill:#3a4d72;opacity:.5;transform-box:fill-box;transform-origin:center}
+.net-node.lit{fill:var(--live);animation:nodeping 2.4s ease-out infinite}
+@keyframes nodeping{0%{opacity:1;transform:scale(1.7)}30%{opacity:.9}100%{opacity:.2;transform:scale(1)}}
+.es-eagle{position:relative;z-index:2;max-width:82%;max-height:190px;width:auto;
+  filter:drop-shadow(0 6px 18px rgba(0,0,0,.5));animation:eaglehover 5s ease-in-out infinite alternate}
+@keyframes eaglehover{from{transform:translateY(-4px)}to{transform:translateY(4px)}}
+.eagle-scene .crest{position:relative;z-index:2;width:120px;height:120px;color:var(--gold);display:none}
+.eagle-scene.no-img .es-eagle{display:none}
+.eagle-scene.no-img .crest{display:block}
+.es-eye{position:absolute;z-index:3;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;
+  background:radial-gradient(circle,#eafcff,#22d3ee 55%,transparent 75%);opacity:.55;
+  animation:eyepulse 2.2s ease-in-out infinite}
+.es-eye.l{left:var(--eye-lx);top:var(--eye-ly)}
+.es-eye.r{left:var(--eye-rx);top:var(--eye-ry);background:radial-gradient(circle,#ffeafe,#e879f9 55%,transparent 75%)}
+@keyframes eyepulse{0%,100%{opacity:.4}50%{opacity:.8}}
+.es-beam{position:absolute;z-index:3;height:2px;width:160%;transform-origin:0 50%;pointer-events:none;
+  opacity:0;transition:opacity .35s;
+  background:linear-gradient(90deg,var(--bc),transparent 82%);filter:drop-shadow(0 0 6px var(--bc))}
+.es-beam.l{left:var(--eye-lx);top:var(--eye-ly);--bc:#22d3ee}
+.es-beam.r{left:var(--eye-rx);top:var(--eye-ry);--bc:#e879f9}
+.es-beam::after{content:"";position:absolute;top:-2px;width:7px;height:7px;border-radius:50%;
+  background:var(--bc);box-shadow:0 0 10px 3px var(--bc);left:0}
+.eagle-scene.firing .es-beam{opacity:.92}
+.eagle-scene.firing .es-beam.l{animation:beamsweep 2.9s ease-in-out infinite alternate}
+.eagle-scene.firing .es-beam.r{animation:beamsweep 3.3s ease-in-out infinite alternate-reverse;animation-delay:-.6s}
+.eagle-scene.firing .es-beam::after{animation:beampulse 1.2s linear infinite}
+.eagle-scene.firing .es-eye{opacity:1;box-shadow:0 0 14px 3px currentColor}
+@keyframes beamsweep{from{transform:rotate(-7deg)}to{transform:rotate(31deg)}}
+@keyframes beampulse{from{left:0}to{left:62%}}
+
+/* hero'daki kartal (boşta) */
+.hero .wrap{display:grid;grid-template-columns:1fr 320px;gap:30px;align-items:center}
+@media(max-width:840px){.hero .wrap{grid-template-columns:1fr}}
+.hero-eagle{position:relative}
+@media(max-width:840px){.hero-eagle{max-width:220px;margin:0 auto}}
+.hero-eagle img{width:100%;height:auto;display:block;
+  filter:drop-shadow(0 10px 30px rgba(0,0,0,.5));animation:eaglehover 6s ease-in-out infinite alternate}
+.hero-eagle.no-img{display:none}
+@keyframes eaglehover{from{transform:translateY(-6px) rotate(-.6deg)}to{transform:translateY(6px) rotate(.6deg)}}
+.hero-eagle .eye{position:absolute;width:9px;height:9px;margin:-4px 0 0 -4px;border-radius:50%;
+  animation:eyepulse 2.4s ease-in-out infinite}
+.hero-eagle .eye.l{left:var(--eye-lx,33%);top:var(--eye-ly,35%);background:radial-gradient(circle,#eafcff,#22d3ee 60%,transparent)}
+.hero-eagle .eye.r{left:var(--eye-rx,45%);top:var(--eye-ry,34%);background:radial-gradient(circle,#ffeafe,#e879f9 60%,transparent)}
 
 .scan-console{border:1px solid var(--rule);background:#0c1830;border-radius:2px;padding:14px 16px;
   font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#d8c48a;
@@ -379,17 +421,23 @@ footer p{margin:0 0 6px;max-width:76ch}
 <main id="mainView">
   <section class="hero">
     <div class="wrap">
-      <div class="kicker" data-i18n="kicker">Solana · launch forensics</div>
-      <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
-      <p class="lede" data-i18n="lede">Paste a mint address. Fifteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
-      <div class="search">
-        <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
-               spellcheck="false" autocomplete="off" aria-label="Mint address">
-        <button id="scanBtn" data-i18n="scanBtn">Scan</button>
-        <button id="pasteBtn" class="ghost" type="button" data-i18n="pasteBtn">Paste</button>
+      <div class="hero-text">
+        <div class="kicker" data-i18n="kicker">Solana · launch forensics</div>
+        <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
+        <p class="lede" data-i18n="lede">Paste a mint address. Fifteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
+        <div class="search">
+          <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
+                 spellcheck="false" autocomplete="off" aria-label="Mint address">
+          <button id="scanBtn" data-i18n="scanBtn">Scan</button>
+          <button id="pasteBtn" class="ghost" type="button" data-i18n="pasteBtn">Paste</button>
+        </div>
+        <div class="hint" id="hint" data-i18n="hint">Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.</div>
+        <div class="err" id="err" hidden></div>
       </div>
-      <div class="hint" id="hint" data-i18n="hint">Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.</div>
-      <div class="err" id="err" hidden></div>
+      <div class="hero-eagle" id="heroEagle" aria-hidden="true">
+        <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+        <span class="eye l"></span><span class="eye r"></span>
+      </div>
     </div>
   </section>
 
@@ -406,37 +454,38 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="scan-bar"><div class="scan-bar-fill" id="scanBarFill"></div></div>
 
       <div class="scan-body">
-        <div class="scan-radar">
-          <svg viewBox="0 0 200 200" aria-hidden="true">
-            <circle class="radar-ring" cx="100" cy="100" r="90"/>
-            <circle class="radar-ring" cx="100" cy="100" r="60"/>
-            <circle class="radar-ring" cx="100" cy="100" r="30"/>
-            <line class="radar-cross" x1="100" y1="10" x2="100" y2="190"/>
-            <line class="radar-cross" x1="10" y1="100" x2="190" y2="100"/>
-            <g class="radar-sweep">
-              <defs>
-                <linearGradient id="sweepgrad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0" stop-color="#e0b352" stop-opacity="0"/>
-                  <stop offset="1" stop-color="#e0b352" stop-opacity="0.55"/>
-                </linearGradient>
-              </defs>
-              <path d="M100 100 L100 12 A88 88 0 0 1 178 68 Z" fill="url(#sweepgrad)"/>
-            </g>
-            <g id="radarBlips">
-              <circle class="radar-blip" cx="128" cy="66"  r="3"/>
-              <circle class="radar-blip" cx="150" cy="112" r="3"/>
-              <circle class="radar-blip" cx="72"  cy="140" r="3"/>
-              <circle class="radar-blip" cx="60"  cy="78"  r="3"/>
-              <circle class="radar-blip" cx="112" cy="150" r="3"/>
-              <circle class="radar-blip" cx="140" cy="150" r="3"/>
-              <circle class="radar-blip" cx="86"  cy="52"  r="3"/>
-              <circle class="radar-blip" cx="158" cy="88"  r="3"/>
-              <circle class="radar-blip" cx="52"  cy="118" r="3"/>
-              <circle class="radar-blip" cx="120" cy="40"  r="3"/>
-              <circle class="radar-blip" cx="44"  cy="96"  r="3"/>
-              <circle class="radar-blip" cx="96"  cy="120" r="3"/>
-            </g>
-          </svg>
+        <div class="eagle-scene" id="eagleScene">
+          <div class="net">
+            <svg viewBox="0 0 300 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <g class="net-lines">
+                <line class="net-line" x1="20" y1="30" x2="120" y2="90"/>
+                <line class="net-line" x1="120" y1="90" x2="60" y2="180"/>
+                <line class="net-line" x1="120" y1="90" x2="250" y2="60"/>
+                <line class="net-line" x1="250" y1="60" x2="280" y2="160"/>
+                <line class="net-line" x1="60" y1="180" x2="200" y2="200"/>
+                <line class="net-line" x1="200" y1="200" x2="280" y2="160"/>
+                <line class="net-line" x1="20" y1="30" x2="250" y2="60"/>
+              </g>
+              <g id="esNodes">
+                <circle class="net-node" cx="20" cy="30" r="3"/>
+                <circle class="net-node" cx="120" cy="90" r="3"/>
+                <circle class="net-node" cx="60" cy="180" r="3"/>
+                <circle class="net-node" cx="250" cy="60" r="3"/>
+                <circle class="net-node" cx="280" cy="160" r="3"/>
+                <circle class="net-node" cx="200" cy="200" r="3"/>
+                <circle class="net-node" cx="160" cy="40" r="3"/>
+                <circle class="net-node" cx="90" cy="130" r="3"/>
+                <circle class="net-node" cx="230" cy="120" r="3"/>
+                <circle class="net-node" cx="40" cy="110" r="3"/>
+                <circle class="net-node" cx="270" cy="30" r="3"/>
+                <circle class="net-node" cx="150" cy="170" r="3"/>
+              </g>
+            </svg>
+          </div>
+          <img class="es-eagle" src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+          <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
+          <span class="es-eye l"></span><span class="es-eye r"></span>
+          <span class="es-beam l"></span><span class="es-beam r"></span>
         </div>
 
         <div class="scan-console" id="scanConsole"></div>
@@ -570,6 +619,8 @@ const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic',
 const $ = id => document.getElementById(id);
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+// /eagle.png yoksa: kartal görselini gizle, kutuya .no-img ver (SVG arma devreye girer)
+function eagleImgFail(img){ img.style.display='none'; const p=img.closest('.hero-eagle,.eagle-scene'); if(p) p.classList.add('no-img'); }
 
 /* ---------------- i18n ---------------- */
 let lang = 'en';
@@ -912,19 +963,21 @@ function scanReset(){
   $('statHolders').textContent = '0';
   $('statRpc').textContent = '0';
   $('statSignals').textContent = '0/'+SIGNALS_N;
-  $('radarBlips').querySelectorAll('.radar-blip').forEach(b=>b.classList.remove('lit'));
+  $('esNodes').querySelectorAll('.net-node').forEach(b=>b.classList.remove('lit'));
+  $('eagleScene').classList.remove('firing');
 }
 function scanStart(){
   scanReset();
   SCAN.on = true; SCAN.t0 = Date.now();
   scanSkeleton();
+  $('eagleScene').classList.add('firing');
   SCAN.reveal = setTimeout(()=>{
     $('scanPanel').classList.add('on');
     $('scanPanel').scrollIntoView({behavior:'smooth', block:'start'});
   }, 180);
   (SCAN_LOG[lang] || SCAN_LOG.en).forEach(([ms, text]) => SCAN.timers.push(setTimeout(()=>scanLine(text), ms)));
 
-  const blips = [...$('radarBlips').querySelectorAll('.radar-blip')];
+  const blips = [...$('esNodes').querySelectorAll('.net-node')];
   SCAN.tick = setInterval(()=>{
     const s = (Date.now() - SCAN.t0) / 1000;
     $('scanElapsed').textContent = s.toFixed(1) + 's';
@@ -943,6 +996,7 @@ function scanStart(){
 }
 function scanFinish(){
   SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
+  $('eagleScene').classList.remove('firing');
   if(!$('scanPanel').classList.contains('on')){ SCAN.on = false; return; }
   $('scanBarFill').style.width = '100%';
   $('scanPct').textContent = '100%';
@@ -951,6 +1005,7 @@ function scanFinish(){
 }
 function scanStop(){
   SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
+  $('eagleScene').classList.remove('firing');
   $('scanPanel').classList.remove('on'); SCAN.on = false;
 }
 
