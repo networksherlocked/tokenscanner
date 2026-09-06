@@ -345,31 +345,27 @@ footer p{margin:0 0 6px;max-width:76ch}
 .scan-box.scanned::after{background:var(--live)}
 
 .ea-links{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:visible}
-.ea-link{fill:none;stroke-width:1.4;opacity:.3;stroke-linecap:round;filter:drop-shadow(0 0 3px currentColor)}
+.ea-link{fill:none;stroke-width:1.3;opacity:.22;stroke-linecap:round;transition:opacity .4s,stroke-width .4s}
+.ea-link.done{opacity:.5;stroke-width:1.8}
 .ea-link-pulse{fill:none;stroke-width:3.5;stroke-linecap:round;opacity:.95;
   filter:drop-shadow(0 0 7px currentColor) drop-shadow(0 0 16px currentColor)}
 
-.scan-console{border:1px solid var(--rule);background:#0c1830;border-radius:2px;padding:14px 16px;
-  font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#d8c48a;
-  overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;min-height:200px}
-.scan-console .ln{opacity:0;transform:translateY(4px);animation:lnin .35s forwards;white-space:pre-wrap;word-break:break-word}
-.scan-console .ln .t{color:var(--dim)}
-.scan-console .ln.cur{color:var(--live)}
-.scan-console .ln.cur::after{content:"▋";margin-left:2px;animation:blink 1s steps(2) infinite}
-@keyframes lnin{to{opacity:1;transform:none}}
+/* terminal: kartal kutusunun sağ üst köşesinde, tek satır */
+.ea-term{position:absolute;top:10px;right:12px;z-index:6;max-width:min(64%,460px);
+  font-family:var(--mono);font-size:12px;color:#d8c48a;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;background:rgba(8,15,28,.72);border:1px solid var(--rule);
+  border-radius:2px;padding:5px 10px;backdrop-filter:blur(2px)}
+.ea-term .t{color:var(--dim)}
+.ea-term::after{content:"▋";margin-left:2px;color:var(--live);animation:blink 1s steps(2) infinite}
+.ea-term.flash{animation:termflash .4s ease-out}
+@keyframes termflash{from{background:rgba(224,179,82,.18)}to{background:rgba(8,15,28,.72)}}
 
-.scan-stats{display:flex;gap:26px;flex-wrap:wrap;margin:20px 0 6px;font-family:var(--mono)}
+.scan-stats{display:flex;gap:26px;flex-wrap:wrap;margin:6px 0;font-family:var(--mono)}
 .scan-stat{display:flex;flex-direction:column;gap:2px}
 .scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
 .scan-stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 
-.scan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:14px}
-.skel{height:58px;border:1px solid var(--rule);border-left:2px solid var(--dim);border-radius:2px;
-  background:linear-gradient(100deg,var(--panel) 25%,var(--panel-2) 50%,var(--panel) 75%);
-  background-size:220% 100%;animation:shimmer 1.5s linear infinite}
-@keyframes shimmer{to{background-position:-220% 0}}
-
-.scan-cancel{margin-top:22px;background:transparent;border:1px solid var(--rule);color:var(--muted);
+.scan-cancel{margin-top:18px;background:transparent;border:1px solid var(--rule);color:var(--muted);
   font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   font-size:11px;padding:9px 20px;border-radius:2px;cursor:pointer}
 .scan-cancel:hover{color:var(--text);border-color:var(--muted)}
@@ -454,17 +450,14 @@ footer p{margin:0 0 6px;max-width:76ch}
           <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
         </div>
         <svg class="ea-links" id="eaLinks" aria-hidden="true"></svg>
+        <div class="ea-term" id="scanConsole"></div>
       </div>
-
-      <div class="scan-console" id="scanConsole"></div>
 
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
         <div class="scan-stat"><b id="statSignals">0/15</b><span data-i18n="statSignalsLbl">signals</span></div>
       </div>
-
-      <div class="scan-grid" id="scanGrid"></div>
 
       <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
     </div>
@@ -902,23 +895,12 @@ function clearError(){ $('err').hidden = true; }
 const SCAN = { on:false, t0:0, timers:[], tick:null, pct:0, reveal:null };
 
 function scanLine(text){
-  const box = $('scanConsole');
-  const prev = box.querySelector('.ln.cur');
-  if(prev) prev.classList.remove('cur');
-  const el = document.createElement('div');
-  el.className = 'ln cur';
-  el.innerHTML = `<span class="t">&gt; </span>${text}`;
-  box.appendChild(el);
-  while(box.children.length > 9) box.removeChild(box.firstChild);
-}
-function scanSkeleton(){
-  const g = $('scanGrid'); g.innerHTML = '';
-  for(let i=0;i<SIGNALS_N;i++){
-    const d = document.createElement('div');
-    d.className = 'skel';
-    d.style.animationDelay = (i*0.09) + 's';
-    g.appendChild(d);
-  }
+  const el = $('scanConsole');
+  el.textContent = '';
+  const t = document.createElement('span'); t.className = 't'; t.textContent = '> ';
+  el.appendChild(t);
+  el.appendChild(document.createTextNode(text));
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
 /* --- kartal arenası: kutucuklar + kartaldan giden tarama sinyalleri --- */
 // kutu konumları (arena yüzdesi) — kartalın merkezini (35–65% x, 30–70% y) boş bırakır
@@ -930,26 +912,11 @@ const EA_BOXES = [
   [10,88],[30,93],[50,94],[70,93],[90,88],
   [20,24],[80,24],[20,78],[80,78],
 ];
-const EA = { boxEls:[], order:[], idx:0, spawn:null, colorFlip:false };
-
+const EA = { boxEls:[], links:[], order:[], idx:0, spawn:null, w:0, h:0 };
 const EA_SVGNS = 'http://www.w3.org/2000/svg';
-const EA_ORIGIN = [50, 34];   // kartal başı, arena yüzdesi
+const EA_ORIGIN = [50, 50];   // kartalın tam merkezi
 
-function eaBuild(){
-  const arena = $('eagleArena');
-  arena.querySelectorAll('.scan-box').forEach(n=>n.remove());
-  $('eaLinks').innerHTML = '';
-  EA.boxEls = EA_BOXES.map(([x,y])=>{
-    const b = document.createElement('div');
-    b.className = 'scan-box';
-    b.style.left = x + '%'; b.style.top = y + '%';
-    arena.appendChild(b);
-    return b;
-  });
-  EA.order = [...EA.boxEls.keys()].sort(()=>Math.random()-0.5);
-  EA.idx = 0;
-}
-// kartaldan kutuya hafif S veren bezier yol (iki kontrol noktası perpendiküler kayık)
+// kartaldan kutuya hafif S veren bezier yol
 function eaPath(x0,y0,x1,y1,amp){
   const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy)||1;
   const px=-dy/len, py=dx/len;
@@ -957,59 +924,74 @@ function eaPath(x0,y0,x1,y1,amp){
   const c2x=x0+dx*0.66-px*amp, c2y=y0+dy*0.66-py*amp;
   return `M${x0.toFixed(1)} ${y0.toFixed(1)} C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
 }
+function eaViewBox(){
+  const r = $('eaLinks').getBoundingClientRect();
+  EA.w = r.width || 900; EA.h = r.height || 460;
+  $('eaLinks').setAttribute('viewBox', `0 0 ${EA.w} ${EA.h}`);
+}
+function eaMakeLink(bx,by,col){
+  const x0=EA.w*EA_ORIGIN[0]/100, y0=EA.h*EA_ORIGIN[1]/100, x1=EA.w*bx/100, y1=EA.h*by/100;
+  const amp = Math.min(Math.hypot(x1-x0,y1-y0)*0.15, 30);
+  const d1=eaPath(x0,y0,x1,y1,amp), d2=eaPath(x0,y0,x1,y1,amp*0.4), d3=eaPath(x0,y0,x1,y1,amp*0.9);
+  const g=document.createElementNS(EA_SVGNS,'g'); g.style.color=col;
+  const line=document.createElementNS(EA_SVGNS,'path');
+  line.setAttribute('class','ea-link'); line.setAttribute('d',d1); line.setAttribute('stroke',col);
+  const pulse=document.createElementNS(EA_SVGNS,'path');
+  pulse.setAttribute('class','ea-link-pulse'); pulse.setAttribute('d',d1); pulse.setAttribute('stroke',col);
+  pulse.style.opacity='0';
+  for(const p of [line,pulse]){
+    const a=document.createElementNS(EA_SVGNS,'animate');
+    a.setAttribute('attributeName','d');
+    a.setAttribute('values',`${d1};${d3};${d2};${d1}`);
+    a.setAttribute('dur',(1.4+Math.random()*0.9).toFixed(2)+'s');
+    a.setAttribute('repeatCount','indefinite');
+    p.appendChild(a);
+  }
+  g.appendChild(line); g.appendChild(pulse);
+  return { g, line, pulse };
+}
+function eaBuild(){
+  const arena = $('eagleArena');
+  arena.querySelectorAll('.scan-box').forEach(n=>n.remove());
+  $('eaLinks').innerHTML = '';
+  eaViewBox();
+  EA.boxEls = []; EA.links = [];
+  EA_BOXES.forEach(([x,y],i)=>{
+    const b = document.createElement('div');
+    b.className = 'scan-box';
+    b.style.left = x + '%'; b.style.top = y + '%';
+    arena.appendChild(b); EA.boxEls.push(b);
+    const lk = eaMakeLink(x, y, (i % 2) ? '#e879f9' : '#22d3ee');
+    $('eaLinks').appendChild(lk.g); EA.links.push(lk);
+  });
+  EA.order = [...EA.boxEls.keys()].sort(()=>Math.random()-0.5);
+  EA.idx = 0;
+}
 function eaPing(){
-  if(!SCAN.on) return;
-  const svg = $('eaLinks');
-  if(EA.idx >= EA.order.length){
-    EA.boxEls.forEach(b=>b.classList.remove('scanned'));
+  if(!SCAN.on || !EA.links.length) return;
+  if(EA.idx >= EA.order.length){                 // hepsi tarandı → yeniden karıştır, bağlar kalır
     EA.order = [...EA.boxEls.keys()].sort(()=>Math.random()-0.5);
     EA.idx = 0;
   }
   const bi = EA.order[EA.idx++];
-  const box = EA.boxEls[bi];
-  const [bx,by] = EA_BOXES[bi];
-  const col = (EA.colorFlip = !EA.colorFlip) ? '#22d3ee' : '#e879f9';
+  const box = EA.boxEls[bi], lk = EA.links[bi];
 
-  const w = svg.clientWidth || svg.getBoundingClientRect().width;
-  const h = svg.clientHeight || svg.getBoundingClientRect().height;
-  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  const x0=w*EA_ORIGIN[0]/100, y0=h*EA_ORIGIN[1]/100, x1=w*bx/100, y1=h*by/100;
-  const base = Math.min(Math.hypot(x1-x0,y1-y0)*0.16, 34);
-
-  const d1 = eaPath(x0,y0,x1,y1, base);
-  const d2 = eaPath(x0,y0,x1,y1, base*0.35);
-  const d3 = eaPath(x0,y0,x1,y1, base*0.9);
-
-  const g = document.createElementNS(EA_SVGNS,'g');
-  g.style.color = col;
-  const line = document.createElementNS(EA_SVGNS,'path');
-  line.setAttribute('class','ea-link'); line.setAttribute('d',d1); line.setAttribute('stroke',col);
-  const pulse = document.createElementNS(EA_SVGNS,'path');
-  pulse.setAttribute('class','ea-link-pulse'); pulse.setAttribute('d',d1); pulse.setAttribute('stroke',col);
-  // yol hafifçe dalgalansın
-  for(const p of [line, pulse]){
-    const a = document.createElementNS(EA_SVGNS,'animate');
-    a.setAttribute('attributeName','d');
-    a.setAttribute('values', `${d1};${d3};${d2};${d1}`);
-    a.setAttribute('dur','1.8s'); a.setAttribute('repeatCount','indefinite');
-    p.appendChild(a);
-  }
-  g.appendChild(line); g.appendChild(pulse); svg.appendChild(g);
-
-  // sinyal: kısa parlak parça yol boyunca ilerlesin
-  let L = 200; try{ L = line.getTotalLength(); }catch(e){}
-  const seg = Math.max(26, L*0.14);
-  pulse.style.strokeDasharray = `${seg} ${L+seg}`;
-  pulse.style.strokeDashoffset = L+seg;
+  let Lp = 200; try{ Lp = lk.line.getTotalLength(); }catch(e){}
+  const seg = Math.max(22, Lp * 0.13);
+  lk.pulse.style.transition = 'none';
+  lk.pulse.style.strokeDasharray = `${seg} ${Lp + seg}`;
+  lk.pulse.style.strokeDashoffset = Lp + seg;
+  lk.pulse.style.opacity = '1';
   requestAnimationFrame(()=> requestAnimationFrame(()=>{
-    pulse.style.transition = 'stroke-dashoffset .6s linear';
-    pulse.style.strokeDashoffset = '0';
+    lk.pulse.style.transition = 'stroke-dashoffset .62s linear';
+    lk.pulse.style.strokeDashoffset = '0';
   }));
-
+  setTimeout(()=>{ lk.pulse.style.opacity = '0'; }, 720);
   setTimeout(()=> box.classList.add('scanning'), 560);
-  setTimeout(()=>{ box.classList.remove('scanning'); box.classList.add('scanned'); }, 1000);
-  setTimeout(()=>{ g.style.transition='opacity .4s'; g.style.opacity='0';
-                   setTimeout(()=>g.remove(), 450); }, 900);
+  setTimeout(()=>{
+    box.classList.remove('scanning'); box.classList.add('scanned');
+    lk.line.classList.add('done');
+  }, 1000);
 }
 
 function scanReset(){
@@ -1023,12 +1005,15 @@ function scanReset(){
   $('statHolders').textContent = '0';
   $('statRpc').textContent = '0';
   $('statSignals').textContent = '0/'+SIGNALS_N;
+  $('scanConsole').classList.remove('flash');
   $('eagleArena').classList.remove('firing');
+  $('eagleArena').querySelectorAll('.scan-box').forEach(n=>n.remove());
+  $('eaLinks').innerHTML = '';
+  EA.boxEls = []; EA.links = [];
 }
 function scanStart(){
   scanReset();
   SCAN.on = true; SCAN.t0 = Date.now();
-  scanSkeleton();
   eaBuild();
   $('eagleArena').classList.add('firing');
   EA.spawn = setInterval(eaPing, 430 + Math.random()*160);
@@ -1059,6 +1044,7 @@ function scanFinish(){
   $('scanBarFill').style.width = '100%';
   $('scanPct').textContent = '100%';
   EA.boxEls.forEach(b=>b.classList.add('scanned'));
+  EA.links.forEach(lk=>lk.line.classList.add('done'));
   scanLine(L('scanDone'));
   setTimeout(()=>{ $('scanPanel').classList.remove('on'); SCAN.on = false; }, 420);
 }
