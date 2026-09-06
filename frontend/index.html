@@ -464,13 +464,6 @@ footer p{margin:0 0 6px;max-width:76ch}
     </div>
   </section>
 
-  <section class="recent" id="recentSection" hidden>
-    <div class="wrap">
-      <div class="head" data-i18n="recentHead">Recently scanned tokens</div>
-      <div class="reclist" id="reclist"></div>
-    </div>
-  </section>
-
   <section class="result" id="result">
     <div class="wrap">
       <div class="tokhead" id="tokHead"></div>
@@ -511,6 +504,13 @@ footer p{margin:0 0 6px;max-width:76ch}
         <span id="holderNote"></span>
       </div>
       <div class="tablewrap"><table id="holders"></table></div>
+    </div>
+  </section>
+
+  <section class="recent" id="recentSection" hidden>
+    <div class="wrap">
+      <div class="head" data-i18n="recentHead">Recently scanned tokens</div>
+      <div class="reclist" id="reclist"></div>
     </div>
   </section>
 
@@ -651,7 +651,7 @@ const STR = {
     cacheAge: s => `cache · ${s}s`, ms: n => `${n} ms`,
     scanDone:'done — fetching result',
     relNow: s => `${s}s ago`, relMin: m => `${m}m ago`, relHr: h => `${h}h ago`, relDay: d => `${d}d ago`,
-    trackHead:'america.sx track record',
+    trackHead:'UAVSX AI tespit',
     trackSub:'Every scanned token, watched for 24 hours.',
     trackWatching: n => `${n} watching`,
     trackNote:"After each scan, america.sx follows the token's market cap for 24 hours. A drop of more than 35% below the scan-time value counts as a crash. Not a backtest — a live, running log.",
@@ -728,7 +728,7 @@ const STR = {
     cacheAge: s => `önbellek · ${s}s`, ms: n => `${n} ms`,
     scanDone:'tamamlandı — sonuç getiriliyor',
     relNow: s => `${s} sn önce`, relMin: m => `${m} dk önce`, relHr: h => `${h} sa önce`, relDay: d => `${d} gün önce`,
-    trackHead:'america.sx karnesi',
+    trackHead:'UAVSX AI tespit',
     trackSub:'Taranan her token, 24 saat izlenir.',
     trackWatching: n => `${n} izleniyor`,
     trackNote:'Her taramadan sonra america.sx, tokenın market cap\'ini 24 saat izler. Tarama anına göre %35\'ten fazla düşüş "çöktü" sayılır. Bu bir geriye dönük test değil — canlı, işleyen bir kayıt.',
