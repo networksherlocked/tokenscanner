@@ -17,8 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.engine.classifier import classify  # noqa: E402
 from app.engine.signals import SignalContext, run_signals  # noqa: E402
-from app.rpc.launch import LaunchBuyer, LaunchSnapshot  # noqa: E402
+from app.rpc.launch import LaunchBuyer, LaunchSnapshot, launch_from_trades  # noqa: E402
 from app.rpc.liquidity import LpLockInfo  # noqa: E402
+from app.rpc.trades import EarlyTrade  # noqa: E402
 from app.rpc.market import MarketSnapshot  # noqa: E402
 from app.rpc.solana import ChainSnapshot, HolderRecord, MintInfo  # noqa: E402
 
@@ -308,6 +309,45 @@ def obfuscated_funding_case():
     return chain, _market(liq=20_000.0, mcap=500_000.0), launch, True
 
 
+def indexer_launch_case():
+    """Çok eski Raydium token: zincir imza taraması başlangıcı göremedi, lansman
+    verisi bir indeksleyiciden (EarlyTrade) geldi. Slot/ücret yok ama yaş kümesi
+    + ortak fonlayıcı + eşit bakiye paket imzası duruyor → Bundled."""
+    holders = []
+    for i in range(14):
+        holders.append(
+            HolderRecord(
+                token_account=f"HA{i:040d}",
+                owner=f"HOLD{i:039d}",
+                amount_raw=int(SUPPLY * (0.02 - i * 0.0005)),
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    chain = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=1.0)
+
+    # indeksleyiciden gelen ham trade'ler (slot/imza yok — Birdeye tipik)
+    trades = [
+        EarlyTrade(
+            owner=f"Snipe{i}" + "x" * 36,   # base58 geçerli, 42 karakter
+            amount_raw=int(SUPPLY * 0.015) + i * 400,
+            block_time=LAUNCH + 6 + i,
+            slot=None,
+            tx_signature=None,
+        )
+        for i in range(8)
+    ]
+    launch = launch_from_trades(trades, source="birdeye")
+    # indeksleyici yaş/fonlayıcı vermez — enrich edilmiş gibi elle doldur
+    funder = "OLDBUNDLEFUNDERxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    for b in launch.buyers:
+        b.owner_created_at = LAUNCH - 3600 * 3
+        b.owner_tx_count = 5
+        b.funder = funder
+
+    return chain, _market(liq=120_000.0, mcap=8_000_000.0), launch, True
+
+
 def run(name: str, builder, age_hours: float = 8.0) -> str:
     out = builder()
     chain, market = out[0], out[1]
@@ -353,6 +393,9 @@ if __name__ == "__main__":
             "GİZLİ FONLAMA (3-hop)", obfuscated_funding_case, age_hours=1000.0
         ),
         "KİLİTSİZ LP": run("KİLİTSİZ LP", unlocked_lp_case, age_hours=400.0),
+        "İNDEKSLEYİCİ LANSMANI": run(
+            "İNDEKSLEYİCİ LANSMANI", indexer_launch_case, age_hours=2400.0
+        ),
     }
     expected = {
         "BUNDLE SENARYOSU": "bundled",
@@ -362,6 +405,7 @@ if __name__ == "__main__":
         "LANSMAN PAKETİ": "bundled",
         "GİZLİ FONLAMA (3-hop)": "bundled",
         "KİLİTSİZ LP": "cabaled",
+        "İNDEKSLEYİCİ LANSMANI": "bundled",
     }
     print(f"\n{'=' * 66}")
     ok = True

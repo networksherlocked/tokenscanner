@@ -1260,7 +1260,9 @@ function render(d){
       <div>${L('liquidity')} <b>${usd(t.liquidity_usd)}</b></div>
       <div>${L('age')} <b>${t.age_hours!=null ? L('hours', t.age_hours) : '—'}</b></div>
       <div>${L('basis')} <b style="color:${lu.available ? 'var(--live)' : 'var(--cabaled)'}">${
-        lu.available ? L('basisLaunch', lu.buyer_count) : L('basisCurrent')}</b></div>
+        lu.available ? L('basisLaunch', lu.buyer_count) : L('basisCurrent')}</b>${
+        lu.available && lu.provider && lu.provider!=='bonding_curve' && lu.provider!=='pair'
+        ? ` <span style="color:var(--dim)">· ${esc(lu.provider)}</span>` : ''}</div>
       ${dep && dep.checked && dep.prior_tokens > 0
         ? `<div>${L('deployerLine', dep.prior_tokens)}</div>` : ''}
       <div style="color:var(--dim);word-break:break-all;padding-top:6px">${d.mint}</div>

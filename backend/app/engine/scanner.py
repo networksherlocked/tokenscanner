@@ -23,11 +23,17 @@ from ..rpc.launch import (
     collect_launch_snapshot,
     enrich_launch_buyers,
 )
+from ..rpc.launch import launch_from_trades
 from ..rpc.liquidity import analyze_lp_lock
 from ..rpc.market import fetch_market
 from ..rpc.pool import RpcPool
 from ..rpc.pumpfun import fetch_pumpfun
 from ..rpc.solana import collect_chain_snapshot
+from ..rpc.trades import (
+    available as early_trades_available,
+    fetch_early_trades,
+    provider_name as early_trades_provider,
+)
 from . import registry
 from .classifier import classify
 from .signals import SignalContext, run_signals
@@ -85,12 +91,24 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
     launch = None
     if anchor and not skip_launch:
         launch = await collect_launch_snapshot(pool, mint, anchor, source)
-        if launch.available:
-            await enrich_launch_buyers(pool, launch.buyers)
-            launch.funding_tree = await build_funding_tree(pool, launch.buyers)
-            if not launch_ts:
-                times = [b.first_block_time for b in launch.buyers if b.first_block_time]
-                launch_ts = min(times) if times else None
+
+    # 3b) Zincir taraması başlangıcı göremediyse (bütçe / çok eski Raydium pool)
+    #     bir indeksleyiciden ilk trade'leri çek. Anahtar yoksa sessizce atlanır.
+    if (not launch or not launch.available) and early_trades_available():
+        trades = await fetch_early_trades(mint)
+        if trades:
+            launch = launch_from_trades(trades, source=early_trades_provider())
+            log.info(
+                "Lansman verisi %s'den alındı: %s alıcı",
+                early_trades_provider(), len(launch.buyers),
+            )
+
+    if launch and launch.available:
+        await enrich_launch_buyers(pool, launch.buyers)
+        launch.funding_tree = await build_funding_tree(pool, launch.buyers)
+        if not launch_ts:
+            times = [b.first_block_time for b in launch.buyers if b.first_block_time]
+            launch_ts = min(times) if times else None
 
     # 4) Deployer geçmişi.
     deployer = None
@@ -130,6 +148,14 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         token_age_hours=age_hours,
         launch_available=launch_ok,
     )
+
+    launch_provider = launch.source if launch_ok else ""
+    if launch_ok and launch_provider not in ("bonding_curve", "pair"):
+        verdict.caveats.append(
+            f"Lansman verisi 3. taraf indeksleyiciden ({launch_provider}) alındı; "
+            "slot ve öncelik ücreti gelmeyebilir, bu yüzden 'eşzamanlı giriş' ve "
+            "'ücret parmak izi' sinyalleri sınırlı çalışır."
+        )
 
     bundle_src = "launch" if launch_ok else "current_holders"
     launch_buyers_out = []
@@ -192,6 +218,7 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         ],
         "launch": {
             "source": bundle_src,
+            "provider": launch_provider,
             "available": launch_ok,
             "buyer_count": len(launch_buyers_out),
             "buyers": launch_buyers_out,

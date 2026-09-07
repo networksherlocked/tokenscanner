@@ -24,6 +24,8 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 - `funding_tree` artık **3-hop** (`FUNDING_TREE_HOPS`): A→B→C dallanma
   desenleri — farklı direkt fonlayıcılar 3 hop geriden tek kaynağa çıkıyorsa
   yakalanır. `convergence` alanı en derin ortak atayı verir.
+- Eski/yüksek hacimli tokenlar için indeksleyici lansman verisi iskelesi:
+  `rpc/trades.py` (Birdeye adaptörü, `BIRDEYE_API_KEY` opsiyonel).
 - pump.fun API düzeltmesi: v3 API artık harici tokenları da indeksliyor
   (`protocol: "non_launchpad"`); bunlar artık pump.fun lansmanı sayılmıyor,
   lansman analizi yanlış çıpaya gitmiyordu.
@@ -45,8 +47,10 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 - **Mevcut yapı** — top 20 holder'dan yoğunlaşma, tek cüzdan baskınlığı, likidite.
 - **Deployer** — pump.fun `creator` + Helius DAS `getAssetsByCreator` ile seri
   lansman tespiti.
-- Lansman verisi çekilemezse (çok yüksek hacimli / eski Raydium tokeni) bundle
-  sinyalleri mevcut holder'lara düşer ve sonuçta bu açıkça belirtilir.
+- Lansman verisi çekilemezse (çok yüksek hacimli / eski Raydium tokeni) önce
+  bir indeksleyiciden (Birdeye — `EARLY_TRADES_PROVIDER` / `BIRDEYE_API_KEY`)
+  ilk trade'ler denenir; o da yoksa bundle sinyalleri mevcut holder'lara düşer
+  ve sonuçta bu açıkça belirtilir.
 
 - **$10k eşiği:** market cap'i `MIN_MARKET_CAP_USD` (varsayılan 10.000$) altındaki
   tokenlar hiç taranmaz — zincir sorgusu bile yapılmadan 422 döner.
@@ -189,6 +193,7 @@ backend/app/
   engine/registry.py  Küratörlü adres listeleri (CEX, LP, burn, işaretli cüzdan)
   engine/signals.py   16 bağımsız sinyal + kalibrasyon tablosu
   rpc/liquidity.py    LP kilit durumu (Raydium API burnPercent + LP mint analizi)
+  rpc/trades.py       Eski token lansman verisi — indeksleyici adaptörleri (Birdeye)
   engine/classifier.py  Yakınsama kuralı → karar, skor, güven
   engine/scanner.py   Orkestrasyon
   cache.py          SQLite tarama önbelleği + karar geçmişi
@@ -231,19 +236,20 @@ Sıradaki en yüksek getirili işler:
 2. ~~**Deployer geçmişi.**~~ v4'te eklendi (Helius DAS). Bir sonraki adım: o
    geçmiş tokenların kaçının rug olduğunu (fiyat −%99, likidite çekilmiş)
    kontrol etmek.
-3. **Yüksek hacimli eski tokenlar için lansman verisi.** Bonding curve /
-   pair imza taraması bütçesi dolduğunda Bitquery / Birdeye (`sort_type=asc`)
-   gibi bir kaynaktan ilk trade'leri çekmek.
-3. **`registry.FLAGGED_WALLETS`'ı büyüt.** Motorun en değerli parçası bu.
-   Her Bundled kararında kümedeki cüzdanları otomatik kaydet — sistem
-   kullandıkça keskinleşir.
+3. ~~**Yüksek hacimli eski tokenlar için lansman verisi.**~~ İskele v6'da
+   eklendi: `rpc/trades.py` sağlayıcı-agnostik `fetch_early_trades()` +
+   Birdeye adaptörü (`sort_type=asc`). `BIRDEYE_API_KEY` boşsa sessizce
+   atlanır. **Yapılacak:** anahtar geldiğinde Birdeye şemasını doğrula
+   (`_parse_birdeye_item` birden çok alan adı deniyor), Bitquery adaptörü ekle.
 4. ~~**LP kilit durumu.**~~ v6'da eklendi (`rpc/liquidity.py` + `sig_lp_lock`):
    pump.fun bonding curve / PumpSwap → protokol kilidi; Raydium → API'nin
    `burnPercent`'i, düşükse LP mint'in en büyük sahibinin authority'si bir
    program PDA'sı mı (kilitli) yoksa düz cüzdan mı (rug riski). Concentrated
    liquidity (Orca/CLMM) henüz kapsam dışı — pozisyon NFT'leri farklı ele alınmalı.
-5. **İtiraz akışı.** Bir karara itiraz formu + manuel inceleme kuyruğu.
-   Hukuki olarak da, kalibrasyon açısından da gerekli.
+5. **`registry.FLAGGED_WALLETS`'ı büyüt.** Motorun en değerli parçası bu.
+   Öğrenme döngüsü + admin paneli bunu DB'de yapıyor; sıradaki adım kürasyon
+   ve dışa/içe aktarma.
+6. **İtiraz akışı.** v5'te eklendi (`POST /api/appeal` + admin kuyruğu).
 
 ## Hukuki not
 

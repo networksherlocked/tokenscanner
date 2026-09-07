@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 
 from . import solana
@@ -29,6 +30,8 @@ LAUNCH_MAX_PAGES = 22       # ~22k imza — hızlı taşınan lansmanları kapsa
 LAUNCH_MAX_TX = 40          # parse edilecek en eski işlem sayısı
 LAUNCH_MAX_BUYERS = 26
 LAUNCH_ENRICH_MAX = 20      # kaç alıcının yaşı/fonlayıcısı çıkarılsın
+
+_BASE58 = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
 # Fonlama ağacı kaç hop geriye izlenir (hop 1 = direkt fonlayıcı, zaten biliniyor).
 # 3 = A→B→C dallanma desenleri; her ekstra hop ~+15-25 RPC çağrısı.
@@ -197,6 +200,48 @@ async def collect_launch_snapshot(
     total = sum(b.amount_raw for b in snap.buyers) or 1
     for b in snap.buyers:
         b.share = b.amount_raw / total * 100
+    snap.available = True
+    return snap
+
+
+def launch_from_trades(trades: list, source: str = "indexer") -> LaunchSnapshot:
+    """3. taraf indeksleyiciden gelen EarlyTrade listesinden LaunchSnapshot kurar.
+
+    `collect_launch_snapshot`'ın çıktısıyla aynı biçim — böylece tüm bundle
+    sinyalleri değişmeden çalışır. Slot/ücret gelmeyebilir; o sinyaller
+    veri yokluğuna düşer.
+    """
+    snap = LaunchSnapshot(source=source)
+    buyers: dict[str, LaunchBuyer] = {}
+    for t in sorted(trades, key=lambda x: (getattr(x, "block_time", 0) or 0)):
+        if not getattr(t, "is_buy", False) or t.owner in buyers:
+            continue
+        # 3. taraf verisi — adresi domain'e almadan önce doğrula.
+        if not isinstance(t.owner, str) or not _BASE58.match(t.owner):
+            continue
+        if registry.is_infrastructure(t.owner):
+            continue
+        buyers[t.owner] = LaunchBuyer(
+            owner=t.owner,
+            amount_raw=max(0, t.amount_raw),
+            first_slot=t.slot,
+            first_block_time=t.block_time,
+            first_signature=t.tx_signature,
+        )
+        if len(buyers) >= LAUNCH_MAX_BUYERS:
+            break
+
+    if len(buyers) < 4:
+        return snap
+
+    snap.buyers = list(buyers.values())
+    total = sum(b.amount_raw for b in snap.buyers) or 1
+    for b in snap.buyers:
+        b.share = b.amount_raw / total * 100
+    snap.launch_slot = min(
+        (b.first_slot for b in snap.buyers if b.first_slot), default=None
+    )
+    snap.reached_start = True
     snap.available = True
     return snap
 
