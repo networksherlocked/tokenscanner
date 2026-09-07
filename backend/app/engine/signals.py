@@ -82,6 +82,7 @@ class SignalContext:
     market: MarketSnapshot
     launch: object | None = None      # rpc.launch.LaunchSnapshot (duck-typed)
     deployer: object | None = None    # rpc.launch.DeployerInfo
+    lp_lock: object | None = None     # rpc.liquidity.LpLockInfo
     launch_ts: int | None = None      # tokenin tahmini doğum zamanı
 
     @property
@@ -649,6 +650,58 @@ def sig_mint_authority(ctx: SignalContext) -> Signal:
     return s
 
 
+def sig_lp_lock(ctx: SignalContext) -> Signal:
+    """LP tokenları yakılmış/kilitli mi, yoksa geliştirici çekebilir mi?
+
+    Bu bir dağıtım sinyali değil, bir güven/rug-riski sinyalidir; ama verdict
+    ekseninde kilitsiz LP "insider kontrolü" (cabaled), kilitli LP ise
+    organiklik lehine bir puan taşır.
+    """
+    s = Signal(
+        key="lp_lock",
+        label="LP kilit durumu",
+        direction="cabaled",
+        weight=0.7,
+    )
+    lp = ctx.lp_lock
+    if not lp or not getattr(lp, "checked", False):
+        s.data_ok = False
+        s.detail = "LP kilit durumu çıkarılamadı."
+        return s
+
+    st = getattr(lp, "status", "unknown")
+    burned = getattr(lp, "burned_pct", 0.0)
+    locked = getattr(lp, "locked_pct", 0.0)
+    dev = getattr(lp, "dev_held_pct", 0.0)
+    top = getattr(lp, "top_holder_pct", 0.0)
+    s.evidence = {
+        "status": st,
+        "burned_pct": round(burned, 3),
+        "locked_pct": round(locked, 3),
+        "dev_held_pct": round(dev, 3),
+        "top_holder_pct": round(top, 3),
+        "source": getattr(lp, "source", ""),
+    }
+    detail = getattr(lp, "detail", "") or ""
+
+    if st in ("burned", "locked", "protocol_locked", "bonding_curve"):
+        s.direction = "organic"
+        s.fired = True
+        s.strength = 0.6 if st in ("burned", "locked") else 0.4
+        s.detail = detail
+    elif st == "unlocked":
+        s.direction = "cabaled"
+        s.fired = True
+        s.strength = _ramp(max(dev, top), 0.4, 0.9)
+        s.detail = detail or "LP kilitli değil — likidite çekilebilir."
+    elif st == "partial":
+        s.detail = detail or "LP kısmen yakılmış/kilitli."
+    else:
+        s.data_ok = False
+        s.detail = detail or "LP kilit durumu belirsiz."
+    return s
+
+
 def sig_liquidity_health(ctx: SignalContext) -> Signal:
     s = Signal(
         key="liquidity_health",
@@ -731,6 +784,7 @@ ALL_SIGNALS: list[Callable[[SignalContext], Signal]] = [
     sig_funding_tree,
     sig_deployer_history,
     sig_mint_authority,
+    sig_lp_lock,
     sig_liquidity_health,
     sig_wallet_age_diversity,
 ]

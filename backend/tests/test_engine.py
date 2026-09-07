@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.engine.classifier import classify  # noqa: E402
 from app.engine.signals import SignalContext, run_signals  # noqa: E402
 from app.rpc.launch import LaunchBuyer, LaunchSnapshot  # noqa: E402
+from app.rpc.liquidity import LpLockInfo  # noqa: E402
 from app.rpc.market import MarketSnapshot  # noqa: E402
 from app.rpc.solana import ChainSnapshot, HolderRecord, MintInfo  # noqa: E402
 
@@ -111,7 +112,49 @@ def organic_case() -> tuple[ChainSnapshot, MarketSnapshot]:
     for h in holders:
         h.share = h.amount_raw / SUPPLY * 100
     snap = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=0.98)
-    return snap, _market()
+    lp = LpLockInfo(
+        checked=True,
+        status="burned",
+        burned_pct=1.0,
+        source="raydium_api",
+        detail="LP arzının ~%100'i yakılmış — likidite kalıcı, çekilemez.",
+    )
+    return snap, _market(), None, True, lp
+
+
+def unlocked_lp_case():
+    """Bundle imzası yok, yaşlar dağınık — ama LP'nin %92'si geliştiricinin düz
+    cüzdanında + orta düzey yoğunlaşma. LP kilitsizliği tek başına Bundled
+    demez ama cabaled ağırlığına katkı verir → Cabaled beklenir."""
+    holders = []
+    for i in range(10):
+        holders.append(
+            HolderRecord(
+                token_account=f"TA{i:040d}",
+                owner=f"OW{i:040d}",
+                amount_raw=int(SUPPLY * (0.06 - i * 0.004)),
+                first_slot=280_000_000 + i * 8_000,
+                first_block_time=LAUNCH + i * 5000,
+                entry_fee=6_000 + i * 1_500,
+                token_tx_count=40,
+                owner_created_at=LAUNCH - (50 + i * 20) * 86_400,
+                owner_tx_count=120 + i * 30,
+                funder="5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",  # Binance
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    snap = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=0.85)
+    lp = LpLockInfo(
+        checked=True,
+        status="unlocked",
+        dev_held_pct=0.92,
+        top_holder_pct=0.92,
+        source="lp_mint_analysis",
+        detail="LP tokenlarının ~%92'i tek bir düz cüzdanda — geliştirici "
+        "likiditeyi istediği an çekebilir (rug riski).",
+    )
+    return snap, _market(liq=40_000.0, mcap=1_100_000.0), None, True, lp
 
 
 def cabaled_case() -> tuple[ChainSnapshot, MarketSnapshot]:
@@ -213,8 +256,9 @@ def run(name: str, builder, age_hours: float = 8.0) -> str:
     chain, market = out[0], out[1]
     launch = out[2] if len(out) > 2 else None
     launch_avail = out[3] if len(out) > 3 else True
+    lp_lock = out[4] if len(out) > 4 else None
     ctx = SignalContext(
-        chain=chain, market=market, launch=launch, launch_ts=LAUNCH
+        chain=chain, market=market, launch=launch, lp_lock=lp_lock, launch_ts=LAUNCH
     )
     signals = run_signals(ctx)
     cov = chain.coverage
@@ -248,6 +292,7 @@ if __name__ == "__main__":
             "ESKİ TOKEN + BALİNA", lambda: (*aged_whale_case(), None, False), age_hours=1847.0
         ),
         "LANSMAN PAKETİ": run("LANSMAN PAKETİ", launch_bundle_case, age_hours=1200.0),
+        "KİLİTSİZ LP": run("KİLİTSİZ LP", unlocked_lp_case, age_hours=400.0),
     }
     expected = {
         "BUNDLE SENARYOSU": "bundled",
@@ -255,6 +300,7 @@ if __name__ == "__main__":
         "CABAL SENARYOSU": "cabaled",
         "ESKİ TOKEN + BALİNA": "bundled",
         "LANSMAN PAKETİ": "bundled",
+        "KİLİTSİZ LP": "cabaled",
     }
     print(f"\n{'=' * 66}")
     ok = True

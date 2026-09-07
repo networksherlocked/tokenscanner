@@ -56,6 +56,19 @@ TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 METAPLEX_METADATA = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 
+# --- LP kilit tespiti ------------------------------------------------------
+# Bir LP token hesabının "authority"si aşağıdaki programlardan biri tarafından
+# sahiplenilmişse (PDA), LP kilitli sayılır. Liste etiketleme içindir; asıl
+# tespit "authority, System Program dışında bir programca sahipleniliyor mu"
+# heuristiğiyle yapılır (bkz. rpc/liquidity.py). Doğrulayıp genişlet.
+LP_LOCKER_PROGRAMS: dict[str, str] = {
+    # "program_id": "Görünen ad"  — Solscan'de doğrulayıp ekle (Jupiter Lock,
+    # Streamflow, UNCX, Team Finance, Bunkr...). Boş olsa da tespit çalışır.
+}
+
+# pump.fun / PumpSwap: migration'da LP protokolce kilitlenir; geliştirici çekemez.
+PUMP_AMM_DEXES = {"pumpfun", "pumpswap", "pump.fun", "pump"}
+
 # --- Kendi bulgularından büyüyecek listeler ---------------------------------
 
 FLAGGED_WALLETS: dict[str, str] = {

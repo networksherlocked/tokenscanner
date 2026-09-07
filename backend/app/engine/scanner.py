@@ -12,6 +12,7 @@ sinyalleri mevcut holder'lara düşer ve sonuçta bu belirtilir.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -22,6 +23,7 @@ from ..rpc.launch import (
     collect_launch_snapshot,
     enrich_launch_buyers,
 )
+from ..rpc.liquidity import analyze_lp_lock
 from ..rpc.market import fetch_market
 from ..rpc.pool import RpcPool
 from ..rpc.pumpfun import fetch_pumpfun
@@ -58,8 +60,13 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
     launch_ts = (pump.created_ts if pump and pump.created_ts else None) or \
         market.pair_created_at
 
-    # 2) Mevcut yapı — hafif (yalnızca sahip + bakiye).
-    chain = await collect_chain_snapshot(pool, mint, deep=False)
+    # 2) Mevcut yapı (hafif) + LP kilit durumu — paralel.
+    chain, lp_lock = await asyncio.gather(
+        collect_chain_snapshot(pool, mint, deep=False),
+        analyze_lp_lock(
+            pool, market, pump, creator=pump.creator if pump else None
+        ),
+    )
 
     # 3) Lansman anlık görüntüsü.
     anchor, source = None, ""
@@ -101,6 +108,7 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         market=market,
         launch=launch,
         deployer=deployer,
+        lp_lock=lp_lock,
         launch_ts=launch_ts,
     )
     signals = run_signals(ctx)
@@ -197,6 +205,7 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
             },
             "funding_tree": (launch.funding_tree if launch_ok else {}),
         },
+        "liquidity": lp_lock.to_dict(),
         "data_quality": {
             "chain_coverage": chain.coverage,
             "market_available": market.available,

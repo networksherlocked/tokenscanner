@@ -186,6 +186,15 @@ def classify(
             "Baskın cüzdan bir borsa soğuk cüzdanı, hazine ya da kilitli vesting "
             "kontratı da olabilir — etiketleyemedik."
         )
+    lp = next(
+        (s for s in signals if s.key == "lp_lock" and s.fired and s.direction == "cabaled"),
+        None,
+    )
+    if lp:
+        caveats.append(
+            "Likidite kilitli/yakılmış değil — bu bir dağıtım kararı değil ama "
+            "geliştirici likiditeyi çekerse token dağıtımından bağımsız olarak çöker."
+        )
     if not market_available:
         caveats.append("Piyasa verisi alınamadı; likidite sinyalleri hesaplanmadı.")
     missing = [s.label for s in signals if not s.data_ok]

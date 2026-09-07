@@ -7,7 +7,7 @@
 > `americasx_lang` (eski `uavsx_lang` geriye dönük okunuyor).
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
-Bir mint adresi alır, **15 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
+Bir mint adresi alır, **16 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
 Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 
 **Paylaşım & şeffaflık (v5):**
@@ -16,7 +16,14 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 - `GET /badge/{mint}.svg` — projeler sitelerine gömebilir (`<img src=…>`).
 - `POST /api/appeal` — karara itiraz (SQLite `appeals`, elle inceleme kuyruğu).
 - Sonuç panelinde "Bu kararı paylaş": link kopyala · X'te paylaş · rozet göm · itiraz.
-- "Yöntem" sayfası: 15 sinyalin tam listesi + lansman analizi açıklaması.
+- "Yöntem" sayfası: 16 sinyalin tam listesi + lansman analizi açıklaması.
+
+**Motor doğruluğu (v6):**
+- Yeni `lp_lock` sinyali: likidite yakılmış/kilitli mi yoksa geliştirici
+  çekebilir mi? (yol haritası #4 — bkz. aşağı)
+- pump.fun API düzeltmesi: v3 API artık harici tokenları da indeksliyor
+  (`protocol: "non_launchpad"`); bunlar artık pump.fun lansmanı sayılmıyor,
+  lansman analizi yanlış çıpaya gitmiyordu.
 
 **Motor doğruluğu (v5):**
 - `deployer_history` artık deployer'ın önceki tokenlarının kaç tanesinin
@@ -177,7 +184,8 @@ backend/app/
   rpc/solana.py     Zincir sorguları: holder, cüzdan yaşı, fonlama kaynağı, ücret
   rpc/market.py     DexScreener — fiyat, likidite, çift oluşum zamanı
   engine/registry.py  Küratörlü adres listeleri (CEX, LP, burn, işaretli cüzdan)
-  engine/signals.py   13 bağımsız sinyal + kalibrasyon tablosu
+  engine/signals.py   16 bağımsız sinyal + kalibrasyon tablosu
+  rpc/liquidity.py    LP kilit durumu (Raydium API burnPercent + LP mint analizi)
   engine/classifier.py  Yakınsama kuralı → karar, skor, güven
   engine/scanner.py   Orkestrasyon
   cache.py          SQLite tarama önbelleği + karar geçmişi
@@ -224,8 +232,11 @@ Sıradaki en yüksek getirili işler:
 3. **`registry.FLAGGED_WALLETS`'ı büyüt.** Motorun en değerli parçası bu.
    Her Bundled kararında kümedeki cüzdanları otomatik kaydet — sistem
    kullandıkça keskinleşir.
-4. **LP kilit durumu.** Raydium/Pump.fun LP tokenının burn veya lock edilip
-   edilmediği; şu an yalnızca likidite/mcap oranına bakıyoruz.
+4. ~~**LP kilit durumu.**~~ v6'da eklendi (`rpc/liquidity.py` + `sig_lp_lock`):
+   pump.fun bonding curve / PumpSwap → protokol kilidi; Raydium → API'nin
+   `burnPercent`'i, düşükse LP mint'in en büyük sahibinin authority'si bir
+   program PDA'sı mı (kilitli) yoksa düz cüzdan mı (rug riski). Concentrated
+   liquidity (Orca/CLMM) henüz kapsam dışı — pozisyon NFT'leri farklı ele alınmalı.
 5. **İtiraz akışı.** Bir karara itiraz formu + manuel inceleme kuyruğu.
    Hukuki olarak da, kalibrasyon açısından da gerekli.
 
