@@ -301,6 +301,21 @@ class ScanCache:
             (outcome, mint),
         )
 
+    def track_missing_symbol(self, limit: int = 25) -> list[str]:
+        rows = self._rows(
+            "SELECT mint FROM track WHERE symbol IS NULL OR symbol = '' "
+            "ORDER BY scored_at DESC LIMIT ?",
+            (limit,),
+        )
+        return [r["mint"] for r in rows]
+
+    def track_set_symbol(self, mint: str, symbol: str) -> None:
+        self._write(
+            "UPDATE track SET symbol = ? "
+            "WHERE mint = ? AND (symbol IS NULL OR symbol = '')",
+            (symbol, mint),
+        )
+
     def track_list(self, limit: int = 20) -> list[dict]:
         rows = self._rows(
             "SELECT * FROM track ORDER BY scored_at DESC LIMIT ?", (limit,)

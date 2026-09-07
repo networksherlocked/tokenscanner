@@ -109,6 +109,12 @@ async def refresh_track() -> None:
                 except Exception:  # noqa: BLE001
                     log.exception("Ders çıkarılamadı: %s", mint)
 
+    # Sembolü eksik eski kayıtları (settled dahil) tazeden doldur.
+    try:
+        await _backfill_track_symbols(limit=25)
+    except Exception:  # noqa: BLE001
+        log.exception("Sembol backfill hatası")
+
 
 def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
     """Kayıtlı taramada koordinasyon izi var mı? Varsa şüpheli cüzdanları + kısa
@@ -354,6 +360,36 @@ async def recent(limit: int = 20):
     return {"scans": state["cache"].recent(min(limit, 50))}
 
 
+async def _backfill_track_symbols(limit: int = 25, budget: float = 6.0) -> None:
+    """Sembolü eksik karne kayıtlarını (settled dahil) DexScreener'dan doldurur.
+
+    Eski kayıtlarda `symbol` çoğu zaman NULL; kayıtlı tarama payload'ı da
+    silinmiş olabilir. Burada tazeden çekip kalıcı yazıyoruz. Eşzamanlı ve
+    süre sınırlı — /api/track yanıtını fazla bekletmesin.
+    """
+    cache = state.get("cache")
+    if cache is None:
+        return
+    mints = cache.track_missing_symbol(limit)
+    if not mints:
+        return
+
+    async def one(mint: str) -> None:
+        try:
+            snap = await fetch_market(mint)
+        except Exception:  # noqa: BLE001
+            return
+        if snap.symbol:
+            cache.track_set_symbol(mint, snap.symbol)
+
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*(one(m) for m in mints)), timeout=budget
+        )
+    except asyncio.TimeoutError:
+        pass
+
+
 @app.get("/api/track")
 async def track(limit: int = 20):
     # Instance yeni uyandıysa arka plan döngüsü henüz dönmemiş olabilir —
@@ -363,6 +399,7 @@ async def track(limit: int = 20):
     if now - _last_track_refresh > 45:
         _last_track_refresh = now
         asyncio.create_task(refresh_track())
+    await _backfill_track_symbols(limit=min(limit, 50))
     return {
         "records": state["cache"].track_list(min(limit, 50)),
         "window_sec": TRACK_WINDOW,
