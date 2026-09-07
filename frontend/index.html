@@ -67,10 +67,12 @@ header{border-bottom:1px solid var(--rule);position:sticky;top:0;
 .langsel button:hover{color:var(--muted)}
 .langsel button.on{background:var(--gold);color:var(--ink)}
 
-/* ---------- arama ---------- */
-.hero{padding:56px 0 34px;border-bottom:1px solid var(--rule);position:relative}
-.hero::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;
+/* üç renkli ince şerit — üst barın hemen altında */
+.tricolor{height:3px;
   background:linear-gradient(90deg,var(--bundled) 0 34%,var(--paper) 34% 66%,var(--organic) 66% 100%);opacity:.5}
+
+/* ---------- arama ---------- */
+.hero{padding:44px 0 34px;border-bottom:1px solid var(--rule);position:relative}
 .kicker{font-family:var(--display);font-size:12px;letter-spacing:.24em;text-transform:uppercase;
   color:var(--gold);margin-bottom:16px;display:flex;align-items:center;gap:10px}
 .kicker::before{content:"";width:22px;height:1px;background:var(--gold)}
@@ -231,9 +233,8 @@ footer .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:
 footer p{margin:0;line-height:1.8;text-align:justify;text-align-last:left;hyphens:auto}
 footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 
-/* ---------- son taramalar: üst barın hemen altında, sağdan sola kayan şerit ---------- */
-.recent{padding:8px 0;border-bottom:1px solid var(--rule);overflow:hidden;
-  background:linear-gradient(180deg,rgba(92,143,214,.05),transparent)}
+/* ---------- son taramalar: üç renkli şeridin altında, şeffaf kayan bant ---------- */
+.recent{padding:9px 0;overflow:hidden;background:transparent}
 .ticker{overflow:hidden;
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
   mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
@@ -471,6 +472,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 </header>
 
 <main id="mainView">
+  <div class="tricolor" aria-hidden="true"></div>
   <section class="recent" id="recentSection" hidden aria-label="Recently scanned tokens">
     <div class="ticker"><div class="reclist" id="reclist"></div></div>
   </section>
