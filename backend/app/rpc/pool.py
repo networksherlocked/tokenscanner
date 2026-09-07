@@ -31,6 +31,48 @@ class RpcError(RuntimeError):
     """RPC katmanından dönen hata (tüm sağlayıcılar tükendiğinde de atılır)."""
 
 
+def parse_endpoints(raw: str) -> list["Provider"]:
+    """'<url>|<rps>,<url>|<rps>' dizesini Provider listesine çevirir."""
+    out: list[Provider] = []
+    for chunk in (raw or "").split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        url, _, rps = chunk.partition("|")
+        url = url.strip()
+        if not url.startswith(("http://", "https://")):
+            raise RpcError(f"Geçersiz RPC URL: {url!r}")
+        try:
+            rate = float(rps) if rps.strip() else 5.0
+        except ValueError as exc:
+            raise RpcError(f"Geçersiz rps değeri: {rps!r}") from exc
+        out.append(Provider(url=url, rps=rate))
+    return out
+
+
+def mask_endpoints(raw: str) -> str:
+    """URL içindeki api-key / token gibi sırları maskeler (panelde göstermek için)."""
+    import re
+
+    def _m(s: str) -> str:
+        return s[:3] + "…" + s[-2:] if len(s) > 6 else "…"
+
+    # api-key=XXX / apikey=XXX / token=XXX
+    out = re.sub(
+        r"((?:api[-_]?key|apikey|token)=)([A-Za-z0-9_-]+)",
+        lambda m: m.group(1) + _m(m.group(2)),
+        raw or "",
+        flags=re.IGNORECASE,
+    )
+    # uzun path segmentleri (Alchemy /v2/KEY, QuickNode subdomain sonrası)
+    out = re.sub(
+        r"/([A-Za-z0-9_-]{16,})(?=[/?|,]|$)",
+        lambda m: "/" + _m(m.group(1)),
+        out,
+    )
+    return out
+
+
 @dataclass
 class _Bucket:
     """Basit token-bucket. Saniyedeki istek sayısını sınırlar."""
@@ -89,13 +131,8 @@ class RpcPool:
 
     def __init__(self, endpoints: str | None = None, timeout: float = 30.0) -> None:
         raw = endpoints or os.getenv("RPC_ENDPOINTS") or PUBLIC_FALLBACK
-        self.providers: list[Provider] = []
-        for chunk in raw.split(","):
-            chunk = chunk.strip()
-            if not chunk:
-                continue
-            url, _, rps = chunk.partition("|")
-            self.providers.append(Provider(url=url.strip(), rps=float(rps or 5)))
+        self.raw = raw
+        self.providers: list[Provider] = parse_endpoints(raw)
         if not self.providers:
             raise RpcError("Hiç RPC sağlayıcı tanımlanmadı (RPC_ENDPOINTS boş).")
         self._cycle = itertools.cycle(range(len(self.providers)))
@@ -105,6 +142,19 @@ class RpcPool:
         self._id = itertools.count(1)
         # Helius DAS (getAsset, getAssetsByCreator) yalnızca Helius uçlarında var.
         self._das = [p for p in self.providers if "helius" in p.url.lower()]
+
+    def reconfigure(self, raw: str) -> None:
+        """Sağlayıcı listesini canlı değiştirir (admin panelinden). httpx istemcisi
+        korunur; devam eden çağrılar kendi sağlayıcılarıyla biter, yeni çağrılar
+        yeni listeyi kullanır."""
+        providers = parse_endpoints(raw)
+        if not providers:
+            raise RpcError("En az bir RPC sağlayıcı gerekli.")
+        self.raw = raw
+        self.providers = providers
+        self._cycle = itertools.cycle(range(len(providers)))
+        self._das = [p for p in providers if "helius" in p.url.lower()]
+        log.info("RPC havuzu yeniden yapılandırıldı: %s sağlayıcı", len(providers))
 
     @property
     def has_das(self) -> bool:

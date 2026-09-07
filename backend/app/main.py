@@ -32,7 +32,8 @@ from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
 from .rpc import trades as rpc_trades
 from .rpc.market import fetch_market
-from .rpc.pool import RpcPool, RpcError
+from .rpc.pool import RpcError, RpcPool
+from .rpc.pool import mask_endpoints as pool_mask
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -248,6 +249,13 @@ async def lifespan(app: FastAPI):
             log.info("Birdeye anahtarı DB'den yüklendi.")
     except Exception:  # noqa: BLE001
         log.exception("Entegrasyon anahtarları yüklenemedi")
+    try:
+        rpc_db = state["cache"].config_get("rpc_endpoints")
+        if rpc_db:
+            state["pool"].reconfigure(rpc_db)
+            log.info("RPC uç noktaları DB'den yüklendi.")
+    except Exception:  # noqa: BLE001
+        log.exception("RPC uç noktaları DB'den yüklenemedi (env'e düşülüyor)")
     try:
         ttl_db = state["cache"].config_get("cache_ttl_sec")
         if ttl_db and int(ttl_db) > 0:
@@ -586,11 +594,7 @@ async def admin_overview():
             "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
             "rate_limit_per_min": RATE_LIMIT,
             "rpc_quota": RPC_QUOTA,
-            "cache_ttl_sec": state["cache"].ttl,
             "cache_ttl_hours": round(state["cache"].ttl / 3600, 2),
-            "cache_ttl_source": "db"
-            if state["cache"].config_get("cache_ttl_sec")
-            else "env",
         },
     }
 
@@ -690,51 +694,80 @@ def _mask_key(key: str) -> str:
     return key[:4] + "…" + key[-4:]
 
 
-@app.get("/api/admin/integrations", dependencies=[Depends(_admin)])
-async def admin_integrations():
-    db_key = state["cache"].config_get("birdeye_api_key") or ""
-    env_key = os.getenv("BIRDEYE_API_KEY", "")
+@app.get("/api/admin/settings", dependencies=[Depends(_admin)])
+async def admin_settings():
+    """Panelden ayarlanabilen tüm yapılandırma tek yerde."""
+    cache = state["cache"]
+    pool = state["pool"]
+    db_rpc = cache.config_get("rpc_endpoints") or ""
+    db_bkey = cache.config_get("birdeye_api_key") or ""
+    env_bkey = os.getenv("BIRDEYE_API_KEY", "")
     return {
+        # --- düzenlenebilir ---
+        "cache_ttl_hours": round(cache.ttl / 3600, 3),
+        "cache_ttl_source": "db" if cache.config_get("cache_ttl_sec") else "env",
+        "rpc_endpoints_masked": pool_mask(pool.raw),
+        "rpc_endpoints_source": "db" if db_rpc else "env",
+        "rpc_provider_count": len(pool.providers),
+        "rpc_has_das": pool.has_das,
         "birdeye": {
             "provider": rpc_trades.provider_name(),
             "configured": rpc_trades.available(),
-            "source": "db" if db_key else ("env" if env_key else "none"),
-            "masked": _mask_key(db_key or env_key),
-            "base": os.getenv("BIRDEYE_BASE", "https://public-api.birdeye.so"),
-        }
+            "source": "db" if db_bkey else ("env" if env_bkey else "none"),
+            "masked": _mask_key(db_bkey or env_bkey),
+        },
+        # --- yalnızca env (bilgi amaçlı) ---
+        "env_only": {
+            "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
+            "rate_limit_per_min": RATE_LIMIT,
+            "track_window_sec": TRACK_WINDOW,
+            "track_drop_pct": TRACK_DROP,
+            "rpc_quota": RPC_QUOTA,
+            "database": "postgres" if cache.pg else "sqlite",
+        },
     }
 
 
 @app.post("/api/admin/settings", dependencies=[Depends(_admin)])
 async def admin_settings_set(payload: dict = Body(...)):
-    """Çalışma anında ayarlanabilir motor ayarları. Şimdilik: önbellek süresi."""
+    """Panelden gelen ayarları uygular (verilen alanlar). Hepsi anında geçerli,
+    DB'ye yazılır; ilgili env değişkeni yalnızca başlangıç varsayılanı olur."""
+    cache = state["cache"]
+    changed: list[str] = []
+
     if "cache_ttl_hours" in payload:
         try:
             hours = float(payload["cache_ttl_hours"])
         except (TypeError, ValueError):
             raise HTTPException(422, "cache_ttl_hours bir sayı olmalı.") from None
         if not 0 < hours <= 168:
-            raise HTTPException(422, "Önbellek süresi 0 ile 168 saat (7 gün) arasında olmalı.")
+            raise HTTPException(422, "Önbellek süresi 0–168 saat arasında olmalı.")
         sec = int(round(hours * 3600))
-        state["cache"].config_set("cache_ttl_sec", str(sec))
-        state["cache"].ttl = sec
-        log.info("Önbellek süresi ayarlandı: %.2f saat (%s sn)", hours, sec)
-    return {
-        "ok": True,
-        "cache_ttl_sec": state["cache"].ttl,
-        "cache_ttl_hours": round(state["cache"].ttl / 3600, 2),
-    }
+        cache.config_set("cache_ttl_sec", str(sec))
+        cache.ttl = sec
+        changed.append("cache_ttl")
 
+    if "rpc_endpoints" in payload:
+        raw = str(payload.get("rpc_endpoints") or "").strip()
+        if not raw:
+            raise HTTPException(422, "RPC uç noktası boş olamaz.")
+        try:
+            state["pool"].reconfigure(raw)
+        except RpcError as exc:
+            raise HTTPException(422, f"Geçersiz RPC yapılandırması: {exc}") from exc
+        cache.config_set("rpc_endpoints", raw)
+        changed.append("rpc_endpoints")
 
-@app.post("/api/admin/integrations", dependencies=[Depends(_admin)])
-async def admin_integrations_set(payload: dict = Body(...)):
-    if "birdeye_api_key" not in payload:
-        raise HTTPException(422, "birdeye_api_key alanı gerekli (silmek için boş gönder).")
-    key = str(payload.get("birdeye_api_key") or "").strip()
-    state["cache"].config_set("birdeye_api_key", key)
-    rpc_trades.set_runtime_config(birdeye_api_key=key or None)
-    log.info("Birdeye anahtarı %s.", "güncellendi" if key else "silindi")
-    return {"ok": True, "configured": rpc_trades.available()}
+    if "birdeye_api_key" in payload:
+        key = str(payload.get("birdeye_api_key") or "").strip()
+        cache.config_set("birdeye_api_key", key)
+        rpc_trades.set_runtime_config(birdeye_api_key=key or None)
+        changed.append("birdeye")
+
+    if not changed:
+        raise HTTPException(422, "Değiştirilecek bir alan gönderilmedi.")
+    log.info("Admin ayar değişikliği: %s", ", ".join(changed))
+    return {"ok": True, "changed": changed}
 
 
 def _reload_flagged() -> None:

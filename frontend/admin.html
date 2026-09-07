@@ -7,67 +7,122 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230b1424'/%3E%3Cpath d='M32 6 L56 14 V31 C56 45 45 54 32 58 C19 54 8 45 8 31 V14 Z' fill='none' stroke='%23c8a45c' stroke-width='3'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0b1424;--panel:#111d33;--panel2:#17263f;--rule:#283a5c;--text:#e2e8f4;
-  --muted:#8797b3;--dim:#526486;--gold:#c8a45c;--red:#d5433f;--amber:#d5932f;--blue:#5c8fd6;--green:#6fbf73;
-  --mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Oswald',system-ui,sans-serif}
+:root{
+  --ink:#0b1424;--panel:#111d33;--panel2:#17263f;--rule:#283a5c;--rule2:#37507a;
+  --text:#e2e8f4;--muted:#8797b3;--dim:#526486;
+  --gold:#c8a45c;--gold-dim:#8a7440;
+  --red:#d5433f;--amber:#d5932f;--blue:#5c8fd6;--green:#6fbf73;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Oswald',system-ui,sans-serif;
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--ink);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.5}
+body{margin:0;background:var(--ink);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.55}
 a{color:var(--gold)}
-.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+
 header{border-bottom:1px solid var(--rule);box-shadow:0 1px 0 rgba(200,164,92,.14)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+header .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px}
 .brand{font-family:var(--disp);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:18px}
 .brand i{font-style:normal;color:var(--gold);font-weight:400}
-.brand em{font-style:normal;color:var(--dim);font-size:12px;margin-left:8px;letter-spacing:.2em}
+.brand em{font-style:normal;color:var(--dim);font-size:11px;margin-left:8px;letter-spacing:.24em}
+.hbtns{display:flex;gap:8px}
+
 button,input,textarea,select{font-family:var(--mono);font-size:13px}
 button{background:var(--gold);color:var(--ink);border:0;padding:9px 16px;border-radius:2px;cursor:pointer;
   font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+button:hover{filter:brightness(1.08)}
 button.ghost{background:transparent;color:var(--muted);border:1px solid var(--rule)}
-button.ghost:hover{color:var(--gold);border-color:var(--gold)}
+button.ghost:hover{color:var(--gold);border-color:var(--gold-dim)}
 button.danger{background:transparent;color:var(--red);border:1px solid var(--rule)}
 button.danger:hover{border-color:var(--red)}
-input,textarea,select{background:var(--ink);border:1px solid var(--rule);color:var(--text);padding:8px 10px;border-radius:2px;width:100%}
-.tabs{display:flex;gap:4px;margin:22px 0 18px;flex-wrap:wrap}
-.tabs button{background:transparent;color:var(--muted);border:1px solid var(--rule)}
-.tabs button.on{background:var(--panel2);color:var(--gold);border-color:var(--gold-dim,#8a7440)}
-.card{border:1px solid var(--rule);background:var(--panel);border-radius:2px;padding:16px;margin-bottom:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.stat b{font-family:var(--disp);font-weight:700;font-size:26px;display:block;color:var(--text)}
+button.sm{padding:6px 12px;font-size:11px}
+button:disabled{opacity:.5;cursor:progress}
+input,textarea,select{background:var(--ink);border:1px solid var(--rule);color:var(--text);
+  padding:9px 11px;border-radius:2px;width:100%}
+input:focus,textarea:focus{outline:1px solid var(--gold-dim);border-color:var(--gold-dim)}
+textarea{resize:vertical;min-height:60px}
+code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;padding:1px 5px;font-size:11px}
+
+/* --- sekmeler --- */
+.tabs{display:flex;gap:2px;margin:20px 0 20px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.tabs button{background:transparent;color:var(--muted);border:1px solid transparent;border-bottom:0;
+  border-radius:3px 3px 0 0;padding:10px 18px;position:relative;top:1px}
+.tabs button:hover{color:var(--text)}
+.tabs button.on{color:var(--gold);border-color:var(--rule);background:var(--panel);
+  border-bottom:1px solid var(--panel)}
+.subtabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.subtabs button{background:transparent;color:var(--muted);border:1px solid var(--rule);
+  padding:7px 14px;font-size:11px}
+.subtabs button.on{color:var(--gold);border-color:var(--gold-dim);background:var(--panel2)}
+
+/* --- kart --- */
+.card{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:18px;margin-bottom:14px}
+.card > h3{font-family:var(--disp);font-weight:600;font-size:14px;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--text);margin:0 0 4px}
+.card > .desc{color:var(--muted);font-size:12px;margin:0 0 14px;max-width:74ch}
+.card > .desc:last-child{margin-bottom:0}
+.hint{color:var(--dim);font-size:11px;margin-top:8px;max-width:74ch}
+.section-title{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--gold);margin:22px 0 10px}
+
+/* --- form alanları --- */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:5px}
+.field .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field .row input{flex:1 1 240px}
+.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:10px}
+
+/* --- istatistik / grid --- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.stat{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:14px}
+.stat b{font-family:var(--disp);font-weight:700;font-size:24px;display:block;color:var(--text);line-height:1.1}
 .stat span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+
+/* --- tablo --- */
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;padding:8px 10px;color:var(--gold);font-family:var(--disp);font-weight:500;font-size:11px;
-  letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--rule)}
-td{padding:8px 10px;border-bottom:1px solid var(--rule);color:var(--muted);vertical-align:top}
+th{text-align:left;padding:9px 10px;color:var(--gold);font-family:var(--disp);font-weight:500;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--rule2)}
+td{padding:9px 10px;border-bottom:1px solid var(--rule);color:var(--muted);vertical-align:top}
+tr:last-child td{border-bottom:0}
 td.mono{font-size:11px;color:var(--text);word-break:break-all}
+.tbl-card{border:1px solid var(--rule);background:var(--panel);border-radius:3px;overflow:hidden;margin-bottom:14px}
+.tbl-card table{font-size:12px}
+.tbl-card th{padding-left:14px}.tbl-card td{padding-left:14px}
+
 .badge{font-family:var(--disp);font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
-  padding:2px 6px;border:1px solid currentColor;border-radius:2px}
+  padding:2px 7px;border:1px solid currentColor;border-radius:2px;white-space:nowrap}
 .b-bundled{color:var(--red)} .b-cabaled{color:var(--amber)} .b-organic{color:var(--blue)}
-.b-inconclusive{color:var(--muted)} .b-open{color:var(--amber)} .b-resolved{color:var(--green)} .b-dismissed{color:var(--dim)}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.msg{font-size:12px;color:var(--gold);min-height:16px;margin:8px 0}
+.b-inconclusive,.b-clear,.b-no_dump{color:var(--muted)}
+.b-open{color:var(--amber)} .b-resolved,.b-hit{color:var(--green)} .b-dismissed,.b-miss{color:var(--red)}
+.ok{color:var(--green)} .bad{color:var(--red)}
+
+.msg{font-size:12px;color:var(--gold);min-height:18px;margin:10px 0}
+.muted{color:var(--dim);font-size:11px}
 .login{max-width:360px;margin:80px auto;text-align:center}
 .login h1{font-family:var(--disp);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 .hidden{display:none!important}
-.muted{color:var(--dim);font-size:11px}
-.rpcbox{border:1px solid var(--gold-dim,#8a7440);background:var(--panel);border-radius:2px;padding:16px;margin-bottom:12px}
+
+/* --- RPC göstergesi --- */
+.rpcbox{border:1px solid var(--gold-dim);background:var(--panel);border-radius:3px;padding:16px;margin-bottom:14px}
 .rpcbox .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .rpcbox .big{font-family:var(--disp);font-weight:700;font-size:30px;color:var(--text);line-height:1}
 .rpcbox .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .rpcbox .live{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
 .rpcbox .live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.4s ease-in-out infinite}
 @keyframes lp{0%,100%{opacity:.3}50%{opacity:1}}
-.gauge{height:12px;background:var(--ink);border:1px solid var(--rule);border-radius:6px;overflow:hidden;position:relative}
+.gauge{height:12px;background:var(--ink);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
 .gauge i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--amber) 75%,var(--red));transition:width .6s ease}
 .gauge.flash i{box-shadow:0 0 12px var(--amber)}
 .rpcbox .sub{margin-top:8px;font-size:11px;color:var(--muted)}
+
+/* --- modal --- */
 .modal-bg{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
   background:rgba(8,15,28,.72);backdrop-filter:blur(3px);padding:20px}
 .modal-bg.hidden{display:none}
-.modal{width:100%;max-width:380px;border:1px solid var(--gold-dim,#8a7440);background:var(--panel);
-  border-radius:3px;padding:20px}
+.modal{width:100%;max-width:380px;border:1px solid var(--gold-dim);background:var(--panel);border-radius:3px;padding:20px}
 .modal h2{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 14px;color:var(--gold)}
 .modal input{margin-bottom:10px}
-.modal .row{margin:12px 0 0}
+.modal .row{display:flex;gap:8px;margin-top:12px}
 </style>
 </head>
 <body>
@@ -84,11 +139,11 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
     </div>
   </form>
 </div>
+
 <header><div class="wrap">
   <div class="brand">america<i>.sx</i><em>admin</em></div>
-  <div style="display:flex;gap:8px">
-    <a class="ghost" href="/" style="display:inline-block;padding:9px 16px;border:1px solid var(--rule);border-radius:2px;text-decoration:none;color:var(--muted);font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px">Ana sayfa</a>
-    <button class="ghost hidden" id="chpw">Şifre değiştir</button>
+  <div class="hbtns">
+    <a class="ghost" href="/" style="display:inline-flex;align-items:center;padding:9px 16px;border:1px solid var(--rule);border-radius:2px;text-decoration:none;color:var(--muted);font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px">Ana sayfa</a>
     <button class="ghost hidden" id="logout">Çıkış</button>
   </div>
 </div></header>
@@ -104,13 +159,11 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 
   <div id="panel" class="hidden">
     <div class="tabs" id="tabs">
-      <button data-t="overview" class="on">Genel</button>
-      <button data-t="appeals">İtirazlar</button>
-      <button data-t="tools">Önbellek / Tarama</button>
-      <button data-t="flagged">İşaretli cüzdanlar</button>
-      <button data-t="track">UAVSX AI izleme</button>
-      <button data-t="lessons">AI tespit</button>
-      <button data-t="integrations">Entegrasyonlar</button>
+      <button data-t="panel" class="on">Panel</button>
+      <button data-t="settings">Ayarlar</button>
+      <button data-t="moderation">Denetim</button>
+      <button data-t="track">Karne</button>
+      <button data-t="tools">Araçlar</button>
     </div>
     <div class="msg" id="msg"></div>
     <div id="view"></div>
@@ -127,37 +180,42 @@ async function api(path, opts={}){
     ...opts,
     headers:{'Content-Type':'application/json','X-Admin-Token':TOKEN, ...(opts.headers||{})}
   });
-  if(r.status === 401 || r.status === 404){ showLogin(r.status===404 ? 'Panel kapalı (ADMIN_TOKEN yok).' : 'Token geçersiz.'); throw new Error('auth'); }
+  if(r.status === 401 || r.status === 404){
+    showLogin(r.status===404 ? 'Panel kapalı (ADMIN_TOKEN yok).' : 'Token geçersiz.');
+    throw new Error('auth');
+  }
   const j = await r.json().catch(()=>({}));
   if(!r.ok) throw new Error(j.detail || ('HTTP '+r.status));
   return j;
 }
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const vb = v => `<span class="badge b-${(v||'open')}">${esc(v||'—')}</span>`;
+const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
+const ago = ts => { const s=Math.floor(Date.now()/1000-ts); if(s<3600)return Math.floor(s/60)+' dk'; if(s<86400)return Math.floor(s/3600)+' sa'; return Math.floor(s/86400)+' g'; };
+const money = n => n==null?'—':(n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+Math.round(n/1e3)+'k':'$'+Math.round(n));
+function flash(m){ $('#msg').textContent = m; setTimeout(()=>{ if($('#msg').textContent===m) $('#msg').textContent=''; }, 2600); }
+
 function showLogin(m){
-  if(typeof stopOvPoll==='function') stopOvPoll();
+  stopPoll();
   $('#panel').classList.add('hidden'); $('#loginView').classList.remove('hidden');
-  $('#chpw').classList.add('hidden'); $('#logout').classList.add('hidden');
+  $('#logout').classList.add('hidden');
   if(m) $('#loginMsg').textContent = m;
 }
 function showPanel(){
   $('#loginView').classList.add('hidden'); $('#panel').classList.remove('hidden');
-  $('#chpw').classList.remove('hidden'); $('#logout').classList.remove('hidden');
+  $('#logout').classList.remove('hidden');
 }
-function flash(m){ $('#msg').textContent = m; setTimeout(()=>{ if($('#msg').textContent===m) $('#msg').textContent=''; }, 2500); }
-const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const vb = v => `<span class="badge b-${v||'open'}">${esc(v||'—')}</span>`;
-const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
-const ago = ts => { const s=Math.floor(Date.now()/1000-ts); if(s<3600)return Math.floor(s/60)+'d'; if(s<86400)return Math.floor(s/3600)+'sa'; return Math.floor(s/86400)+'g'; };
-const money = n => n==null?'—':(n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+Math.round(n/1e3)+'k':'$'+Math.round(n));
 
 $('#loginBtn').onclick = async ()=>{
   TOKEN = $('#tok').value.trim();
   try{ localStorage.setItem('asx_admin', TOKEN); }catch(e){}
-  try{ await api('/overview'); showPanel(); route('overview'); }catch(e){}
+  try{ await api('/overview'); showPanel(); route('panel'); }catch(e){}
 };
 $('#tok').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#loginBtn').click(); });
-$('#logout').onclick = ()=>{ TOKEN=''; try{localStorage.removeItem('asx_admin');}catch(e){} stopOvPoll(); showLogin(''); };
+$('#logout').onclick = ()=>{ TOKEN=''; try{localStorage.removeItem('asx_admin');}catch(e){} stopPoll(); showLogin(''); };
+
+/* --- şifre modalı --- */
 function pwClose(){ $('#pwModal').classList.add('hidden'); $('#pw1').value=''; $('#pw2').value=''; $('#pwMsg').textContent=''; }
-$('#chpw').onclick = ()=>{ $('#pwModal').classList.remove('hidden'); $('#pw1').focus(); };
 $('#pwCancel').onclick = pwClose;
 $('#pwModal').onclick = e=>{ if(e.target === $('#pwModal')) pwClose(); };
 $('#pwForm').onsubmit = async e=>{
@@ -171,110 +229,236 @@ $('#pwForm').onsubmit = async e=>{
     pwClose(); flash('şifre değiştirildi');
   }catch(err){ $('#pwMsg').textContent = err.message; }
 };
-$('#tabs').onclick = e=>{ const b=e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on', x===b)); route(b.dataset.t); };
 
-let _ovPoll = null;
-function stopOvPoll(){ if(_ovPoll){ clearInterval(_ovPoll); _ovPoll = null; } }
+/* --- yönlendirme --- */
+$('#tabs').onclick = e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on', x===b));
+  route(b.dataset.t);
+};
+let _poll = null;
+function stopPoll(){ if(_poll){ clearInterval(_poll); _poll = null; } }
 
 async function route(t){
-  stopOvPoll();
+  stopPoll();
   const v = $('#view'); v.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
-    if(t==='overview') return renderOverview(await api('/overview'));
-    if(t==='appeals')  return renderAppeals();
-    if(t==='track')    return renderTrack(await api('/track'));
-    if(t==='tools')    return renderTools();
-    if(t==='flagged')  return renderFlagged(await api('/flagged'));
-    if(t==='lessons')  return renderLessons(await api('/lessons'));
-    if(t==='integrations') return renderIntegrations(await api('/integrations'));
-  }catch(e){ if(e.message!=='auth') v.innerHTML = `<p style="color:var(--red)">${esc(e.message)}</p>`; }
+    if(t==='panel')      return renderPanel(await api('/overview'));
+    if(t==='settings')   return renderSettings(await api('/settings'));
+    if(t==='moderation') return renderModeration();
+    if(t==='track')      return renderTrack(await api('/track'));
+    if(t==='tools')      return renderTools();
+  }catch(e){ if(e.message!=='auth') v.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
 
-function renderOverview(d){
-  const s = d.stats, c = d.config;
+/* ================= PANEL ================= */
+function renderPanel(d){
+  const s = d.stats, c = d.config || {};
   const cards = [
     ['scans_cached','önbellekte'],['scans_total','toplam tarama'],
-    ['track_open','izlenen'],['track_settled','sonuçlanan'],['track_correct','doğru'],['track_miss','kaçırılan'],
+    ['track_open','izlenen'],['track_settled','sonuçlanan'],
+    ['track_correct','doğru'],['track_miss','kaçırılan'],
     ['appeals_open','açık itiraz'],['flagged','işaretli cüzdan'],['lessons','AI tespit'],
-  ].map(([k,l])=>`<div class="card stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
-  const prov = Object.entries(d.providers||{});
-  const totalCalls = prov.reduce((n,[,p])=>n+(p.calls||0),0);
-  const provRows = prov.map(([k,p])=>
-    `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td><td>${p.available?'✓':'cooldown'}</td></tr>`).join('');
-  const q = c.rpc_quota||0;
+  ].map(([k,l])=>`<div class="stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
+
   $('#view').innerHTML = `
     <div id="rpcBox"></div>
+    <div class="section-title">Özet</div>
     <div class="grid">${cards}</div>
-    <div class="card"><b class="muted">DEPO:</b> ${esc(s.backend)} &nbsp; · &nbsp;
-      izleme ${c.track_window_sec/3600}sa &nbsp; · &nbsp; çöküş eşiği %${Math.round(c.track_drop_pct*100)} &nbsp; · &nbsp;
-      min mcap $${c.min_market_cap} &nbsp; · &nbsp; rate ${c.rate_limit_per_min}/dk
-      ${q?`&nbsp; · &nbsp; RPC kotası ${q.toLocaleString()}/ay`:''}
-      <div class="muted" style="margin-top:6px">RPC sayacı instance yeniden başladığında sıfırlanır (aylık gerçek kullanımı Helius panelinden gör).</div></div>
-    <div class="card">
-      <b class="muted">ÖNBELLEK SÜRESİ</b>
-      <p class="muted" style="margin:4px 0 8px">Bir token tarandıktan sonra sonucu kaç saat önbellekte tutulsun.
-        Bu süre içinde aynı token için gelen istekler zincire gitmeden yanıtlanır (RPC tasarrufu).
-        Kaynak: <b>${esc(c.cache_ttl_source||'env')}</b>.</p>
-      <div class="row" style="align-items:center">
-        <input id="ttlHours" type="number" min="0.05" max="168" step="0.25"
-          value="${c.cache_ttl_hours}" style="width:120px">
-        <span class="muted">saat</span>
-        <button id="ttlSave">kaydet</button>
+    <div class="card" style="margin-top:14px">
+      <div class="statusline">
+        <span>depo <b class="ok">${esc(s.backend||'—')}</b></span><span class="muted">·</span>
+        <span>izleme ${(c.track_window_sec||0)/3600} sa</span><span class="muted">·</span>
+        <span>çöküş eşiği %${Math.round((c.track_drop_pct||0)*100)}</span><span class="muted">·</span>
+        <span>min mcap ${money(c.min_market_cap)}</span><span class="muted">·</span>
+        <span>rate ${c.rate_limit_per_min||'—'}/dk</span><span class="muted">·</span>
+        <span>önbellek ${c.cache_ttl_hours!=null?c.cache_ttl_hours+' sa':'—'}</span>
       </div>
-      <p class="muted" style="font-size:11px;margin-top:6px">0.05–168 saat. Anında geçerli olur, DB'ye yazılır;
-        env <code>CACHE_TTL</code> hâlâ başlangıç varsayılanı olarak çalışır.</p>
+      <p class="muted">Bu değerler "Ayarlar" sekmesinden düzenlenir (önbellek süresi, RPC, anahtarlar) ya da env değişkenidir.</p>
     </div>
-    <div class="card"><table><thead><tr><th>RPC sağlayıcı</th><th>çağrı</th><th>hata</th><th>durum</th></tr></thead>
-      <tbody id="provRows">${provRows||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>`;
+    <div class="section-title">RPC sağlayıcıları</div>
+    <div class="tbl-card"><table>
+      <thead><tr><th>sağlayıcı</th><th>çağrı</th><th>hata</th><th>durum</th></tr></thead>
+      <tbody id="provRows"></tbody></table></div>`;
 
+  paintProv(d);
   paintRpc(d);
-  const ttlBtn = $('#ttlSave');
-  if(ttlBtn) ttlBtn.onclick = async ()=>{
-    const h = parseFloat($('#ttlHours').value);
-    if(!(h > 0)){ flash('geçersiz süre'); return; }
-    try{
-      await api('/settings', {method:'POST', body:JSON.stringify({cache_ttl_hours:h})});
-      flash('önbellek süresi kaydedildi'); route('overview');
-    }catch(e){ flash(e.message); }
-  };
-  let _last = totalCalls;
-  _ovPoll = setInterval(async ()=>{
+  let last = calls(d);
+  _poll = setInterval(async ()=>{
     let j; try{ j = await api('/overview'); }catch(e){ return; }
-    const now = Object.values(j.providers||{}).reduce((n,p)=>n+(p.calls||0),0);
-    paintRpc(j, now !== _last);
-    _last = now;
-    const pr = $('#provRows');
-    if(pr) pr.innerHTML = Object.entries(j.providers||{}).map(([k,p])=>
-      `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td><td>${p.available?'✓':'cooldown'}</td></tr>`).join('') || '<tr><td colspan=4 class=muted>—</td></tr>';
+    const now = calls(j);
+    paintProv(j); paintRpc(j, now !== last); last = now;
   }, 4000);
 }
-
+const calls = d => Object.values(d.providers||{}).reduce((n,p)=>n+(p.calls||0),0);
+function paintProv(d){
+  const tb = $('#provRows'); if(!tb) return;
+  tb.innerHTML = Object.entries(d.providers||{}).map(([k,p])=>
+    `<tr><td class="mono">${esc(k)}</td><td>${p.calls}</td><td>${p.failures}</td>
+      <td class="${p.available?'ok':'bad'}">${p.available?'✓ hazır':'cooldown'}</td></tr>`
+  ).join('') || '<tr><td colspan="4" class="muted">—</td></tr>';
+}
 function paintRpc(d, bump){
   const box = $('#rpcBox'); if(!box) return;
   const q = (d.config && d.config.rpc_quota) || 0;
-  const calls = Object.values(d.providers||{}).reduce((n,p)=>n+(p.calls||0),0);
+  const c = calls(d);
   if(!q){
     box.innerHTML = `<div class="rpcbox"><div class="top">
-      <div><div class="lbl">RPC sorgusu (instance başından)</div><div class="big" id="rpcNum">${calls.toLocaleString()}</div></div>
+      <div><div class="lbl">RPC sorgusu (instance başından)</div><div class="big">${c.toLocaleString()}</div></div>
       <span class="live"><i></i>canlı</span></div>
-      <div class="muted">Kota tanımlı değil (RPC_MONTHLY_QUOTA). Her tarama bu sayacı artırır.</div></div>`;
+      <div class="sub">Kota tanımlı değil (RPC_MONTHLY_QUOTA). Her tarama bu sayacı artırır; instance yeniden başlayınca sıfırlanır.</div></div>`;
     return;
   }
-  const left = Math.max(0, q - calls);
-  const pct = Math.min(100, calls / q * 100);
-  const scans = Math.floor(left / 200);
+  const left = Math.max(0, q - c), pct = Math.min(100, c/q*100), scans = Math.floor(left/200);
   box.innerHTML = `<div class="rpcbox"><div class="top">
-    <div><div class="lbl">kalan RPC sorgusu</div><div class="big" id="rpcNum">${left.toLocaleString()}</div></div>
+    <div><div class="lbl">kalan RPC sorgusu</div><div class="big">${left.toLocaleString()}</div></div>
     <span class="live"><i></i>canlı</span></div>
-    <div class="gauge" id="rpcGauge"><i id="rpcFill" style="width:${pct.toFixed(2)}%"></i></div>
-    <div class="sub" id="rpcSub">${calls.toLocaleString()} / ${q.toLocaleString()} kullanıldı · %${pct.toFixed(1)} · ~${scans.toLocaleString()} tarama kaldı</div></div>`;
-  if(bump){ const g = $('#rpcGauge'); if(g){ g.classList.add('flash'); setTimeout(()=>g.classList.remove('flash'), 600); } }
+    <div class="gauge" id="rpcGauge"><i style="width:${pct.toFixed(2)}%"></i></div>
+    <div class="sub">${c.toLocaleString()} / ${q.toLocaleString()} · %${pct.toFixed(1)} · ~${scans.toLocaleString()} tarama kaldı</div></div>`;
+  if(bump){ const g=$('#rpcGauge'); if(g){ g.classList.add('flash'); setTimeout(()=>g.classList.remove('flash'),600); } }
 }
 
-async function renderAppeals(){
+/* ================= AYARLAR ================= */
+function srcBadge(src){
+  if(src==='db') return `<span class="badge b-resolved">DB · canlı</span>`;
+  if(src==='env') return `<span class="badge b-inconclusive">env</span>`;
+  return `<span class="badge b-open">tanımsız</span>`;
+}
+function renderSettings(d){
+  const b = d.birdeye || {}, e = d.env_only || {};
+  $('#view').innerHTML = `
+    <div class="section-title">API & bağlantı</div>
+
+    <div class="card">
+      <h3>RPC uç noktaları</h3>
+      <p class="desc">Solana RPC sağlayıcıları. Biçim: <code>&lt;url&gt;|&lt;rps&gt;</code>, virgülle ayır.
+        Helius uçları DAS (deployer geçmişi) için gerekir. Kaydedince <b>havuz anında yeniden yapılandırılır</b> — yeniden dağıtım yok.</p>
+      <div class="statusline">${srcBadge(d.rpc_endpoints_source)}
+        <span>${d.rpc_provider_count} sağlayıcı</span><span class="muted">·</span>
+        <span>DAS ${d.rpc_has_das?'<b class="ok">var</b>':'<b class="bad">yok</b>'}</span></div>
+      <div class="field">
+        <label>şu anki (maskeli)</label>
+        <textarea readonly rows="2">${esc(d.rpc_endpoints_masked||'—')}</textarea>
+      </div>
+      <div class="field">
+        <label>yeni değer</label>
+        <textarea id="rpcInput" rows="3" placeholder="https://mainnet.helius-rpc.com/?api-key=XXX|10,https://solana-mainnet.g.alchemy.com/v2/YYY|25"></textarea>
+        <div class="row" style="margin-top:8px"><button id="rpcSave">kaydet & yeniden yapılandır</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Birdeye API anahtarı</h3>
+      <p class="desc">Çok eski / yüksek hacimli Raydium tokenlarında zincir imza taraması lansmanın başına ulaşamaz.
+        Anahtar verilirse ilk trade'ler Birdeye'den çekilir (<code>${esc(b.provider||'birdeye')}</code>). Boşsa bu adım atlanır.</p>
+      <div class="statusline">${srcBadge(b.source)}
+        ${b.configured?`<span>aktif · <code>${esc(b.masked||'')}</code></span>`:'<span class="muted">anahtar yok</span>'}</div>
+      <div class="field">
+        <label>anahtar</label>
+        <div class="row">
+          <input id="bkeyInput" type="password" placeholder="Birdeye API anahtarı" autocomplete="off">
+          <button id="bkeySave">kaydet</button>
+          <button class="danger sm" id="bkeyClear">sil</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Motor</div>
+
+    <div class="card">
+      <h3>Önbellek süresi</h3>
+      <p class="desc">Bir token tarandıktan sonra sonucu kaç saat önbellekte tutulsun. Bu sürede aynı token için gelen istekler zincire gitmeden yanıtlanır.</p>
+      <div class="statusline">${srcBadge(d.cache_ttl_source)}</div>
+      <div class="field">
+        <label>saat</label>
+        <div class="row">
+          <input id="ttlInput" type="number" min="0.05" max="168" step="0.25" value="${d.cache_ttl_hours}" style="max-width:140px">
+          <button id="ttlSave">kaydet</button>
+        </div>
+        <div class="hint">0.05–168 saat. Anında geçerli, DB'ye yazılır.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Admin şifresi</h3>
+      <p class="desc">Panel şifresini değiştir. Yeni değer DB'ye (sha256) yazılır ve env <code>ADMIN_TOKEN</code>'ı ezer.</p>
+      <div class="row"><button class="ghost" id="pwOpen">şifre değiştir</button></div>
+    </div>
+
+    <div class="section-title">Yalnızca env (bilgi)</div>
+    <div class="card">
+      <p class="desc">Bunlar servis env değişkenleridir; değiştirmek için Render'da güncelle + yeniden dağıt.</p>
+      <table>
+        <tr><td>MIN_MARKET_CAP_USD</td><td class="mono">${money(e.min_market_cap)}</td></tr>
+        <tr><td>RATE_LIMIT_PER_MIN</td><td class="mono">${e.rate_limit_per_min}</td></tr>
+        <tr><td>TRACK_WINDOW_SEC</td><td class="mono">${e.track_window_sec} (${(e.track_window_sec||0)/3600} sa)</td></tr>
+        <tr><td>TRACK_DROP_PCT</td><td class="mono">${e.track_drop_pct}</td></tr>
+        <tr><td>RPC_MONTHLY_QUOTA</td><td class="mono">${(e.rpc_quota||0).toLocaleString()}</td></tr>
+        <tr><td>veritabanı</td><td class="mono">${esc(e.database||'—')}</td></tr>
+      </table>
+    </div>`;
+
+  $('#pwOpen').onclick = ()=>{ $('#pwModal').classList.remove('hidden'); $('#pw1').focus(); };
+
+  $('#rpcSave').onclick = async ()=>{
+    const v = $('#rpcInput').value.trim();
+    if(!v){ flash('değer boş'); return; }
+    const btn = $('#rpcSave'); btn.disabled = true;
+    try{
+      const j = await api('/settings', {method:'POST', body:JSON.stringify({rpc_endpoints:v})});
+      flash('RPC yeniden yapılandırıldı ('+(j.changed||[]).join(',')+')'); route('settings');
+    }catch(e){ flash(e.message); btn.disabled = false; }
+  };
+  $('#bkeySave').onclick = async ()=>{
+    const k = $('#bkeyInput').value.trim();
+    if(!k){ flash('anahtar boş'); return; }
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({birdeye_api_key:k})});
+      flash('Birdeye anahtarı kaydedildi'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+  $('#bkeyClear').onclick = async ()=>{
+    if(!confirm('Birdeye anahtarı silinsin mi?')) return;
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({birdeye_api_key:''})});
+      flash('silindi'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+  $('#ttlSave').onclick = async ()=>{
+    const h = parseFloat($('#ttlInput').value);
+    if(!(h > 0)){ flash('geçersiz süre'); return; }
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({cache_ttl_hours:h})});
+      flash('önbellek süresi kaydedildi'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+}
+
+/* ================= DENETİM ================= */
+let _modSub = 'appeals';
+function renderModeration(){
+  $('#view').innerHTML = `
+    <div class="subtabs" id="modSub">
+      <button data-s="appeals">İtirazlar</button>
+      <button data-s="flagged">İşaretli cüzdanlar</button>
+      <button data-s="lessons">Öğrenilenler (AI)</button>
+    </div>
+    <div id="modView"><p class="muted">yükleniyor…</p></div>`;
+  $('#modSub').onclick = e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    _modSub = b.dataset.s; paintModSub();
+  };
+  paintModSub();
+}
+async function paintModSub(){
+  document.querySelectorAll('#modSub button').forEach(x=>x.classList.toggle('on', x.dataset.s===_modSub));
+  const mv = $('#modView'); mv.innerHTML = '<p class="muted">yükleniyor…</p>';
+  try{
+    if(_modSub==='appeals')  mv.innerHTML = modAppeals(await api('/appeals'+(window.__astatus?('?status='+window.__astatus):'')));
+    if(_modSub==='flagged')  mv.innerHTML = modFlagged(await api('/flagged'));
+    if(_modSub==='lessons')  mv.innerHTML = modLessons(await api('/lessons'));
+    wireMod();
+  }catch(e){ if(e.message!=='auth') mv.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
+}
+function modAppeals(d){
   const st = window.__astatus || '';
-  const d = await api('/appeals'+(st?('?status='+st):''));
   const rows = (d.appeals||[]).map(a=>`
     <tr>
       <td>${vb(a.status)}</td>
@@ -282,28 +466,77 @@ async function renderAppeals(){
       <td class="mono">${short(a.mint)}<div class="muted">${esc(a.contact||'')}</div></td>
       <td>${esc(a.body)}${a.note?`<div class="muted">not: ${esc(a.note)}</div>`:''}</td>
       <td style="white-space:nowrap">
-        <button class="ghost" data-a="${a.id}" data-s="resolved">çöz</button>
-        <button class="ghost" data-a="${a.id}" data-s="dismissed">yok say</button>
+        <button class="ghost sm" data-a="${a.id}" data-as="resolved">çöz</button>
+        <button class="ghost sm" data-a="${a.id}" data-as="dismissed">yok say</button>
         <a href="/t/${esc(a.mint)}" target="_blank">↗</a>
       </td>
     </tr>`).join('');
-  $('#view').innerHTML = `
-    <div class="row">
-      <button class="ghost ${st===''?'on':''}" data-f="">hepsi</button>
-      <button class="ghost ${st==='open'?'on':''}" data-f="open">açık</button>
-      <button class="ghost ${st==='resolved'?'on':''}" data-f="resolved">çözülmüş</button>
-      <button class="ghost ${st==='dismissed'?'on':''}" data-f="dismissed">yok sayılan</button>
+  return `
+    <div class="subtabs">
+      ${['','open','resolved','dismissed'].map(f=>`<button class="${st===f?'on':''}" data-af="${f}">${{'':'hepsi',open:'açık',resolved:'çözülmüş',dismissed:'yok sayılan'}[f]}</button>`).join('')}
     </div>
-    <div class="card"><table><thead><tr><th>durum</th><th>karar</th><th>token</th><th>gerekçe</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan=5 class=muted>itiraz yok</td></tr>'}</tbody></table></div>`;
-  $('#view').querySelectorAll('[data-f]').forEach(b=> b.onclick = ()=>{ window.__astatus = b.dataset.f; renderAppeals(); });
-  $('#view').querySelectorAll('[data-a]').forEach(b=> b.onclick = async ()=>{
+    <div class="tbl-card"><table>
+      <thead><tr><th>durum</th><th>karar</th><th>token</th><th>gerekçe</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">itiraz yok</td></tr>'}</tbody></table></div>`;
+}
+function modFlagged(d){
+  const rows = (d.flagged||[]).map(f=>`<tr>
+    <td class="mono">${esc(f.address)}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
+    <td><span class="badge b-open">×${f.hits||1}</span> ${esc(f.note||'')}<div class="muted">${ago(f.created_at)} önce</div></td>
+    <td><button class="danger sm" data-fx="${esc(f.address)}">kaldır</button></td>
+  </tr>`).join('');
+  return `
+    <div class="card">
+      <p class="desc">Motorun <code>flagged_wallets</code> / <code>deployer_history</code> sinyalinde <b>anında</b> kullanılır. ×N = kaç ayrı çöküşte görüldü.</p>
+      <div class="field"><div class="row">
+        <input id="faddr" placeholder="cüzdan adresi" style="flex:2 1 240px">
+        <input id="fnote" placeholder="not (ör. X tokende pakette)" style="flex:3 1 240px">
+        <button id="fadd">ekle</button>
+      </div></div>
+    </div>
+    <div class="tbl-card"><table><thead><tr><th>adres</th><th>not</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="3" class="muted">liste boş</td></tr>'}</tbody></table></div>`;
+}
+function modLessons(d){
+  const rows = (d.lessons||[]).map(l=>`<tr>
+    <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
+    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
+    <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
+    <td>${esc(l.detail||'')}${l.deployer?`<div class="muted">deployer: ${short(l.deployer)}</div>`:''}</td>
+    <td style="white-space:nowrap">${l.wallets_flagged||0} cüzdan
+      ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}</td>
+  </tr>`).join('');
+  return `
+    <div class="card"><p class="desc">"organic/inconclusive" denip sonradan sert çöken (≥%55) tokenlar. Koordinasyon izi bulunduysa o cüzdanlar/deployer işaretlendi. Yanlışsa "geri al".</p></div>
+    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi</th><th>eylem</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok</td></tr>'}</tbody></table></div>`;
+}
+function wireMod(){
+  const mv = $('#modView');
+  mv.querySelectorAll('[data-af]').forEach(b=> b.onclick = ()=>{ window.__astatus = b.dataset.af; paintModSub(); });
+  mv.querySelectorAll('[data-a]').forEach(b=> b.onclick = async ()=>{
     const note = prompt('Not (opsiyonel):','') || '';
-    await api('/appeals/'+b.dataset.a, {method:'POST', body:JSON.stringify({status:b.dataset.s, note})});
-    flash('güncellendi'); renderAppeals();
+    await api('/appeals/'+b.dataset.a, {method:'POST', body:JSON.stringify({status:b.dataset.as, note})});
+    flash('güncellendi'); paintModSub();
+  });
+  const fadd = mv.querySelector('#fadd');
+  if(fadd) fadd.onclick = async ()=>{
+    const address = mv.querySelector('#faddr').value.trim(); if(!address) return;
+    try{ await api('/flagged', {method:'POST', body:JSON.stringify({address, note:mv.querySelector('#fnote').value.trim()})});
+      flash('eklendi'); paintModSub();
+    }catch(e){ flash(e.message); }
+  };
+  mv.querySelectorAll('[data-fx]').forEach(b=> b.onclick = async ()=>{
+    await api('/flagged/'+encodeURIComponent(b.dataset.fx), {method:'DELETE'}); flash('kaldırıldı'); paintModSub();
+  });
+  mv.querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
+    const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
+    flash((j.removed||0)+' cüzdan geri alındı'); paintModSub();
   });
 }
 
+/* ================= KARNE ================= */
 function renderTrack(d){
   const rows = (d.records||[]).map(t=>{
     const chg = t.change_pct;
@@ -311,132 +544,56 @@ function renderTrack(d){
     return `<tr>
       <td>${vb(t.verdict)}</td>
       <td class="mono">${esc(t.symbol||short(t.mint))}<div class="muted">${short(t.mint)}</div></td>
-      <td>${money(t.mcap_at_scan)} → ${money(t.mcap_latest)} <b style="color:${chg<0?'var(--red)':'var(--green)'}">${dl}</b></td>
+      <td>${money(t.mcap_at_scan)} → ${money(t.mcap_latest)} <b class="${chg<0?'bad':'ok'}">${dl}</b></td>
       <td>${t.settled?vb(t.outcome):('izleniyor '+ago(t.scored_at))}</td>
-      <td><button class="danger" data-m="${esc(t.mint)}">sil</button></td>
+      <td><button class="danger sm" data-tm="${esc(t.mint)}">sil</button></td>
     </tr>`;
   }).join('');
-  $('#view').innerHTML = `<div class="card"><table>
-    <thead><tr><th>karar</th><th>token</th><th>mcap</th><th>sonuç</th><th></th></tr></thead>
-    <tbody>${rows||'<tr><td colspan=5 class=muted>—</td></tr>'}</tbody></table></div>`;
-  $('#view').querySelectorAll('[data-m]').forEach(b=> b.onclick = async ()=>{
+  $('#view').innerHTML = `
+    <div class="card"><p class="desc">Taranan her token 24 saat izlenir; en düşük noktaya göre düşüş eşiği geçerse "çöktü" sayılır (isabet / kaçırdı / korudu).</p></div>
+    <div class="tbl-card"><table>
+      <thead><tr><th>karar</th><th>token</th><th>mcap</th><th>sonuç</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table></div>`;
+  $('#view').querySelectorAll('[data-tm]').forEach(b=> b.onclick = async ()=>{
     if(!confirm('Karne kaydı silinsin mi?')) return;
-    await api('/track/'+b.dataset.m, {method:'DELETE'}); flash('silindi'); route('track');
+    await api('/track/'+b.dataset.tm, {method:'DELETE'}); flash('silindi'); route('track');
   });
 }
 
+/* ================= ARAÇLAR ================= */
 function renderTools(){
   $('#view').innerHTML = `
     <div class="card">
-      <p class="muted">Bir mint için önbelleği temizle ya da zorla yeniden tara.</p>
-      <div class="row"><input id="tmint" placeholder="mint adresi" style="flex:1"></div>
-      <div class="row">
+      <h3>Önbellek / yeniden tarama</h3>
+      <p class="desc">Bir mint için önbelleği temizle ya da zincirden zorla yeniden tara (60–90 sn).</p>
+      <div class="field"><div class="row">
+        <input id="tmint" placeholder="mint adresi" style="flex:1 1 320px">
         <button class="ghost" id="tclear">önbelleği sil</button>
         <button id="trescan">zorla yeniden tara</button>
-      </div>
-      <pre id="tout" class="muted" style="white-space:pre-wrap;max-height:280px;overflow:auto"></pre>
+      </div></div>
+      <pre id="tout" class="muted" style="white-space:pre-wrap;max-height:280px;overflow:auto;margin:0"></pre>
     </div>`;
   $('#tclear').onclick = async ()=>{
     const m = $('#tmint').value.trim(); if(!m) return;
-    await api('/cache/'+m, {method:'DELETE'}); flash('önbellek silindi');
+    try{ await api('/cache/'+m, {method:'DELETE'}); flash('önbellek silindi'); }
+    catch(e){ flash(e.message); }
   };
   $('#trescan').onclick = async ()=>{
     const m = $('#tmint').value.trim(); if(!m) return;
-    $('#tout').textContent = 'taranıyor… (60-90 sn)';
-    try{ const j = await api('/rescan/'+m, {method:'POST'});
+    const btn = $('#trescan'); btn.disabled = true;
+    $('#tout').textContent = 'taranıyor… (60–90 sn)';
+    try{
+      const j = await api('/rescan/'+m, {method:'POST'});
       $('#tout').textContent = `${j.verdict.label} · skor ${j.verdict.score} · güven ${j.verdict.confidence}\n`+
-        (j.verdict.reasons||[]).join('\n'); flash('tarandı');
+        (j.verdict.reasons||[]).join('\n');
+      flash('tarandı');
     }catch(e){ $('#tout').textContent = e.message; }
+    finally{ btn.disabled = false; }
   };
 }
 
-function renderIntegrations(d){
-  const b = d.birdeye || {};
-  const st = b.configured
-    ? `<span class="badge b-resolved">aktif · ${esc(b.masked||'')} <span class="muted">(${b.source})</span></span>`
-    : `<span class="badge b-open">anahtar yok</span>`;
-  $('#view').innerHTML = `
-    <div class="card">
-      <h3 style="margin:0 0 4px">Birdeye — eski token lansman verisi</h3>
-      <p class="muted">Çok eski / yüksek hacimli Raydium tokenlarında zincir imza taraması
-        lansmanın başına ulaşamaz. Anahtar verilirse ilk trade'ler Birdeye'den çekilir
-        (<code>${esc(b.provider||'birdeye')}</code>). Boşsa bu adım atlanır, motor
-        "yalnızca mevcut yapı" moduna düşer.</p>
-      <p>Durum: ${st}</p>
-      <div class="row"><input id="bkey" type="password" placeholder="Birdeye API anahtarı" style="flex:1" autocomplete="off"></div>
-      <div class="row">
-        <button id="bsave">kaydet</button>
-        <button class="danger" id="bclear">anahtarı sil</button>
-      </div>
-      <p class="muted" style="font-size:11px">Anahtar DB'ye yazılır ve <b>anında</b> devreye girer
-        (yeniden dağıtım gerekmez). Env değişkeni <code>BIRDEYE_API_KEY</code> hâlâ çalışır;
-        DB'deki değer onu ezer.</p>
-    </div>`;
-  $('#bsave').onclick = async ()=>{
-    const k = $('#bkey').value.trim();
-    if(!k){ flash('anahtar boş'); return; }
-    await api('/integrations', {method:'POST', body:JSON.stringify({birdeye_api_key:k})});
-    $('#bkey').value=''; flash('kaydedildi'); route('integrations');
-  };
-  $('#bclear').onclick = async ()=>{
-    if(!confirm('Birdeye anahtarı silinsin mi?')) return;
-    await api('/integrations', {method:'POST', body:JSON.stringify({birdeye_api_key:''})});
-    flash('silindi'); route('integrations');
-  };
-}
-
-function renderFlagged(d){
-  const rows = (d.flagged||[]).map(f=>`<tr>
-    <td class="mono">${esc(f.address)}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
-    <td><span class="badge b-open">×${f.hits||1}</span> ${esc(f.note||'')}<div class="muted">${ago(f.created_at)} önce</div></td>
-    <td><button class="danger" data-x="${esc(f.address)}">kaldır</button></td>
-  </tr>`).join('');
-  $('#view').innerHTML = `
-    <div class="card">
-      <p class="muted">Motorun "işaretli cüzdan / deployer" sinyalinde anında kullanılır. ×N = kaç ayrı çöküşte görüldü.</p>
-      <div class="row">
-        <input id="faddr" placeholder="cüzdan adresi" style="flex:2 1 260px">
-        <input id="fnote" placeholder="not (ör. X tokende pakette görüldü)" style="flex:3 1 260px">
-        <button id="fadd">ekle</button>
-      </div>
-    </div>
-    <div class="card"><table><thead><tr><th>adres</th><th>not</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan=3 class=muted>liste boş</td></tr>'}</tbody></table></div>`;
-  $('#fadd').onclick = async ()=>{
-    const address = $('#faddr').value.trim(); if(!address) return;
-    try{ await api('/flagged', {method:'POST', body:JSON.stringify({address, note:$('#fnote').value.trim()})});
-      flash('eklendi'); route('flagged');
-    }catch(e){ flash(e.message); }
-  };
-  $('#view').querySelectorAll('[data-x]').forEach(b=> b.onclick = async ()=>{
-    await api('/flagged/'+encodeURIComponent(b.dataset.x), {method:'DELETE'}); flash('kaldırıldı'); route('flagged');
-  });
-}
-
-function renderLessons(d){
-  const rows = (d.lessons||[]).map(l=>`<tr>
-    <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
-    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
-    <td><b style="color:var(--red)">−%${Math.round((l.drop_pct||0)*100)}</b></td>
-    <td>${esc(l.detail||'')}${l.deployer?`<div class="muted">deployer: ${short(l.deployer)}</div>`:''}</td>
-    <td style="white-space:nowrap">${l.wallets_flagged||0} cüzdan
-      ${l.wallets_flagged?`<button class="ghost" data-u="${esc(l.mint)}">geri al</button>`:''}</td>
-  </tr>`).join('');
-  $('#view').innerHTML = `
-    <div class="card"><p class="muted">"organic/inconclusive" denip sonradan sert çöken (≥%55) tokenlar.
-      Koordinasyon izi bulunduysa o cüzdanlar/deployer işaretlendi ve sonraki taramalarda kullanılıyor.
-      Yanlışsa "geri al".</p></div>
-    <div class="card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi</th><th>eylem</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan=5 class=muted>henüz ders yok</td></tr>'}</tbody></table></div>`;
-  $('#view').querySelectorAll('[data-u]').forEach(b=> b.onclick = async ()=>{
-    if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
-    const j = await api('/lessons/'+b.dataset.u+'/undo', {method:'POST'});
-    flash((j.removed||0)+' cüzdan geri alındı'); route('lessons');
-  });
-}
-
-// açılış
-if(TOKEN){ api('/overview').then(()=>{ showPanel(); route('overview'); }).catch(()=>{}); }
+/* --- açılış --- */
+if(TOKEN){ api('/overview').then(()=>{ showPanel(); route('panel'); }).catch(()=>{}); }
 else showLogin('');
 </script>
 </body>

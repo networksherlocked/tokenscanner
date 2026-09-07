@@ -132,7 +132,18 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 
 /* taranan token başlığı — durum kutusunun üstünde */
 .tokhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
-  border-bottom:1px solid var(--gold-dim);padding-bottom:16px;margin-bottom:24px}
+  border-bottom:1px solid var(--gold-dim);padding-bottom:16px;margin-bottom:14px}
+
+.scanmeta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;
+  font-family:var(--mono);font-size:12px;color:var(--muted)}
+.scanmeta #scanMetaText b{color:var(--text);font-weight:500}
+.scanmeta button{background:transparent;border:1px solid var(--rule);color:var(--muted);
+  font-family:var(--display);font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  font-size:10px;padding:6px 14px;border-radius:2px;cursor:pointer;
+  transition:color .2s,border-color .2s}
+.scanmeta button:hover{color:var(--gold);border-color:var(--gold-dim)}
+.scanmeta button:disabled{opacity:.5;cursor:progress}
+.scanmeta button::before{content:"⟳ "}
 .tokhead .sym{font-family:var(--display);font-weight:700;font-size:clamp(30px,4.4vw,48px);
   line-height:1;text-transform:uppercase;letter-spacing:.02em;color:var(--text)}
 .tokhead .nm{font-size:15px;color:var(--muted)}
@@ -472,6 +483,10 @@ footer p{margin:0 0 6px;max-width:76ch}
   <section class="result" id="result">
     <div class="wrap">
       <div class="tokhead" id="tokHead"></div>
+      <div class="scanmeta" id="scanMeta" hidden>
+        <span id="scanMetaText"></span>
+        <button type="button" id="refreshBtn" data-i18n="refreshBtn">Refresh</button>
+      </div>
       <div class="split">
         <aside class="verdict" id="verdict"></aside>
         <div>
@@ -656,6 +671,9 @@ const STR = {
     cacheAge: s => `cache · ${s}s`, ms: n => `${n} ms`,
     scanDone:'done — fetching result',
     relNow: s => `${s}s ago`, relMin: m => `${m}m ago`, relHr: h => `${h}h ago`, relDay: d => `${d}d ago`,
+    scannedAgo: rel => `Last scanned ${rel}`,
+    fromCache:'served from cache', freshNow:'just now',
+    refreshBtn:'Refresh', refreshing:'Refreshing…',
     trackHead:'UAVSX AI tespit',
     trackSub:'Every scanned token, watched for 24 hours.',
     trackWatching: n => `${n} watching`,
@@ -733,6 +751,9 @@ const STR = {
     cacheAge: s => `önbellek · ${s}s`, ms: n => `${n} ms`,
     scanDone:'tamamlandı — sonuç getiriliyor',
     relNow: s => `${s} sn önce`, relMin: m => `${m} dk önce`, relHr: h => `${h} sa önce`, relDay: d => `${d} gün önce`,
+    scannedAgo: rel => `En son ${rel} tarandı`,
+    fromCache:'önbellekten', freshNow:'az önce',
+    refreshBtn:'Yenile', refreshing:'Yenileniyor…',
     trackHead:'UAVSX AI tespit',
     trackSub:'Taranan her token, 24 saat izlenir.',
     trackWatching: n => `${n} izleniyor`,
@@ -1076,13 +1097,15 @@ function scanStop(){
 let scanAbort = null;
 let lastResult = null;
 
-async function scan(mint){
-  const btn = $('scanBtn');
+async function scan(mint, fresh){
+  const btn = $('scanBtn'), rbtn = $('refreshBtn');
   clearError(); btn.disabled = true; btn.textContent = L('scanBtnBusy');
+  if(rbtn){ rbtn.disabled = true; rbtn.textContent = L('refreshing'); }
   scanAbort = new AbortController();
   scanStart();
   try{
-    const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}`, { signal: scanAbort.signal });
+    const path = `${API}/api/scan/${encodeURIComponent(mint)}` + (fresh ? '/fresh' : '');
+    const r = await fetch(path, { method: fresh ? 'POST' : 'GET', signal: scanAbort.signal });
     const body = await r.json();
     if(!r.ok) throw new Error(body.detail || L('errServer', r.status));
     scanFinish();
@@ -1096,6 +1119,7 @@ async function scan(mint){
   }finally{
     scanAbort = null;
     btn.disabled = false; btn.textContent = L('scanBtn');
+    if(rbtn){ rbtn.disabled = false; rbtn.textContent = L('refreshBtn'); }
   }
 }
 
@@ -1240,6 +1264,13 @@ function render(d){
     ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ''}
     <span class="vpill" style="color:${c}">${v.label}</span>
     <span class="mnt">${d.mint}</span>`;
+
+  // --- tarama zamanı + yenile ---
+  const scannedRel = d.scanned_at ? relTime(d.scanned_at) : L('freshNow');
+  const src = d.cached ? L('fromCache') : L('ms', d.duration_ms);
+  $('scanMetaText').innerHTML = `${L('scannedAgo', `<b>${scannedRel}</b>`)} · ${src}`;
+  $('scanMeta').hidden = false;
+  $('refreshBtn').onclick = ()=>{ scan(d.mint, true); };
 
   $('verdict').innerHTML = `
     <div class="stamp">${L('determination')}</div>
