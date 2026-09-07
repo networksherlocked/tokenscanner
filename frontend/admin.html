@@ -61,6 +61,9 @@ code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;paddin
   text-transform:uppercase;color:var(--text);margin:0 0 6px}
 .card > .desc{color:var(--muted);font-size:12px;margin:0 0 16px;max-width:70ch;line-height:1.65}
 .card > .desc:last-child{margin-bottom:0}
+/* Ayarlar / X paylaşım: açıklama metni kutunun yarısında, iki yana yaslı */
+#view.cols .card > .desc{max-width:none;width:50%;min-width:300px;text-align:justify;text-justify:inter-word}
+@media(max-width:820px){#view.cols .card > .desc{width:100%;min-width:0;text-align:left}}
 .card > .desc code,.hint code{white-space:nowrap}
 .hint{color:var(--dim);font-size:11px;margin-top:8px;max-width:70ch;line-height:1.55}
 /* kaydet vb. butonları her kartın sağ alt köşesinde */
@@ -291,7 +294,7 @@ function stopPoll(){ if(_poll){ clearInterval(_poll); _poll = null; } }
 
 async function route(t){
   stopPoll();
-  const v = $('#view'); v.innerHTML = '<p class="muted">yükleniyor…</p>';
+  const v = $('#view'); v.className = ''; v.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
     if(t==='panel')      return renderPanel(await api('/overview'));
     if(t==='settings')   return renderSettings(await api('/settings'));
@@ -404,6 +407,7 @@ function srcBadge(src){
 }
 function renderSettings(d){
   const b = d.birdeye || {}, e = d.env_only || {};
+  $('#view').classList.add('cols');
   $('#view').innerHTML = `
     <div class="section-title">API & bağlantı</div>
 
@@ -508,6 +512,7 @@ function renderSettings(d){
 function renderXShare(d){
   const x = d.x_autopost || {verdicts:[],min_mcap:50000,min_score:70,min_confidence:60,cooldown_h:168,max_per_day:20,media:true,lang:'en'};
   const cbl = 'style="text-transform:none;letter-spacing:0;color:var(--text)"';
+  $('#view').classList.add('cols');
   $('#view').innerHTML = `
     <div class="card">
       <h3>Durum & kontrol</h3>

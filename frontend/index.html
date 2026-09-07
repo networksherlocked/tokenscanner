@@ -231,10 +231,9 @@ footer .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:
 footer p{margin:0;line-height:1.8;text-align:justify;text-align-last:left;hyphens:auto}
 footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 
-/* ---------- son taramalar: alt şerit, sağdan sola kayan ---------- */
-.recent{padding:16px 0 20px;border-top:1px solid var(--rule);overflow:hidden}
-.recent .head{font-family:var(--display);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--dim);margin-bottom:12px}
+/* ---------- son taramalar: üst barın hemen altında, sağdan sola kayan şerit ---------- */
+.recent{padding:8px 0;border-bottom:1px solid var(--rule);overflow:hidden;
+  background:linear-gradient(180deg,rgba(92,143,214,.05),transparent)}
 .ticker{overflow:hidden;
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
   mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
@@ -472,6 +471,10 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 </header>
 
 <main id="mainView">
+  <section class="recent" id="recentSection" hidden aria-label="Recently scanned tokens">
+    <div class="ticker"><div class="reclist" id="reclist"></div></div>
+  </section>
+
   <section class="hero">
     <div class="wrap">
       <div class="hero-text">
@@ -499,7 +502,6 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <div class="scan-title"><span class="scan-dot"></span> <span data-i18n="scanTitle">Scanning chain</span></div>
         <div class="scan-metrics">
           <span class="scan-pct" id="scanPct">0%</span>
-          <span class="scan-elapsed" id="scanElapsed">0.0s</span>
         </div>
       </div>
 
@@ -518,6 +520,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
         <div class="scan-stat"><b id="statSignals">0/16</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="scanElapsed">0.0s</b><span data-i18n="statElapsedLbl">elapsed</span></div>
         <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
       </div>
     </div>
@@ -591,11 +594,6 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       <div class="tlist" id="tlist"></div>
       <div class="tnote" data-i18n="trackNote">After each scan, america.sx follows the token's market cap for 24 hours. A drop of more than 35% from the scan-time value counts as a crash.</div>
     </div>
-  </section>
-
-  <section class="recent" id="recentSection" hidden>
-    <div class="wrap"><div class="head" data-i18n="recentHead">Recently scanned tokens</div></div>
-    <div class="ticker"><div class="reclist" id="reclist"></div></div>
   </section>
 </main>
 
@@ -683,7 +681,7 @@ const STR = {
     scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
     hint:'Results are cached briefly. A deep scan usually takes 25–75 seconds.',
     scanTitle:'Scanning chain',
-    statHoldersLbl:'launch buyers', statRpcLbl:'RPC calls', statSignalsLbl:'signals',
+    statHoldersLbl:'launch buyers', statRpcLbl:'RPC calls', statSignalsLbl:'signals', statElapsedLbl:'elapsed',
     scanCancel:'Stop scan',
     recentHead:'Recently scanned tokens',
     sigGrid:'Signal grid', largestWallets:'Largest wallets',
@@ -767,7 +765,7 @@ const STR = {
     scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
     hint:'Sonuçlar kısa süre önbellekte tutulur. Derin tarama genelde 25–75 saniye sürer.',
     scanTitle:'Zincir taranıyor',
-    statHoldersLbl:'lansman alıcısı', statRpcLbl:'RPC çağrısı', statSignalsLbl:'sinyal',
+    statHoldersLbl:'lansman alıcısı', statRpcLbl:'RPC çağrısı', statSignalsLbl:'sinyal', statElapsedLbl:'süre',
     scanCancel:'Taramayı durdur',
     recentHead:'Son taranan tokenlar',
     sigGrid:'Sinyal ızgarası', largestWallets:'En büyük cüzdanlar',
@@ -1140,7 +1138,7 @@ function scanStart(){
     $('scanPct').textContent = Math.round(SCAN.pct) + '%';
     const buyers = Math.min(26, Math.floor(s / 1.4));
     const rpc = Math.min(190, Math.floor(s * 3.4));
-    const signals = s > 44 ? Math.min(SIGNALS_N, Math.floor((s - 44) * 1.8)) : 0;
+    const signals = Math.min(SIGNALS_N, Math.round(SIGNALS_N * (SCAN.pct / 100)));
     $('statHolders').textContent = buyers;
     $('statRpc').textContent = rpc;
     $('statSignals').textContent = signals + '/'+SIGNALS_N;
