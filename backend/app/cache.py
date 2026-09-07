@@ -281,12 +281,18 @@ class ScanCache:
         )
 
     def track_update(
-        self, mint: str, mcap_latest: float, mcap_min: float, at: int
+        self,
+        mint: str,
+        mcap_latest: float,
+        mcap_min: float,
+        at: int,
+        symbol: str | None = None,
     ) -> None:
+        # symbol yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
         self._write(
-            "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ? "
-            "WHERE mint = ?",
-            (mcap_latest, mcap_min, at, mint),
+            "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ?, "
+            "symbol = COALESCE(NULLIF(symbol, ''), ?) WHERE mint = ?",
+            (mcap_latest, mcap_min, at, symbol, mint),
         )
 
     def track_settle(self, mint: str, outcome: str) -> None:
@@ -311,6 +317,11 @@ class ScanCache:
                 max(0.0, (base - low) / base) if base and low is not None else None
             )
             d["age_sec"] = now - d["scored_at"]
+            # Sembolü olmayan (eski) kayıtlar için kayıtlı taramadan doldur.
+            if not d.get("symbol"):
+                pl = self.scan_payload(d["mint"])
+                if pl:
+                    d["symbol"] = (pl.get("token") or {}).get("symbol")
         return rows
 
     # ---- itiraz akışı ---------------------------------------------------

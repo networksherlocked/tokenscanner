@@ -73,14 +73,16 @@ async def refresh_track() -> None:
     for row in pending:
         mint = row["mint"]
         mcap_min = row.get("mcap_min")
+        sym = None
         try:
             snap = await fetch_market(mint)
             mcap = snap.market_cap
+            sym = snap.symbol
         except Exception:  # noqa: BLE001
             mcap = None
         if mcap:
             mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
-            cache.track_update(mint, mcap, mcap_min, now)
+            cache.track_update(mint, mcap, mcap_min, now, symbol=sym)
 
         if now - row["scored_at"] >= TRACK_WINDOW:
             base = row.get("mcap_at_scan")
