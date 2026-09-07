@@ -44,6 +44,9 @@ DEFAULTS: dict = {
 
 _CFG: dict = dict(DEFAULTS)
 
+# 402/429 sonrası geçici geri çekilme — her taramada boşa denemeyelim.
+_backoff_until: float = 0.0
+
 
 def configure(d: dict) -> None:
     """Çalışma anındaki yapılandırmayı günceller (None değerler yok sayılır)."""
@@ -166,7 +169,11 @@ def _explain(status: int, text: str) -> str:
         elif status == 401:
             hint = "  ← Kimlik/imza reddedildi. 4 anahtarı kontrol et (boşluk olmasın)."
     elif status == 429:
-        hint = "  ← Aylık/oransal yazma limiti doldu (Free katman ~500/ay)."
+        hint = "  ← Oransal (rate) limit — birazdan tekrar dene."
+    elif status == 402 or "credits-depleted" in low or "payment required" in low:
+        hint = ("  ← X API yazma krediniz tükendi. X Developer Portal → Dashboard'da "
+                "kalan post kotasını/sıfırlanma gününü gör. Ücretsiz katman "
+                "otomatik paylaşıma pratikte yetmiyorsa Basic (paralı) katman gerekir.")
     return f"X {status}: {body}{hint}"
 
 
@@ -228,6 +235,8 @@ def build_tweet(result: dict, base_url: str = "", lang: str = "en") -> str:
 def should_autopost(result: dict, cache) -> tuple[bool, str]:
     if not _CFG["enabled"]:
         return False, "kapalı"
+    if time.time() < _backoff_until:
+        return False, "geçici geri çekilme (önceki paylaşım 402/429 aldı)"
     if not all(_CFG[k] for k in
                ("api_key", "api_secret", "access_token", "access_secret")):
         return False, "kimlik bilgileri eksik"
@@ -276,6 +285,14 @@ async def maybe_autopost(result: dict, cache) -> None:
         tid = await _post_tweet(text, media_id)
         cache.x_post_record(mint, tid, kind, True, text)
         log.info("X'te paylaşıldı: %s → tweet %s", mint, tid)
+    except XError as exc:
+        global _backoff_until
+        s = str(exc)
+        if "X 402" in s or "credits-depleted" in s or "X 429" in s:
+            _backoff_until = time.time() + 6 * 3600
+            log.warning("X kotası doldu — 6 saat geri çekiliyor.")
+        log.warning("X autopost başarısız (%s): %s", mint, s[:200])
+        cache.x_post_record(mint, None, kind, False, s)
     except Exception as exc:  # noqa: BLE001
         log.exception("X autopost başarısız: %s", mint)
         cache.x_post_record(mint, None, kind, False, str(exc))
