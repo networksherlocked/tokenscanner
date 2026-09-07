@@ -66,6 +66,13 @@ CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 
 CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT);
 
+-- Değişmez lansman verisi: bir tokenın ilk alıcıları ve pump.fun meta'sı
+-- asla değişmez. İlk başarılı taramada saklanır, sonraki taramalarda canlı
+-- zincir/pump çağrısı düşerse buradan geri yüklenir (karar kararlı kalsın).
+CREATE TABLE IF NOT EXISTS launch_cache (
+    mint TEXT PRIMARY KEY, pump TEXT, launch TEXT, saved_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS x_posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, tweet_id TEXT,
     verdict TEXT, ok INTEGER NOT NULL DEFAULT 1, detail TEXT,
@@ -117,6 +124,10 @@ CREATE TABLE IF NOT EXISTS lessons (
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 
 CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT);
+
+CREATE TABLE IF NOT EXISTS launch_cache (
+    mint TEXT PRIMARY KEY, pump TEXT, launch TEXT, saved_at BIGINT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS x_posts (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
@@ -503,6 +514,42 @@ class ScanCache:
             "SELECT mint, tweet_id, verdict, ok, detail, posted_at "
             "FROM x_posts ORDER BY posted_at DESC LIMIT ?",
             (limit,),
+        )
+
+    # ---- değişmez lansman önbelleği ----------------------------------
+
+    def launch_cache_get(self, mint: str) -> dict | None:
+        row = self._one(
+            "SELECT pump, launch FROM launch_cache WHERE mint = ?", (mint,)
+        )
+        if not row:
+            return None
+        def _load(v):
+            try:
+                return json.loads(v) if v else None
+            except (TypeError, ValueError):
+                return None
+        return {"pump": _load(row.get("pump")), "launch": _load(row.get("launch"))}
+
+    def launch_cache_put(
+        self, mint: str, pump: dict | None = None, launch: dict | None = None
+    ) -> None:
+        """pump/launch'tan yalnızca verilen alanı yazar; None geçilen alan
+        varolan (iyi) kaydı ezmez."""
+        cur = self.launch_cache_get(mint) or {}
+        p = pump if pump is not None else cur.get("pump")
+        l = launch if launch is not None else cur.get("launch")
+        self._write(
+            "INSERT INTO launch_cache (mint, pump, launch, saved_at) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT(mint) DO UPDATE SET "
+            "pump = excluded.pump, launch = excluded.launch, "
+            "saved_at = excluded.saved_at",
+            (
+                mint,
+                json.dumps(p, ensure_ascii=False) if p else None,
+                json.dumps(l, ensure_ascii=False) if l else None,
+                int(time.time()),
+            ),
         )
 
     # ---- öğrenme / dersler --------------------------------------------

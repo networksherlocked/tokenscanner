@@ -22,12 +22,14 @@ from ..rpc.launch import (
     build_funding_tree,
     collect_launch_snapshot,
     enrich_launch_buyers,
+    snapshot_from_dict,
+    snapshot_to_dict,
 )
 from ..rpc.launch import launch_from_trades
 from ..rpc.liquidity import analyze_lp_lock
 from ..rpc.market import fetch_market
 from ..rpc.pool import RpcPool
-from ..rpc.pumpfun import fetch_pumpfun
+from ..rpc.pumpfun import fetch_pumpfun, meta_from_dict, meta_to_dict
 from ..rpc.solana import collect_chain_snapshot
 from ..rpc.trades import (
     available as early_trades_available,
@@ -47,7 +49,7 @@ class TokenTooSmall(Exception):
     """Market cap eşiğin altında; tarama yapılmadı."""
 
 
-async def scan_token(pool: RpcPool, mint: str) -> dict:
+async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     started = time.monotonic()
 
     # 1) Piyasa + pump.fun meta (ikisi de anahtarsız, ucuz).
@@ -61,6 +63,23 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         )
 
     pump = await fetch_pumpfun(mint)
+
+    # Değişmez lansman verisi önbelleği: pump.fun meta'sı (creator, gerçek lansman
+    # zamanı, bonding curve çıpası) asla değişmez. Canlı API düşerse (Render IP'si
+    # sık sık 5xx/429 alır) ilk taramadaki kayıttan geri yükle — yoksa çıpa "pair"e
+    # düşer, eski tokenlarda lansman atlanır ve "organic" → "inconclusive" kayar.
+    cached_launch_blob = None
+    if cache is not None:
+        try:
+            stored = cache.launch_cache_get(mint) or {}
+            cached_launch_blob = stored.get("launch")
+            if pump and pump.bonding_curve:
+                cache.launch_cache_put(mint, pump=meta_to_dict(pump))
+            elif stored.get("pump"):
+                pump = meta_from_dict(stored["pump"])
+                log.info("pump.fun meta önbellekten geri yüklendi: %s", mint)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("launch_cache okuma/yazma düştü %s: %s", mint, exc)
 
     # Lansman zamanı: pump.fun created_timestamp en doğrusu; yoksa pair oluşumu.
     launch_ts = (pump.created_ts if pump and pump.created_ts else None) or \
@@ -109,6 +128,24 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         if not launch_ts:
             times = [b.first_block_time for b in launch.buyers if b.first_block_time]
             launch_ts = min(times) if times else None
+        if cache is not None:
+            try:
+                cache.launch_cache_put(mint, launch=snapshot_to_dict(launch))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("launch_cache yazma düştü %s: %s", mint, exc)
+
+    # Canlı zincir taraması başlangıcı göremedi ama daha önce görmüştük —
+    # o değişmez kaydı yeniden kullan (lansman geçmişi değişmez).
+    restored_launch = False
+    if (not launch or not launch.available) and cached_launch_blob:
+        try:
+            launch = snapshot_from_dict(cached_launch_blob)
+            restored_launch = bool(launch.available and launch.buyers)
+            if restored_launch:
+                log.info("lansman anlık görüntüsü önbellekten alındı: %s", mint)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("launch_cache geri yükleme düştü %s: %s", mint, exc)
+            launch = None
 
     # 4) Deployer geçmişi.
     deployer = None
@@ -148,6 +185,13 @@ async def scan_token(pool: RpcPool, mint: str) -> dict:
         token_age_hours=age_hours,
         launch_available=launch_ok,
     )
+
+    if restored_launch and launch_ok:
+        verdict.caveats.append(
+            "Lansman verisi ilk taramada önbelleğe alınmıştı; canlı zincir taraması "
+            "bu sefer başlangıca ulaşamadı ve o değişmez kayıt yeniden kullanıldı "
+            "(bir tokenın ilk alıcıları sonradan değişmez)."
+        )
 
     launch_provider = launch.source if launch_ok else ""
     if launch_ok and launch_provider not in ("bonding_curve", "pair"):

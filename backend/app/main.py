@@ -311,7 +311,7 @@ async def _run_scan(mint: str) -> dict:
 
     async def work() -> dict:
         try:
-            result = await scan_token(state["pool"], mint)
+            result = await scan_token(state["pool"], mint, state["cache"])
             state["cache"].put(mint, result)
             token = result.get("token") or {}
             verdict = result.get("verdict") or {}

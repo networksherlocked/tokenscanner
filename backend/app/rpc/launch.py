@@ -18,7 +18,7 @@ import asyncio
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 
 from . import solana
 from .pool import RpcPool
@@ -80,6 +80,31 @@ class LaunchSnapshot:
     note: str = ""             # "budget" = bütçe doldu, başlangıç görülemedi
     # Çok-hop fonlama ağacı (bkz. build_funding_tree)
     funding_tree: dict = field(default_factory=dict)
+
+
+_BUYER_FIELDS = {f.name for f in fields(LaunchBuyer)}
+
+
+def snapshot_to_dict(snap: LaunchSnapshot) -> dict:
+    """Değişmez lansman anlık görüntüsünü JSON'a çevrilebilir dict'e."""
+    return asdict(snap)
+
+
+def snapshot_from_dict(d: dict) -> LaunchSnapshot:
+    """launch_cache'ten geri yükler. Bilinmeyen alanları yok sayar."""
+    buyers = [
+        LaunchBuyer(**{k: v for k, v in b.items() if k in _BUYER_FIELDS})
+        for b in (d.get("buyers") or [])
+    ]
+    return LaunchSnapshot(
+        available=bool(d.get("available")),
+        source=d.get("source") or "",
+        buyers=buyers,
+        launch_slot=d.get("launch_slot"),
+        reached_start=bool(d.get("reached_start")),
+        note=d.get("note") or "",
+        funding_tree=d.get("funding_tree") or {},
+    )
 
 
 async def _pages_to_oldest(

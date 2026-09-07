@@ -11,7 +11,7 @@ Bize üç kritik şeyi verir:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 
 import httpx
 
@@ -29,6 +29,15 @@ class PumpMeta:
     complete: bool = False              # bonding curve doldu / PumpSwap'e taşındı
     pool_address: str | None = None     # graduation sonrası PumpSwap havuzu
     total_supply_raw: int | None = None
+
+
+def meta_to_dict(m: PumpMeta) -> dict:
+    return asdict(m)
+
+
+def meta_from_dict(d: dict) -> PumpMeta:
+    keep = {f.name for f in fields(PumpMeta)}
+    return PumpMeta(**{k: v for k, v in d.items() if k in keep})
 
 
 async def fetch_pumpfun(mint: str, timeout: float = 10.0) -> PumpMeta | None:
