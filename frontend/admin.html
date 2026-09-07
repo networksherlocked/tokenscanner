@@ -385,6 +385,7 @@ function renderSettings(d){
           <button class="ghost sm" id="xTest">test tweet gönder</button>
         </div>
         <div class="hint">"Test tweet" eşik kontrolü yapmadan, kimlik bilgilerini denemek için 1 tweet atar.</div>
+        <pre id="xTestOut" class="muted" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0;max-height:220px;overflow:auto"></pre>
       </div>
 
       <div class="field"><label>API kimlik bilgileri (OAuth 1.0a, "Read and write")</label>
@@ -502,10 +503,18 @@ function renderSettings(d){
     }catch(err){ flash(err.message); }
   };
   $('#xTest').onclick = async ()=>{
-    const btn = $('#xTest'); btn.disabled = true; btn.textContent = 'gönderiliyor…';
-    try{ const j = await api('/x/test', {method:'POST', body:'{}'});
-      flash('test tweet gönderildi: '+(j.tweet_id||'')); loadXPosts();
-    }catch(err){ flash('hata: '+err.message); }
+    const btn = $('#xTest'), out = $('#xTestOut');
+    btn.disabled = true; btn.textContent = 'gönderiliyor…';
+    out.className = 'muted'; out.textContent = 'X API deneniyor…';
+    try{
+      const j = await api('/x/test', {method:'POST', body:'{}'});
+      out.className = 'ok';
+      out.textContent = '✓ Gönderildi. tweet id: '+(j.tweet_id||'?')+'\n\n'+(j.text||'');
+      flash('test tweet gönderildi'); loadXPosts();
+    }catch(err){
+      out.className = 'bad';
+      out.textContent = '✗ '+err.message;
+    }
     finally{ btn.disabled = false; btn.textContent = 'test tweet gönder'; }
   };
   $('#xKeysSave').onclick = async ()=>{

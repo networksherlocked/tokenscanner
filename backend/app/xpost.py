@@ -116,14 +116,17 @@ class XError(RuntimeError):
 
 async def _upload_media(png: bytes, timeout: float = 30.0) -> str:
     hdr = _auth_header("POST", _MEDIA_URL)
-    async with httpx.AsyncClient(timeout=timeout) as c:
-        r = await c.post(
-            _MEDIA_URL,
-            headers={"Authorization": hdr},
-            files={"media": ("card.png", png, "image/png")},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as c:
+            r = await c.post(
+                _MEDIA_URL,
+                headers={"Authorization": hdr},
+                files={"media": ("card.png", png, "image/png")},
+            )
+    except httpx.HTTPError as exc:
+        raise XError(f"media/upload bağlantı: {exc}") from exc
     if r.status_code >= 300:
-        raise XError(f"media/upload {r.status_code}: {r.text[:300]}")
+        raise XError(f"media/upload {_explain(r.status_code, r.text)}")
     j = r.json()
     mid = j.get("media_id_string") or j.get("media_id") or (j.get("data") or {}).get("id")
     if not mid:
@@ -136,15 +139,35 @@ async def _post_tweet(text: str, media_id: str | None, timeout: float = 20.0) ->
     body: dict = {"text": text}
     if media_id:
         body["media"] = {"media_ids": [media_id]}
-    async with httpx.AsyncClient(timeout=timeout) as c:
-        r = await c.post(
-            _TWEET_URL,
-            headers={"Authorization": hdr, "Content-Type": "application/json"},
-            json=body,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as c:
+            r = await c.post(
+                _TWEET_URL, headers={"Authorization": hdr}, json=body
+            )
+    except httpx.HTTPError as exc:
+        raise XError(f"X'e bağlanılamadı: {exc}") from exc
     if r.status_code >= 300:
-        raise XError(f"tweets {r.status_code}: {r.text[:400]}")
+        raise XError(_explain(r.status_code, r.text))
     return str((r.json().get("data") or {}).get("id") or "")
+
+
+def _explain(status: int, text: str) -> str:
+    body = (text or "")[:400]
+    hint = ""
+    low = body.lower()
+    if status in (401, 403):
+        if "not allow" in low or "read-only" in low or "oauth1 app permissions" in low:
+            hint = ("  ← Access Token muhtemelen 'Read only'. X Portal → App → "
+                    "User authentication settings → 'Read and write' yap, SONRA "
+                    "Access Token'ı YENİDEN üret.")
+        elif "not enrolled" in low or "client-not-enrolled" in low or "project" in low:
+            hint = ("  ← App bir Project'e bağlı değil. X Portal'da App'i bir "
+                    "Project'in altına taşı.")
+        elif status == 401:
+            hint = "  ← Kimlik/imza reddedildi. 4 anahtarı kontrol et (boşluk olmasın)."
+    elif status == 429:
+        hint = "  ← Aylık/oransal yazma limiti doldu (Free katman ~500/ay)."
+    return f"X {status}: {body}{hint}"
 
 
 # --- Tweet metni --------------------------------------------------------
