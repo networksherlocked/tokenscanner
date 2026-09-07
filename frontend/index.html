@@ -337,8 +337,18 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 @media(max-width:860px){.hero .wrap{grid-template-columns:1fr}}
 .hero-eagle{position:relative;order:0}
 .hero-text{order:1}
-@media(max-width:860px){.hero-eagle{max-width:200px;margin:0 auto 4px;order:0}.hero-text{order:1}}
-.hero-eagle img{width:100%;height:auto;display:block;
+@media(max-width:860px){.hero-eagle{max-width:230px;margin:0 auto 4px;order:0}.hero-text{order:1}}
+/* kartalın arkasında dalgalanan bayrak */
+.hero-eagle::before{
+  content:"";position:absolute;z-index:0;pointer-events:none;
+  left:50%;top:48%;transform:translate(-50%,-50%);
+  width:200%;aspect-ratio:1900/1013;
+  background:url('/flag.png') center/contain no-repeat;
+  opacity:.42;filter:saturate(.92) contrast(1.02);
+  -webkit-mask:radial-gradient(closest-side at 50% 50%,#000 34%,rgba(0,0,0,.35) 62%,transparent 84%);
+          mask:radial-gradient(closest-side at 50% 50%,#000 34%,rgba(0,0,0,.35) 62%,transparent 84%);
+}
+.hero-eagle img{position:relative;z-index:1;width:100%;height:auto;display:block;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
 .hero-eagle.no-img{display:none}
 
