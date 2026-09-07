@@ -332,10 +332,7 @@ class ScanCache:
             (symbol, mint),
         )
 
-    def track_list(self, limit: int = 20) -> list[dict]:
-        rows = self._rows(
-            "SELECT * FROM track ORDER BY scored_at DESC LIMIT ?", (limit,)
-        )
+    def _track_enrich(self, rows: list[dict]) -> list[dict]:
         now = int(time.time())
         for d in rows:
             base = d.get("mcap_at_scan")
@@ -354,6 +351,23 @@ class ScanCache:
                 if pl:
                     d["symbol"] = (pl.get("token") or {}).get("symbol")
         return rows
+
+    def track_list(self, limit: int = 20) -> list[dict]:
+        return self._track_enrich(self._rows(
+            "SELECT * FROM track ORDER BY scored_at DESC LIMIT ?", (limit,)
+        ))
+
+    def organic_list(self, limit: int = 30) -> list[dict]:
+        """Organic kararı verilmiş ve sonradan çökmemiş tokenlar.
+
+        Ayrı ve daha uzun bir liste: koordineli dağıtım izi bulunmayan
+        lansmanlar AI-tespit akışından daha yavaş düşsün diye tutulur.
+        """
+        return self._track_enrich(self._rows(
+            "SELECT * FROM track WHERE verdict = 'organic' "
+            "AND (outcome IS NULL OR outcome <> 'miss') "
+            "ORDER BY scored_at DESC LIMIT ?", (limit,)
+        ))
 
     # ---- itiraz akışı ---------------------------------------------------
 

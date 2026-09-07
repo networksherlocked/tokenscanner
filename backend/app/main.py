@@ -378,6 +378,15 @@ async def recent(limit: int = 20):
     return {"scans": state["cache"].recent(min(limit, 50))}
 
 
+@app.get("/api/organic")
+async def organic(limit: int = 30):
+    """Organic kararlı, çökmemiş tokenlar — karneden ayrı ve daha uzun liste."""
+    return {
+        "records": state["cache"].organic_list(min(limit, 60)),
+        "window_sec": TRACK_WINDOW,
+    }
+
+
 async def _backfill_track_symbols(limit: int = 25, budget: float = 6.0) -> None:
     """Sembolü eksik karne kayıtlarını (settled dahil) DexScreener'dan doldurur.
 

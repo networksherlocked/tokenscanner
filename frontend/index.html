@@ -256,6 +256,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .recitem .rmc{font-size:11px;color:var(--muted);white-space:nowrap}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
 
+/* ---------- organik lansmanlar ---------- */
+.organic-list{padding:30px 0 30px;border-top:1px solid var(--rule)}
+.organic-list .head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
+  font-family:var(--display);font-weight:700;font-size:clamp(17px,2.1vw,22px);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--organic);margin-bottom:8px}
+.organic-list .ocount{font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--organic)}
+.organic-list .subhead{font-size:11px;color:var(--dim);margin-bottom:16px;max-width:76ch}
+.organic-list .titem .tv{color:var(--organic)}
+
 /* ---------- karne / track record ---------- */
 .trackrec{padding:34px 0 50px;border-top:1px solid var(--gold-dim)}
 .trackrec .head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
@@ -561,6 +570,17 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
     </div>
   </section>
 
+  <section class="organic-list" id="organicSection" hidden>
+    <div class="wrap">
+      <div class="head">
+        <span data-i18n="organicHead">Organic launches</span>
+        <span class="ocount" id="organicCount"></span>
+      </div>
+      <div class="subhead" data-i18n="organicSub">No coordinated distribution pattern. Kept on the board longer.</div>
+      <div class="tlist" id="olist"></div>
+    </div>
+  </section>
+
   <section class="trackrec" id="trackSection" hidden>
     <div class="wrap">
       <div class="head">
@@ -716,6 +736,9 @@ const STR = {
     scannedAgo: rel => `Last scanned ${rel}`,
     fromCache:'served from cache', freshNow:'just now',
     refreshBtn:'Refresh', refreshing:'Refreshing…',
+    organicHead:'Organic launches',
+    organicSub:'Launches with no coordinated distribution pattern. Kept on the board longer than the AI-detection feed — a signal that stays useful shouldn’t disappear fast.',
+    organicCount: n => `${n} tracked`,
     trackHead:'UAVSX AI tespit',
     trackSub:'Every scanned token, watched for 24 hours.',
     trackWatching: n => `${n} watching`,
@@ -796,6 +819,9 @@ const STR = {
     scannedAgo: rel => `En son ${rel} tarandı`,
     fromCache:'önbellekten', freshNow:'az önce',
     refreshBtn:'Yenile', refreshing:'Yenileniyor…',
+    organicHead:'Organik lansmanlar',
+    organicSub:'Koordineli dağıtım izi bulunmayan lansmanlar. AI tespit akışından daha uzun süre listede kalır — faydası süren bir sinyal çabucak kaybolmamalı.',
+    organicCount: n => `${n} izleniyor`,
     trackHead:'UAVSX AI tespit',
     trackSub:'Taranan her token, 24 saat izlenir.',
     trackWatching: n => `${n} izleniyor`,
@@ -883,6 +909,7 @@ function applyI18n(){
   if(!SCAN.on) $('scanBtn').textContent = L('scanBtn');
   if(lastResult) render(lastResult);
   if(lastRecent) renderRecent(lastRecent);
+  if(lastOrganic) renderOrganic(lastOrganic);
   if(lastTrack) renderTrack(lastTrack);
 }
 
@@ -1153,6 +1180,7 @@ async function scan(mint, fresh){
     scanFinish();
     render(body);
     loadRecent();
+    loadOrganic();
     loadTrack();
   }catch(e){
     scanStop();
@@ -1293,6 +1321,65 @@ async function loadTrack(){
     if(data.window_sec) trackWindow = data.window_sec;
     lastTrack = data.records || [];
     renderTrack(lastTrack);
+  }catch(e){ /* sessizce geç */ }
+}
+
+/* ---------------- organik lansmanlar ---------------- */
+let lastOrganic = null;
+function renderOrganic(rec){
+  if(!rec || !rec.length){ $('organicSection').hidden = true; return; }
+  $('organicSection').hidden = false;
+  const box = $('olist'); box.innerHTML = '';
+  const col = COLORS.organic;
+
+  rec.forEach(t=>{
+    const chg = t.change_pct;
+    let deltaCls = 'flat', deltaTxt = '—';
+    if(chg != null){
+      deltaCls = chg <= -0.02 ? 'down' : (chg >= 0.02 ? 'up' : 'flat');
+      deltaTxt = (chg > 0 ? '+' : '') + Math.round(chg * 100) + '%';
+    }
+
+    let footer;
+    if(!t.settled){
+      const left = trackWindow - t.age_sec;
+      const pct = Math.max(2, Math.min(100, t.age_sec / trackWindow * 100));
+      footer = `<div class="prog">
+        <div class="pbar"><i style="width:${pct}%"></i></div>
+        <div class="plabel">${L('outOpen', fmtLeft(left))}</div></div>`;
+    }else{
+      footer = `<span class="tout clear">${L('outClear')}</span>`;
+    }
+
+    const b = document.createElement('button');
+    b.className = 'titem';
+    b.style.setProperty('--sig', col);
+    b.title = `${t.mint} — Organic`;
+    b.innerHTML = `
+      <div class="row1">
+        <span class="tv">Organic</span>
+        <span class="tsym">${esc(t.symbol || short(t.mint))}</span>
+        <span class="tage">${relTime(t.scored_at)}</span>
+      </div>
+      <div class="row2">
+        <span class="tflow"><s>${mcapShort(t.mcap_at_scan)}</s> → ${mcapShort(t.mcap_latest)}</span>
+        <span class="tdelta ${deltaCls}">${deltaTxt}</span>
+      </div>
+      ${footer}`;
+    b.onclick = ()=>{ $('mint').value = t.mint; scan(t.mint); };
+    box.appendChild(b);
+  });
+
+  $('organicCount').textContent = L('organicCount', rec.length);
+}
+async function loadOrganic(){
+  try{
+    const r = await fetch(`${API}/api/organic?limit=30`);
+    if(!r.ok) return;
+    const data = await r.json();
+    if(data.window_sec) trackWindow = data.window_sec;
+    lastOrganic = data.records || [];
+    renderOrganic(lastOrganic);
   }catch(e){ /* sessizce geç */ }
 }
 
@@ -1522,8 +1609,10 @@ document.querySelectorAll('.langsel button').forEach(b=>{ b.onclick = ()=> setLa
 
 applyI18n();
 loadRecent();
+loadOrganic();
 loadTrack();
 setInterval(loadTrack, 60000);
+setInterval(loadOrganic, 90000);
 
 // /t/{mint} sayfası: sunucu window.__PREFILL_MINT__ enjekte eder → otomatik tara
 if(window.__PREFILL_MINT__ && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(window.__PREFILL_MINT__)){
