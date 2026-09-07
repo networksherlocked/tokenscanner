@@ -161,6 +161,7 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
     <div class="tabs" id="tabs">
       <button data-t="panel" class="on">Panel</button>
       <button data-t="settings">Ayarlar</button>
+      <button data-t="xshare">X paylaşım</button>
       <button data-t="moderation">Denetim</button>
       <button data-t="track">AI izleme</button>
       <button data-t="lessons">AI tespit</button>
@@ -246,6 +247,7 @@ async function route(t){
   try{
     if(t==='panel')      return renderPanel(await api('/overview'));
     if(t==='settings')   return renderSettings(await api('/settings'));
+    if(t==='xshare')     return renderXShare(await api('/settings'));
     if(t==='moderation') return renderModeration();
     if(t==='track')      return renderTrack(await api('/track'));
     if(t==='lessons')    return renderLessons(await api('/lessons'));
@@ -328,7 +330,6 @@ function srcBadge(src){
 }
 function renderSettings(d){
   const b = d.birdeye || {}, e = d.env_only || {};
-  const x = d.x_autopost || {verdicts:[],min_mcap:50000,min_score:70,min_confidence:60,cooldown_h:168,max_per_day:20,media:true,lang:'en'};
   $('#view').innerHTML = `
     <div class="section-title">API & bağlantı</div>
 
@@ -363,66 +364,6 @@ function renderSettings(d){
           <button id="bkeySave">kaydet</button>
           <button class="danger sm" id="bkeyClear">sil</button>
         </div>
-      </div>
-    </div>
-
-    <div class="section-title">X (Twitter) otomatik paylaşım</div>
-
-    <div class="card">
-      <h3>Otomatik paylaşım</h3>
-      <p class="desc">Eşikleri geçen tarama sonuçları otomatik olarak X hesabına atılır
-        (kart görseli + link). Tarama akışını bloklamaz. Hukuki risk nedeniyle
-        <b>varsayılan kapalı</b> — açmadan önce eşikleri gözden geçir.</p>
-      <div class="statusline">
-        ${x.enabled?'<span class="badge b-resolved">AÇIK</span>':'<span class="badge b-open">KAPALI</span>'}
-        ${x.creds_ok?'<span class="ok">kimlik tamam</span>':'<span class="bad">kimlik eksik</span>'}
-        ${x.api_key?`<span class="muted">key <code>${esc(x.api_key)}</code></span>`:''}
-      </div>
-
-      <div class="field"><label>durum</label>
-        <div class="row">
-          <button id="xToggle" class="${x.enabled?'danger':''}">${x.enabled?'kapat':'aç'}</button>
-          <button class="ghost sm" id="xTest">test tweet gönder</button>
-        </div>
-        <div class="hint">"Test tweet" eşik kontrolü yapmadan, kimlik bilgilerini denemek için 1 tweet atar.</div>
-        <pre id="xTestOut" class="muted" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0;max-height:220px;overflow:auto"></pre>
-      </div>
-
-      <div class="field"><label>API kimlik bilgileri (OAuth 1.0a, "Read and write")</label>
-        <div class="row"><input id="xk1" type="password" placeholder="API Key" autocomplete="off"></div>
-        <div class="row" style="margin-top:6px"><input id="xk2" type="password" placeholder="API Key Secret" autocomplete="off"></div>
-        <div class="row" style="margin-top:6px"><input id="xk3" type="password" placeholder="Access Token" autocomplete="off"></div>
-        <div class="row" style="margin-top:6px"><input id="xk4" type="password" placeholder="Access Token Secret" autocomplete="off"></div>
-        <div class="row" style="margin-top:8px"><button id="xKeysSave">kimlikleri kaydet</button></div>
-      </div>
-
-      <div class="field"><label>public site adresi (tweet linkleri için)</label>
-        <div class="row">
-          <input id="xBase" placeholder="https://america.sx" value="${esc(x.base_url||'')}">
-          <button id="xBaseSave">kaydet</button>
-        </div>
-      </div>
-
-      <div class="field"><label>eşikler & davranış</label>
-        <table>
-          <tr><td>hangi kararlar</td><td>
-            <label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="xvB" style="width:auto" ${x.verdicts.includes('bundled')?'checked':''}> Bundled</label>
-            &nbsp;&nbsp;
-            <label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="xvC" style="width:auto" ${x.verdicts.includes('cabaled')?'checked':''}> Cabaled</label>
-          </td></tr>
-          <tr><td>min market cap ($)</td><td><input id="xMcap" type="number" min="0" step="1000" value="${x.min_mcap}" style="max-width:160px"></td></tr>
-          <tr><td>min skor</td><td><input id="xScore" type="number" min="0" max="100" value="${x.min_score}" style="max-width:110px"></td></tr>
-          <tr><td>min güven</td><td><input id="xConf" type="number" min="0" max="100" value="${x.min_confidence}" style="max-width:110px"></td></tr>
-          <tr><td>token başına bekleme (saat)</td><td><input id="xCool" type="number" min="1" value="${x.cooldown_h}" style="max-width:110px"></td></tr>
-          <tr><td>günlük üst sınır</td><td><input id="xMax" type="number" min="1" value="${x.max_per_day}" style="max-width:110px"></td></tr>
-          <tr><td>tweet dili</td><td><select id="xLang" style="max-width:120px"><option value="en"${x.lang==='en'?' selected':''}>EN</option><option value="tr"${x.lang==='tr'?' selected':''}>TR</option></select></td></tr>
-          <tr><td>kart görseli yükle</td><td><label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="xMedia" style="width:auto" ${x.media?'checked':''}> evet</label></td></tr>
-        </table>
-        <div class="row" style="margin-top:8px"><button id="xCfgSave">eşikleri kaydet</button></div>
-      </div>
-
-      <div class="field"><label>son otomatik paylaşımlar</label>
-        <div id="xPosts" class="muted">yükleniyor…</div>
       </div>
     </div>
 
@@ -492,14 +433,91 @@ function renderSettings(d){
       flash('önbellek süresi kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
   };
+}
 
-  // --- X otomatik paylaşım ---
+/* ================= X PAYLAŞIM ================= */
+function renderXShare(d){
+  const x = d.x_autopost || {verdicts:[],min_mcap:50000,min_score:70,min_confidence:60,cooldown_h:168,max_per_day:20,media:true,lang:'en'};
+  const cbl = 'style="text-transform:none;letter-spacing:0;color:var(--text)"';
+  $('#view').innerHTML = `
+    <div class="card">
+      <h3>Durum & kontrol</h3>
+      <p class="desc">Eşikleri geçen tarama sonuçları otomatik olarak X hesabına atılır
+        (kart görseli + link). Tarama akışını bloklamaz. Hukuki risk nedeniyle
+        <b>varsayılan kapalı</b> — açmadan önce eşikleri gözden geçir.</p>
+      <div class="statusline">
+        ${x.enabled?'<span class="badge b-resolved">AÇIK</span>':'<span class="badge b-open">KAPALI</span>'}
+        ${x.creds_ok?'<span class="ok">kimlik tamam</span>':'<span class="bad">kimlik eksik</span>'}
+        ${x.api_key?`<span class="muted">key <code>${esc(x.api_key)}</code></span>`:''}
+      </div>
+      <div class="row">
+        <button id="xToggle" class="${x.enabled?'danger':''}">${x.enabled?'kapat':'aç'}</button>
+        <button class="ghost sm" id="xTest">test tweet gönder</button>
+      </div>
+      <div class="hint">"Test tweet" eşik kontrolü yapmadan, kimlik bilgilerini denemek için 1 tweet atar.</div>
+      <pre id="xTestOut" class="muted" style="white-space:pre-wrap;word-break:break-word;margin:10px 0 0;max-height:240px;overflow:auto"></pre>
+    </div>
+
+    <div class="card">
+      <h3>API kimlik bilgileri</h3>
+      <p class="desc">X Developer App (<b>Read and write</b> izinli, bir Project'e bağlı) → Keys and tokens.
+        Kaydedilenler maskeli gösterilir; boş bıraktığın alanlar değişmez.</p>
+      <div class="field"><label>API Key</label><input id="xk1" type="password" placeholder="${x.api_key?'(kayıtlı — değiştirmek için gir)':'API Key'}" autocomplete="off"></div>
+      <div class="field"><label>API Key Secret</label><input id="xk2" type="password" placeholder="API Key Secret" autocomplete="off"></div>
+      <div class="field"><label>Access Token</label><input id="xk3" type="password" placeholder="${x.access_token?'(kayıtlı)':'Access Token'}" autocomplete="off"></div>
+      <div class="field"><label>Access Token Secret</label><input id="xk4" type="password" placeholder="Access Token Secret" autocomplete="off"></div>
+      <div class="row"><button id="xKeysSave">kimlikleri kaydet</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Public site adresi</h3>
+      <p class="desc">Tweet'lerdeki <code>/t/&lt;mint&gt;</code> linkleri bu adresle kurulur.</p>
+      <div class="field"><label>URL</label>
+        <div class="row">
+          <input id="xBase" placeholder="https://america.sx" value="${esc(x.base_url||'')}">
+          <button id="xBaseSave">kaydet</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Eşikler & davranış</h3>
+      <p class="desc">Bir tarama bu koşulların HEPSİNİ sağlarsa tweet atılır.</p>
+      <div class="field"><label>hangi kararlar paylaşılsın</label>
+        <label ${cbl}><input type="checkbox" id="xvB" style="width:auto" ${x.verdicts.includes('bundled')?'checked':''}> Bundled</label>
+        &nbsp;&nbsp;
+        <label ${cbl}><input type="checkbox" id="xvC" style="width:auto" ${x.verdicts.includes('cabaled')?'checked':''}> Cabaled</label>
+      </div>
+      <div class="field"><label>min market cap ($)</label><input id="xMcap" type="number" min="0" step="1000" value="${x.min_mcap}" style="max-width:180px"></div>
+      <div class="field"><label>min skor / min güven</label>
+        <div class="row">
+          <input id="xScore" type="number" min="0" max="100" value="${x.min_score}" style="max-width:110px">
+          <span class="muted">/</span>
+          <input id="xConf" type="number" min="0" max="100" value="${x.min_confidence}" style="max-width:110px">
+        </div>
+      </div>
+      <div class="field"><label>token başına bekleme (saat)</label><input id="xCool" type="number" min="1" value="${x.cooldown_h}" style="max-width:130px"></div>
+      <div class="field"><label>günlük üst sınır</label><input id="xMax" type="number" min="1" value="${x.max_per_day}" style="max-width:130px"></div>
+      <div class="field"><label>tweet dili</label>
+        <select id="xLang" style="max-width:120px"><option value="en"${x.lang==='en'?' selected':''}>EN</option><option value="tr"${x.lang==='tr'?' selected':''}>TR</option></select>
+      </div>
+      <div class="field"><label>kart görseli</label>
+        <label ${cbl}><input type="checkbox" id="xMedia" style="width:auto" ${x.media?'checked':''}> tweet'e 1200×630 kartı yükle</label>
+      </div>
+      <div class="row"><button id="xCfgSave">eşikleri kaydet</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Son otomatik paylaşımlar</h3>
+      <div id="xPosts" class="muted">yükleniyor…</div>
+    </div>`;
+
   $('#xToggle').onclick = async ()=>{
     const turnOn = !x.enabled;
     if(turnOn && !x.creds_ok){ flash('önce API kimliklerini kaydet'); return; }
     if(turnOn && !confirm('Otomatik X paylaşımı AÇILSIN mı? Eşikleri geçen her tarama tweet atar.')) return;
     try{ await api('/settings', {method:'POST', body:JSON.stringify({x_autopost_enabled:turnOn})});
-      flash(turnOn?'açıldı':'kapatıldı'); route('settings');
+      flash(turnOn?'açıldı':'kapatıldı'); route('xshare');
     }catch(err){ flash(err.message); }
   };
   $('#xTest').onclick = async ()=>{
@@ -511,10 +529,7 @@ function renderSettings(d){
       out.className = 'ok';
       out.textContent = '✓ Gönderildi. tweet id: '+(j.tweet_id||'?')+'\n\n'+(j.text||'');
       flash('test tweet gönderildi'); loadXPosts();
-    }catch(err){
-      out.className = 'bad';
-      out.textContent = '✗ '+err.message;
-    }
+    }catch(err){ out.className = 'bad'; out.textContent = '✗ '+err.message; }
     finally{ btn.disabled = false; btn.textContent = 'test tweet gönder'; }
   };
   $('#xKeysSave').onclick = async ()=>{
@@ -523,14 +538,14 @@ function renderSettings(d){
     if($('#xk2').value.trim()) p.x_api_secret = $('#xk2').value.trim();
     if($('#xk3').value.trim()) p.x_access_token = $('#xk3').value.trim();
     if($('#xk4').value.trim()) p.x_access_secret = $('#xk4').value.trim();
-    if(!Object.keys(p).length){ flash('alanları doldur'); return; }
+    if(!Object.keys(p).length){ flash('en az bir alanı doldur'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify(p)});
-      flash('kimlikler kaydedildi'); route('settings');
+      flash('kimlikler kaydedildi'); route('xshare');
     }catch(err){ flash(err.message); }
   };
   $('#xBaseSave').onclick = async ()=>{
     try{ await api('/settings', {method:'POST', body:JSON.stringify({public_base_url:$('#xBase').value.trim()})});
-      flash('kaydedildi'); route('settings');
+      flash('kaydedildi'); route('xshare');
     }catch(err){ flash(err.message); }
   };
   $('#xCfgSave').onclick = async ()=>{
@@ -548,7 +563,7 @@ function renderSettings(d){
       media: $('#xMedia').checked,
     };
     try{ await api('/settings', {method:'POST', body:JSON.stringify({x_autopost_config:cfg})});
-      flash('eşikler kaydedildi'); route('settings');
+      flash('eşikler kaydedildi'); route('xshare');
     }catch(err){ flash(err.message); }
   };
   loadXPosts();
