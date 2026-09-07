@@ -162,7 +162,8 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
       <button data-t="panel" class="on">Panel</button>
       <button data-t="settings">Ayarlar</button>
       <button data-t="moderation">Denetim</button>
-      <button data-t="track">Karne</button>
+      <button data-t="track">AI izleme</button>
+      <button data-t="lessons">AI tespit</button>
       <button data-t="tools">Araçlar</button>
     </div>
     <div class="msg" id="msg"></div>
@@ -247,6 +248,7 @@ async function route(t){
     if(t==='settings')   return renderSettings(await api('/settings'));
     if(t==='moderation') return renderModeration();
     if(t==='track')      return renderTrack(await api('/track'));
+    if(t==='lessons')    return renderLessons(await api('/lessons'));
     if(t==='tools')      return renderTools();
   }catch(e){ if(e.message!=='auth') v.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
@@ -438,7 +440,6 @@ function renderModeration(){
     <div class="subtabs" id="modSub">
       <button data-s="appeals">İtirazlar</button>
       <button data-s="flagged">İşaretli cüzdanlar</button>
-      <button data-s="lessons">Öğrenilenler (AI)</button>
     </div>
     <div id="modView"><p class="muted">yükleniyor…</p></div>`;
   $('#modSub').onclick = e=>{
@@ -448,12 +449,12 @@ function renderModeration(){
   paintModSub();
 }
 async function paintModSub(){
+  if(_modSub!=='appeals' && _modSub!=='flagged') _modSub = 'appeals';
   document.querySelectorAll('#modSub button').forEach(x=>x.classList.toggle('on', x.dataset.s===_modSub));
   const mv = $('#modView'); mv.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
     if(_modSub==='appeals')  mv.innerHTML = modAppeals(await api('/appeals'+(window.__astatus?('?status='+window.__astatus):'')));
     if(_modSub==='flagged')  mv.innerHTML = modFlagged(await api('/flagged'));
-    if(_modSub==='lessons')  mv.innerHTML = modLessons(await api('/lessons'));
     wireMod();
   }catch(e){ if(e.message!=='auth') mv.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
@@ -497,20 +498,6 @@ function modFlagged(d){
     <div class="tbl-card"><table><thead><tr><th>adres</th><th>not</th><th></th></tr></thead>
       <tbody>${rows||'<tr><td colspan="3" class="muted">liste boş</td></tr>'}</tbody></table></div>`;
 }
-function modLessons(d){
-  const rows = (d.lessons||[]).map(l=>`<tr>
-    <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
-    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
-    <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
-    <td>${esc(l.detail||'')}${l.deployer?`<div class="muted">deployer: ${short(l.deployer)}</div>`:''}</td>
-    <td style="white-space:nowrap">${l.wallets_flagged||0} cüzdan
-      ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}</td>
-  </tr>`).join('');
-  return `
-    <div class="card"><p class="desc">"organic/inconclusive" denip sonradan sert çöken (≥%55) tokenlar. Koordinasyon izi bulunduysa o cüzdanlar/deployer işaretlendi. Yanlışsa "geri al".</p></div>
-    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi</th><th>eylem</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok</td></tr>'}</tbody></table></div>`;
-}
 function wireMod(){
   const mv = $('#modView');
   mv.querySelectorAll('[data-af]').forEach(b=> b.onclick = ()=>{ window.__astatus = b.dataset.af; paintModSub(); });
@@ -529,10 +516,28 @@ function wireMod(){
   mv.querySelectorAll('[data-fx]').forEach(b=> b.onclick = async ()=>{
     await api('/flagged/'+encodeURIComponent(b.dataset.fx), {method:'DELETE'}); flash('kaldırıldı'); paintModSub();
   });
-  mv.querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
+}
+
+/* ================= AI TESPİT (öğrenilenler) ================= */
+function renderLessons(d){
+  const rows = (d.lessons||[]).map(l=>`<tr>
+    <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
+    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
+    <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
+    <td>${esc(l.detail||'')}${l.deployer?`<div class="muted">deployer: ${short(l.deployer)}</div>`:''}</td>
+    <td style="white-space:nowrap">${l.wallets_flagged||0} cüzdan
+      ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}</td>
+  </tr>`).join('');
+  $('#view').innerHTML = `
+    <div class="card"><p class="desc">"organic/inconclusive" denip sonradan sert çöken (≥%55) tokenlar.
+      Koordinasyon izi bulunduysa o cüzdanlar/deployer işaretlendi ve sonraki taramalarda kullanılıyor.
+      Yanlışsa "geri al".</p></div>
+    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi</th><th>eylem</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok</td></tr>'}</tbody></table></div>`;
+  $('#view').querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
     if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
     const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
-    flash((j.removed||0)+' cüzdan geri alındı'); paintModSub();
+    flash((j.removed||0)+' cüzdan geri alındı'); route('lessons');
   });
 }
 

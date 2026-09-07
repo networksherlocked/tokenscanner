@@ -137,10 +137,10 @@ vermezsen SQLite ile çalışır.
   - **Admin şifresi** değiştir.
   - Yalnızca-env değerler (bilgi amaçlı liste).
   Hepsi DB'ye yazılır ve ilgili env değişkenini ezer.
-- **Denetim** — alt sekmeler: İtirazlar / İşaretli cüzdanlar / Öğrenilenler (AI).
-  İşaretli cüzdanlar motorun `flagged_wallets` / `deployer_history` sinyalinde
-  **anında** kullanılır.
-- **Karne** — tüm izlenen tokenlar; kayıt sil.
+- **Denetim** — alt sekmeler: İtirazlar / İşaretli cüzdanlar. İşaretli cüzdanlar
+  motorun `flagged_wallets` / `deployer_history` sinyalinde **anında** kullanılır.
+- **AI izleme** — tüm izlenen tokenlar (karne); kayıt sil.
+- **AI tespit** — öğrenme döngüsünün çıkardığı dersler; işaretlemeyi "geri al".
 - **Araçlar** — bir mint'in önbelleğini sil ya da zincirden zorla yeniden tara.
 
 Tüm ayarlar tek endpoint'ten: `GET/POST /api/admin/settings`.
