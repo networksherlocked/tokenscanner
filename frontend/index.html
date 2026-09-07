@@ -340,13 +340,14 @@ footer p{margin:0 0 6px;max-width:76ch}
 .ea-center .crest{width:110px;height:110px;color:var(--gold);display:none;margin:0 auto}
 .eagle-arena.no-img .ea-center .crest{display:block}
 
-/* tarama hedefleri: yavaş yanıp sönen, çerçevede yavaşça gezinen noktalar */
-.scan-dot{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);
+/* tarama hedefleri: yavaş yanıp sönen, çerçevede yavaşça gezinen noktalar
+   (yalnızca arena içindeki noktalar — başlıktaki .scan-dot'a dokunma) */
+.eagle-arena .scan-dot{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);
   z-index:2;background:var(--dim);
   transition:background .4s,box-shadow .4s,width .3s,height .3s;
   animation:dotpulse 3.4s ease-in-out infinite}
-.scan-dot.scanning{background:var(--live);box-shadow:0 0 16px 4px var(--live);width:12px;height:12px}
-.scan-dot.scanned{background:var(--live);box-shadow:0 0 8px 1px var(--live)}
+.eagle-arena .scan-dot.scanning{background:var(--live);box-shadow:0 0 16px 4px var(--live);width:12px;height:12px}
+.eagle-arena .scan-dot.scanned{background:var(--live);box-shadow:0 0 8px 1px var(--live)}
 @keyframes dotpulse{0%,100%{opacity:.3}50%{opacity:.95}}
 
 .ea-links{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:visible}
