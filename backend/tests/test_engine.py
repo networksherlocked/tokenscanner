@@ -251,6 +251,63 @@ def launch_bundle_case():
     return chain, _market(liq=18_000.0, mcap=400_000.0), launch, True
 
 
+def obfuscated_funding_case():
+    """Lansman alıcılarının DİREKT fonlayıcıları hep farklı (araya cüzdan
+    konmuş) ama fonlama ağacı 3 hop geriden tek kaynağa çıkıyor. common_funder
+    tetiklenmez; funding_tree (convergence) yakalamalı → Bundled."""
+    holders = []
+    for i in range(12):
+        holders.append(
+            HolderRecord(
+                token_account=f"HA{i:040d}",
+                owner=f"HOLD{i:039d}",
+                amount_raw=int(SUPPLY * (0.03 - i * 0.001)),
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    chain = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=1.0)
+
+    buyers = []
+    for i in range(7):
+        buyers.append(
+            LaunchBuyer(
+                owner=f"BUY{i:040d}",
+                amount_raw=int(SUPPLY * 0.02) + i * 600,
+                first_slot=311_000_000 + (i % 2),        # aynı slot penceresi
+                first_block_time=LAUNCH + 9,
+                entry_fee=88_888,                         # aynı ücret imzası
+                first_signature=f"s{i}",
+                owner_created_at=LAUNCH - 3600 * 2,
+                owner_tx_count=4,
+                funder=f"RELAY{i:037d}",                  # hop 1: hepsi farklı
+            )
+        )
+    total = sum(b.amount_raw for b in buyers)
+    for b in buyers:
+        b.share = b.amount_raw / total * 100
+
+    src = "HIDDENROOTxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    launch = LaunchSnapshot(
+        available=True,
+        source="bonding_curve",
+        buyers=buyers,
+        funding_tree={
+            "hops": 3,
+            "funder_buyers": {b.funder: [b.owner] for b in buyers},
+            "grandfunders": {},
+            "chains": {b.funder: [f"MID{i}", src] for i, b in enumerate(buyers)},
+            "convergence": {
+                "ancestor": src,
+                "buyers": 7,
+                "min_hop": 3,
+                "max_hop": 3,
+            },
+        },
+    )
+    return chain, _market(liq=20_000.0, mcap=500_000.0), launch, True
+
+
 def run(name: str, builder, age_hours: float = 8.0) -> str:
     out = builder()
     chain, market = out[0], out[1]
@@ -292,6 +349,9 @@ if __name__ == "__main__":
             "ESKİ TOKEN + BALİNA", lambda: (*aged_whale_case(), None, False), age_hours=1847.0
         ),
         "LANSMAN PAKETİ": run("LANSMAN PAKETİ", launch_bundle_case, age_hours=1200.0),
+        "GİZLİ FONLAMA (3-hop)": run(
+            "GİZLİ FONLAMA (3-hop)", obfuscated_funding_case, age_hours=1000.0
+        ),
         "KİLİTSİZ LP": run("KİLİTSİZ LP", unlocked_lp_case, age_hours=400.0),
     }
     expected = {
@@ -300,6 +360,7 @@ if __name__ == "__main__":
         "CABAL SENARYOSU": "cabaled",
         "ESKİ TOKEN + BALİNA": "bundled",
         "LANSMAN PAKETİ": "bundled",
+        "GİZLİ FONLAMA (3-hop)": "bundled",
         "KİLİTSİZ LP": "cabaled",
     }
     print(f"\n{'=' * 66}")

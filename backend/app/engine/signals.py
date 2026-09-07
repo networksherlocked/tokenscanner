@@ -580,11 +580,12 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
 
 
 def sig_funding_tree(ctx: SignalContext) -> Signal:
-    """2-hop fonlama: farklı direkt fonlayıcılar tek bir üst kaynağa çıkıyorsa,
-    cüzdanlar bağımsız görünse bile koordinasyon vardır."""
+    """Çok-hop fonlama: farklı direkt fonlayıcılar 2-3 hop geriden tek bir
+    kaynağa çıkıyorsa, cüzdanlar bağımsız görünse bile koordinasyon vardır.
+    Araya cüzdan koyarak (A→B→C) gizlenen paketleri bu yakalar."""
     s = Signal(
         key="funding_tree",
-        label="Fonlama ağacı (2-hop)",
+        label="Fonlama ağacı (çok-hop)",
         direction="bundled",
         weight=1.0,
     )
@@ -593,11 +594,37 @@ def sig_funding_tree(ctx: SignalContext) -> Signal:
         tree = getattr(ctx.launch, "funding_tree", {}) or {}
     grand = tree.get("grandfunders") or {}
     fb = tree.get("funder_buyers") or {}
+    conv = tree.get("convergence") or {}
+    hops = tree.get("hops", 2)
     if not fb:
         s.data_ok = False
-        s.detail = "2-hop fonlama ağacı çıkarılamadı."
+        s.detail = "Fonlama ağacı çıkarılamadı."
         return s
 
+    # 1) Herhangi bir hop'ta (>=2) ortak ata — en güçlü, en derin sinyal.
+    if conv and conv.get("buyers", 0) >= 2:
+        n = conv["buyers"]
+        anc = conv["ancestor"]
+        max_hop = conv.get("max_hop", 2)
+        min_hop = conv.get("min_hop", 2)
+        s.evidence = {
+            "ancestor": anc,
+            "buyers_reached": n,
+            "min_hop": min_hop,
+            "max_hop": max_hop,
+        }
+        s.fired = True
+        s.strength = _count_strength(n, 2, span=5)
+        if min_hop >= 3:
+            s.strength = min(1.0, s.strength + 0.1)  # daha derin gizleme
+        s.detail = (
+            f"{n} lansman alıcısının fonlaması {max_hop} hop geriden aynı adrese "
+            f"({anc[:6]}…{anc[-4:]}) çıkıyor — araya cüzdan koyarak gizlenmiş "
+            "ortak kaynak."
+        )
+        return s
+
+    # 2) Fallback: hop 2 grandfunder yoğunlaşması.
     best_gf, best_funders = None, []
     for gf, funders in grand.items():
         if len(funders) > len(best_funders):
@@ -617,7 +644,9 @@ def sig_funding_tree(ctx: SignalContext) -> Signal:
             f"{reached} lansman alıcısına para göndermiş."
         )
     else:
-        s.detail = "Fonlayıcılar ayrı üst kaynaklardan — 2-hop koordinasyon yok."
+        s.detail = (
+            f"Fonlayıcılar ayrı üst kaynaklardan — {hops}-hop koordinasyon yok."
+        )
     return s
 
 

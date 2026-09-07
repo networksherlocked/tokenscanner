@@ -130,8 +130,15 @@ def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
             suspects.update(o for o in owners if o)
             suspects.add(f)
 
-    # 2) 2-hop fonlama ağacı
+    # 2) çok-hop fonlama ağacı
     ft = launch.get("funding_tree") or {}
+    conv = ft.get("convergence") or {}
+    if conv.get("buyers", 0) >= 2 and conv.get("ancestor"):
+        reasons.append(
+            f"{conv['buyers']} alıcı {conv.get('max_hop', 2)} hop geriden tek "
+            f"kaynağa çıkıyor ({conv['ancestor'][:6]}…)"
+        )
+        suspects.add(conv["ancestor"])
     for gf, ffs in (ft.get("grandfunders") or {}).items():
         if len(ffs) >= 2:
             reasons.append(f"{len(ffs)} fonlayıcı tek üst kaynağa çıkıyor ({gf[:6]}…)")

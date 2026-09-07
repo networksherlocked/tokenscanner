@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 
 from . import solana
@@ -28,6 +29,12 @@ LAUNCH_MAX_PAGES = 22       # ~22k imza — hızlı taşınan lansmanları kapsa
 LAUNCH_MAX_TX = 40          # parse edilecek en eski işlem sayısı
 LAUNCH_MAX_BUYERS = 26
 LAUNCH_ENRICH_MAX = 20      # kaç alıcının yaşı/fonlayıcısı çıkarılsın
+
+# Fonlama ağacı kaç hop geriye izlenir (hop 1 = direkt fonlayıcı, zaten biliniyor).
+# 3 = A→B→C dallanma desenleri; her ekstra hop ~+15-25 RPC çağrısı.
+FUNDING_TREE_HOPS = int(os.getenv("FUNDING_TREE_HOPS", "3"))
+# Hop başına izlenecek en fazla ayrı adres — maliyeti sınırlar.
+FUNDING_TREE_MAX_PER_HOP = int(os.getenv("FUNDING_TREE_MAX_PER_HOP", "14"))
 
 
 @dataclass
@@ -68,7 +75,7 @@ class LaunchSnapshot:
     launch_slot: int | None = None
     reached_start: bool = False
     note: str = ""             # "budget" = bütçe doldu, başlangıç görülemedi
-    # 2-hop fonlama ağacı: grandfunder -> beslediği direkt fonlayıcılar
+    # Çok-hop fonlama ağacı (bkz. build_funding_tree)
     funding_tree: dict = field(default_factory=dict)
 
 
@@ -218,41 +225,89 @@ async def enrich_launch_buyers(
     await asyncio.gather(*(one(b) for b in ordered[:LAUNCH_ENRICH_MAX]))
 
 
+async def _funder_of(pool: RpcPool, address: str) -> str | None:
+    """address'in ilk işlemindeki fonlayıcısı (altyapı ise None)."""
+    oldest, _, reached = await solana._oldest_signature(pool, address, max_pages=2)
+    if not oldest or not reached:
+        return None
+    sig = oldest.get("signature")
+    if not sig:
+        return None
+    gf = await solana._find_funder(pool, sig, address)
+    if gf and not registry.is_infrastructure(gf):
+        return gf
+    return None
+
+
 async def build_funding_tree(
-    pool: RpcPool, buyers: list[LaunchBuyer], max_funders: int = 12
+    pool: RpcPool,
+    buyers: list[LaunchBuyer],
+    max_funders: int = 12,
+    hops: int = FUNDING_TREE_HOPS,
 ) -> dict:
-    """2. hop: her direkt fonlayıcıyı KİM fonladı? Farklı direkt fonlayıcılar
-    tek bir 'grandfunder'a çıkıyorsa, cüzdanlar farklı görünse bile koordinasyon
-    vardır."""
+    """Fonlama zincirini `hops` hop geriye izler ve ortak ata adres arar.
+
+    Farklı direkt fonlayıcılar 2-3 hop geriden tek bir kaynağa çıkıyorsa,
+    cüzdanlar bağımsız görünse bile koordinasyon vardır. Araya cüzdan koyarak
+    (A→B→C) gizlenen paketleri bu yakalar.
+    """
     funders: dict[str, list[str]] = {}
     for b in buyers:
         if b.funder and not registry.is_infrastructure(b.funder):
             funders.setdefault(b.funder, []).append(b.owner)
-    picks = list(funders)[:max_funders]
-    if not picks:
+    if not funders:
         return {}
 
+    # Her direkt fonlayıcı için ata zinciri: [hop2, hop3, ...]
+    # chain_of[funder] = [gf, ggf, ...]
+    chain_of: dict[str, list[str]] = {f: [] for f in list(funders)[:max_funders]}
     sem = asyncio.Semaphore(6)
-    grand: dict[str, str] = {}
 
-    async def one(f: str) -> None:
-        async with sem:
-            oldest, _, reached = await solana._oldest_signature(pool, f, max_pages=2)
-            if oldest and reached:
-                sig = oldest.get("signature")
-                if sig:
-                    gf = await solana._find_funder(pool, sig, f)
-                    if gf and not registry.is_infrastructure(gf):
-                        grand[f] = gf
+    async def trace(start: str) -> None:
+        cur = start
+        seen = {start}
+        for _ in range(max(0, hops - 1)):
+            async with sem:
+                nxt = await _funder_of(pool, cur)
+            if not nxt or nxt in seen:
+                break
+            chain_of[start].append(nxt)
+            seen.add(nxt)
+            cur = nxt
 
-    await asyncio.gather(*(one(f) for f in picks))
+    await asyncio.gather(*(trace(f) for f in chain_of))
 
-    tree: dict[str, list[str]] = {}
-    for f, gf in grand.items():
-        tree.setdefault(gf, []).append(f)
+    # hop 2 grandfunder haritası (geriye dönük uyum)
+    grand: dict[str, list[str]] = {}
+    for f, chain in chain_of.items():
+        if chain:
+            grand.setdefault(chain[0], []).append(f)
+
+    # Herhangi bir hop'ta (>=2) ortak ata: ata -> {buyer: min_hop}
+    ancestor_hits: dict[str, dict[str, int]] = {}
+    for f, chain in chain_of.items():
+        for depth, anc in enumerate(chain, start=2):  # chain[0] = hop 2
+            bucket = ancestor_hits.setdefault(anc, {})
+            for buyer in funders.get(f, []):
+                bucket[buyer] = min(bucket.get(buyer, depth), depth)
+
+    convergence: dict = {}
+    if ancestor_hits:
+        best_anc, hits = max(ancestor_hits.items(), key=lambda kv: len(kv[1]))
+        if len(hits) >= 2:
+            convergence = {
+                "ancestor": best_anc,
+                "buyers": len(hits),
+                "min_hop": min(hits.values()),
+                "max_hop": max(hits.values()),
+            }
+
     return {
-        "grandfunders": {gf: fs for gf, fs in tree.items() if len(fs) >= 1},
+        "hops": hops,
+        "grandfunders": {gf: fs for gf, fs in grand.items() if len(fs) >= 1},
         "funder_buyers": funders,
+        "chains": chain_of,
+        "convergence": convergence,
     }
 
 

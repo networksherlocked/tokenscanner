@@ -21,6 +21,9 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 **Motor doğruluğu (v6):**
 - Yeni `lp_lock` sinyali: likidite yakılmış/kilitli mi yoksa geliştirici
   çekebilir mi? (yol haritası #4 — bkz. aşağı)
+- `funding_tree` artık **3-hop** (`FUNDING_TREE_HOPS`): A→B→C dallanma
+  desenleri — farklı direkt fonlayıcılar 3 hop geriden tek kaynağa çıkıyorsa
+  yakalanır. `convergence` alanı en derin ortak atayı verir.
 - pump.fun API düzeltmesi: v3 API artık harici tokenları da indeksliyor
   (`protocol: "non_launchpad"`); bunlar artık pump.fun lansmanı sayılmıyor,
   lansman analizi yanlış çıpaya gitmiyordu.
@@ -29,8 +32,8 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 - `deployer_history` artık deployer'ın önceki tokenlarının kaç tanesinin
   öldüğünü/rug olduğunu da kontrol ediyor (DexScreener, ~12 örnek). Seri rug
   profili → güçlü bundled sinyali.
-- Yeni `funding_tree` sinyali (2-hop): farklı direkt fonlayıcılar tek bir üst
-  kaynağa çıkıyorsa koordinasyon var demektir.
+- Yeni `funding_tree` sinyali: farklı direkt fonlayıcılar tek bir üst
+  kaynağa çıkıyorsa koordinasyon var demektir. (v6'da 3-hop oldu.)
 
 **İki katmanlı analiz** (v4):
 - **Lansman** — pump.fun `bonding_curve` (yoksa DEX pair) çıpasından imzalar en
@@ -220,9 +223,11 @@ Tek sinyal asla karar vermez. `classifier.py`:
 
 Sıradaki en yüksek getirili işler:
 
-1. **Fonlama grafiğinde derinlik.** Şu an her cüzdanın 1 adım gerisine
-   bakıyoruz. 2–3 hop geriye gidip A→B→C dallanma desenlerini yakalamak
-   bundle tespitini belirgin biçimde güçlendirir.
+1. ~~**Fonlama grafiğinde derinlik.**~~ v6'da eklendi: `build_funding_tree`
+   `FUNDING_TREE_HOPS` (varsayılan 3) hop geriye izliyor, `sig_funding_tree`
+   `convergence` (herhangi bir hop'ta ortak ata) üzerinden tetikleniyor.
+   Sıradaki: hop sayısını maliyet/isabet ile kalibre etmek, mevcut holder
+   fallback'inde de zincir izlemek.
 2. ~~**Deployer geçmişi.**~~ v4'te eklendi (Helius DAS). Bir sonraki adım: o
    geçmiş tokenların kaçının rug olduğunu (fiyat −%99, likidite çekilmiş)
    kontrol etmek.
