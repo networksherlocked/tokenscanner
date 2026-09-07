@@ -225,10 +225,11 @@ td.addr{color:var(--text)}
 #appealForm p{font-size:12px;color:var(--muted);margin:12px 0 0}
 .amsg{font-size:12px;color:var(--gold)}
 
-footer{border-top:1px solid var(--rule);padding:38px 0 46px;color:var(--dim);font-size:12px;text-align:center}
-footer .wrap{max-width:74ch}
-footer p{margin:0 auto 12px;line-height:1.7}
-footer p:last-child{margin-bottom:0}
+footer{border-top:1px solid var(--rule);padding:34px 0 46px;color:var(--dim);font-size:12px}
+footer .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:20px 40px;align-items:start}
+@media(max-width:760px){footer .wrap{grid-template-columns:1fr;gap:12px}}
+footer p{margin:0;line-height:1.8;text-align:justify;text-align-last:left;hyphens:auto}
+footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 
 /* ---------- son taramalar: alt şerit, sağdan sola kayan ---------- */
 .recent{padding:16px 0 20px;border-top:1px solid var(--rule);overflow:hidden}
@@ -400,12 +401,24 @@ footer p:last-child{margin-bottom:0}
 
 /* ---------- hakkında ---------- */
 .about{padding:48px 0 72px}
-.about h2{font-family:var(--display);font-weight:900;font-size:clamp(22px,3vw,32px);margin:0 0 6px;letter-spacing:-.01em}
-.about .sub{color:var(--dim);font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:30px}
-.about h3{font-family:var(--display);font-weight:700;font-size:15px;margin:30px 0 8px;color:var(--text)}
-.about p{color:var(--muted);max-width:72ch;margin:0 0 12px}
-.about .verdefs{display:grid;gap:8px;margin:12px 0 4px}
-.about .vd{border-left:2px solid var(--sig);padding:9px 14px;background:var(--panel);font-size:13px;color:var(--muted);max-width:72ch}
+.about h2{font-family:var(--display);font-weight:900;font-size:clamp(24px,3.4vw,38px);margin:0 0 6px;letter-spacing:-.01em}
+.about .sub{color:var(--dim);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:26px}
+.about .lead{color:var(--text);font-size:clamp(15px,1.7vw,18px);line-height:1.75;
+  text-align:justify;text-align-last:left;hyphens:auto;
+  border-top:1px solid var(--gold-dim);border-bottom:1px solid var(--rule);
+  padding:22px 0;margin:0 0 34px}
+.about-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 44px;align-items:start;margin-top:6px}
+@media(max-width:620px){.about-grid{grid-template-columns:1fr;gap:22px}}
+.ablock{min-width:0}
+.ablock.wide{grid-column:1 / -1}
+.about .verdefs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+@media(max-width:620px){.about .verdefs{grid-template-columns:1fr}}
+.about h3{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--gold);margin:0 0 12px;
+  padding-bottom:8px;border-bottom:1px solid var(--rule)}
+.about p{color:var(--muted);margin:0 0 12px;line-height:1.75;text-align:justify;text-align-last:left;hyphens:auto}
+.about p:last-child{margin-bottom:0}
+.about .vd{border-left:2px solid var(--sig);padding:10px 14px;background:var(--panel);font-size:13px;color:var(--muted);line-height:1.6}
 .about .vd b{color:var(--sig);font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;font-size:12px;margin-right:8px}
 .about .siglist{list-style:none;margin:12px 0 4px;padding:0;display:grid;gap:6px;max-width:78ch}
 .about .siglist li{border-left:2px solid var(--rule);padding:8px 14px;background:var(--panel);font-size:12.5px;color:var(--muted)}
@@ -560,24 +573,34 @@ footer p:last-child{margin-bottom:0}
     <h2 data-i18n="aboutTitle">About america.sx</h2>
     <div class="sub" data-i18n="aboutSub">On-chain launch & supply-distribution forensics for Solana</div>
 
-    <p data-i18n="aboutP1">america.sx takes a Solana token mint address and examines how its supply was acquired. It runs sixteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth, LP lock status and more — then checks how many of them point the same way. One signal never decides on its own.</p>
+    <p class="lead" data-i18n="aboutP1">america.sx takes a Solana token mint address and examines how its supply was acquired. It runs sixteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth, LP lock status and more — then checks how many of them point the same way. One signal never decides on its own.</p>
 
-    <h3 data-i18n="aboutVerdictH">The verdict</h3>
-    <div class="verdefs">
-      <div class="vd" style="--sig:var(--bundled)"><b>Bundled</b><span data-i18n="aboutBundled">supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.</span></div>
-      <div class="vd" style="--sig:var(--cabaled)"><b>Cabaled</b><span data-i18n="aboutCabaled">distribution is insider-heavy or unusual, but without the hard signatures of a bundle.</span></div>
-      <div class="vd" style="--sig:var(--organic)"><b>Organic</b><span data-i18n="aboutOrganic">no coordinated distribution pattern found. This does not mean "safe" or "will go up".</span></div>
-      <div class="vd" style="--sig:#8b9bb4"><b>Inconclusive</b><span data-i18n="aboutInconclusive">too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.</span></div>
+    <div class="about-grid">
+      <div class="ablock wide">
+        <h3 data-i18n="aboutVerdictH">The verdict</h3>
+        <div class="verdefs">
+          <div class="vd" style="--sig:var(--bundled)"><b>Bundled</b><span data-i18n="aboutBundled">supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.</span></div>
+          <div class="vd" style="--sig:var(--cabaled)"><b>Cabaled</b><span data-i18n="aboutCabaled">distribution is insider-heavy or unusual, but without the hard signatures of a bundle.</span></div>
+          <div class="vd" style="--sig:var(--organic)"><b>Organic</b><span data-i18n="aboutOrganic">no coordinated distribution pattern found. This does not mean "safe" or "will go up".</span></div>
+          <div class="vd" style="--sig:#8b9bb4"><b>Inconclusive</b><span data-i18n="aboutInconclusive">too little on-chain data was retrievable for a call — usually a very active or old token where wallet histories exceed the query budget.</span></div>
+        </div>
+      </div>
+
+      <div class="ablock">
+        <h3 data-i18n="aboutNumbersH">Two numbers</h3>
+        <p data-i18n="aboutNumbersP">Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).</p>
+      </div>
+
+      <div class="ablock">
+        <h3 data-i18n="aboutLimitsH">Limits</h3>
+        <p data-i18n="aboutLimitsP">Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.</p>
+      </div>
+
+      <div class="ablock">
+        <h3 data-i18n="aboutDataH">Data &amp; cost</h3>
+        <p data-i18n="aboutDataP">One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for a short window so popular tokens are not re-scanned on every request.</p>
+      </div>
     </div>
-
-    <h3 data-i18n="aboutNumbersH">Two numbers</h3>
-    <p data-i18n="aboutNumbersP">Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).</p>
-
-    <h3 data-i18n="aboutLimitsH">Limits</h3>
-    <p data-i18n="aboutLimitsP">Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.</p>
-
-    <h3 data-i18n="aboutDataH">Data &amp; cost</h3>
-    <p data-i18n="aboutDataP">One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for a short window so popular tokens are not re-scanned on every request.</p>
 
     <button class="back" id="aboutBack" type="button" data-i18n="aboutBack">← Back to scanner</button>
   </div>
