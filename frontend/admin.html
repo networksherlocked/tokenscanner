@@ -98,9 +98,26 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 
 .msg{font-size:12px;color:var(--gold);min-height:18px;margin:10px 0}
 .muted{color:var(--dim);font-size:11px}
-.login{max-width:360px;margin:80px auto;text-align:center}
-.login h1{font-family:var(--disp);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 .hidden{display:none!important}
+
+.hbtn{display:inline-flex;align-items:center;padding:9px 16px;border:1px solid var(--rule);border-radius:2px;
+  text-decoration:none;color:var(--muted);background:transparent;cursor:pointer;
+  font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+.hbtn:hover{color:var(--gold);border-color:var(--gold-dim)}
+
+/* --- giriş --- */
+.login{min-height:72vh;display:flex;align-items:center;justify-content:center;padding:40px 0}
+.loginbox{width:100%;max-width:380px;border:1px solid var(--gold-dim);border-radius:4px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));padding:36px 30px 30px;text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.loginbox svg{width:50px;height:50px;color:var(--gold);margin:0 auto 12px;display:block}
+.loginbox .lbrand{font-family:var(--disp);font-weight:700;letter-spacing:.18em;font-size:15px;color:var(--text);margin-bottom:24px}
+.loginbox .lbrand span{color:var(--gold);font-weight:400}
+.loginbox .ltitle{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.loginbox .lsub{font-size:12px;color:var(--muted);margin-bottom:22px}
+.loginbox input{text-align:center;letter-spacing:.14em;margin-bottom:12px}
+.loginbox button{width:100%}
+.loginbox .msg{color:var(--red);min-height:16px;margin:10px 0 0}
 
 /* --- RPC göstergesi --- */
 .rpcbox{border:1px solid var(--gold-dim);background:var(--panel);border-radius:3px;padding:16px;margin-bottom:14px}
@@ -143,18 +160,26 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 <header><div class="wrap">
   <div class="brand">america<i>.sx</i><em>admin</em></div>
   <div class="hbtns">
-    <a class="ghost" href="/" style="display:inline-flex;align-items:center;padding:9px 16px;border:1px solid var(--rule);border-radius:2px;text-decoration:none;color:var(--muted);font-family:var(--disp);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px">Ana sayfa</a>
-    <button class="ghost hidden" id="logout">Çıkış</button>
+    <a class="hbtn" href="/">Ana sayfa</a>
+    <button class="hbtn hidden" id="chpw">Şifre değiştir</button>
+    <button class="hbtn hidden" id="logout">Çıkış</button>
   </div>
 </div></header>
 
 <div class="wrap">
   <div id="loginView" class="login">
-    <h1>Admin</h1>
-    <p class="muted">ADMIN_TOKEN env değerini gir.</p>
-    <input id="tok" type="password" placeholder="admin token" autocomplete="off">
-    <div class="msg" id="loginMsg"></div>
-    <button id="loginBtn" style="width:100%">Gir</button>
+    <div class="loginbox">
+      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <path d="M32 4 L58 13 V31 C58 46 47 55 32 60 C17 55 6 46 6 31 V13 Z" stroke="currentColor" stroke-width="3"/>
+        <path d="M32 13 L27 19 L10 16 L21 27 L6 30 L23 35 L12 45 L32 37 L52 45 L41 35 L58 30 L43 27 L54 16 L37 19 Z" fill="currentColor"/>
+      </svg>
+      <div class="lbrand">AMERICA<span>.SX</span></div>
+      <div class="ltitle">Yönetim Paneli</div>
+      <div class="lsub">Devam etmek için erişim anahtarını gir.</div>
+      <input id="tok" type="password" placeholder="Erişim anahtarı" autocomplete="off">
+      <button id="loginBtn">Giriş</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
   </div>
 
   <div id="panel" class="hidden">
@@ -200,12 +225,12 @@ function flash(m){ $('#msg').textContent = m; setTimeout(()=>{ if($('#msg').text
 function showLogin(m){
   stopPoll();
   $('#panel').classList.add('hidden'); $('#loginView').classList.remove('hidden');
-  $('#logout').classList.add('hidden');
+  $('#logout').classList.add('hidden'); $('#chpw').classList.add('hidden');
   if(m) $('#loginMsg').textContent = m;
 }
 function showPanel(){
   $('#loginView').classList.add('hidden'); $('#panel').classList.remove('hidden');
-  $('#logout').classList.remove('hidden');
+  $('#logout').classList.remove('hidden'); $('#chpw').classList.remove('hidden');
 }
 
 $('#loginBtn').onclick = async ()=>{
@@ -217,7 +242,9 @@ $('#tok').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#loginBtn').cl
 $('#logout').onclick = ()=>{ TOKEN=''; try{localStorage.removeItem('asx_admin');}catch(e){} stopPoll(); showLogin(''); };
 
 /* --- şifre modalı --- */
+function pwOpen(){ $('#pwModal').classList.remove('hidden'); $('#pw1').value=''; $('#pw2').value=''; $('#pwMsg').textContent=''; $('#pw1').focus(); }
 function pwClose(){ $('#pwModal').classList.add('hidden'); $('#pw1').value=''; $('#pw2').value=''; $('#pwMsg').textContent=''; }
+$('#chpw').onclick = pwOpen;
 $('#pwCancel').onclick = pwClose;
 $('#pwModal').onclick = e=>{ if(e.target === $('#pwModal')) pwClose(); };
 $('#pwForm').onsubmit = async e=>{
@@ -383,12 +410,6 @@ function renderSettings(d){
       </div>
     </div>
 
-    <div class="card">
-      <h3>Admin şifresi</h3>
-      <p class="desc">Panel şifresini değiştir. Yeni değer DB'ye (sha256) yazılır ve env <code>ADMIN_TOKEN</code>'ı ezer.</p>
-      <div class="row"><button class="ghost" id="pwOpen">şifre değiştir</button></div>
-    </div>
-
     <div class="section-title">Yalnızca env (bilgi)</div>
     <div class="card">
       <p class="desc">Bunlar servis env değişkenleridir; değiştirmek için Render'da güncelle + yeniden dağıt.</p>
@@ -401,8 +422,6 @@ function renderSettings(d){
         <tr><td>veritabanı</td><td class="mono">${esc(e.database||'—')}</td></tr>
       </table>
     </div>`;
-
-  $('#pwOpen').onclick = ()=>{ $('#pwModal').classList.remove('hidden'); $('#pw1').focus(); };
 
   $('#rpcSave').onclick = async ()=>{
     const v = $('#rpcInput').value.trim();
