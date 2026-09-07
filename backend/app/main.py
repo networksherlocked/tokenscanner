@@ -13,6 +13,7 @@ Uç noktalar:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -30,6 +31,7 @@ from .cache import ScanCache
 from .engine import registry
 from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
+from . import xpost
 from .rpc import trades as rpc_trades
 from .rpc.market import fetch_market
 from .rpc.pool import RpcError, RpcPool
@@ -257,6 +259,12 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001
         log.exception("RPC uç noktaları DB'den yüklenemedi (env'e düşülüyor)")
     try:
+        _reconfigure_x()
+        if xpost.public_status()["enabled"]:
+            log.info("X otomatik paylaşım AÇIK.")
+    except Exception:  # noqa: BLE001
+        log.exception("X paylaşım yapılandırması yüklenemedi")
+    try:
         ttl_db = state["cache"].config_get("cache_ttl_sec")
         if ttl_db and int(ttl_db) > 0:
             state["cache"].ttl = int(ttl_db)
@@ -316,6 +324,8 @@ async def _run_scan(mint: str) -> dict:
                     verdict.get("score"),
                     token.get("market_cap"),
                 )
+            # X otomatik paylaşım — bloklamaz, hata taramayı etkilemez.
+            asyncio.create_task(xpost.maybe_autopost(result, state["cache"]))
             return result
         finally:
             _inflight.pop(mint, None)
@@ -716,6 +726,7 @@ async def admin_settings():
             "source": "db" if db_bkey else ("env" if env_bkey else "none"),
             "masked": _mask_key(db_bkey or env_bkey),
         },
+        "x_autopost": xpost.public_status(),
         # --- yalnızca env (bilgi amaçlı) ---
         "env_only": {
             "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
@@ -764,10 +775,86 @@ async def admin_settings_set(payload: dict = Body(...)):
         rpc_trades.set_runtime_config(birdeye_api_key=key or None)
         changed.append("birdeye")
 
+    if "public_base_url" in payload:
+        url = str(payload.get("public_base_url") or "").strip().rstrip("/")
+        if url and not url.startswith(("http://", "https://")):
+            raise HTTPException(422, "public_base_url http(s):// ile başlamalı.")
+        cache.config_set("public_base_url", url)
+        changed.append("public_base_url")
+
+    # --- X otomatik paylaşım ---
+    if "x_autopost_enabled" in payload:
+        cache.config_set(
+            "x_autopost_enabled", "1" if payload.get("x_autopost_enabled") else "0"
+        )
+        changed.append("x_enabled")
+
+    for fld, key in (
+        ("x_api_key", "x_api_key"), ("x_api_secret", "x_api_secret"),
+        ("x_access_token", "x_access_token"), ("x_access_secret", "x_access_secret"),
+    ):
+        if fld in payload:
+            cache.config_set(key, str(payload.get(fld) or "").strip())
+            changed.append(fld)
+
+    if "x_autopost_config" in payload and isinstance(
+        payload["x_autopost_config"], dict
+    ):
+        c = payload["x_autopost_config"]
+        allowed = {
+            "verdicts", "min_mcap", "min_score", "min_confidence",
+            "cooldown_h", "max_per_day", "media", "lang",
+        }
+        clean = {k: v for k, v in c.items() if k in allowed}
+        if "verdicts" in clean:
+            clean["verdicts"] = [
+                x for x in clean["verdicts"]
+                if x in ("bundled", "cabaled", "organic", "inconclusive")
+            ] or ["bundled"]
+        if "lang" in clean and clean["lang"] not in ("en", "tr"):
+            clean["lang"] = "en"
+        cache.config_set("x_autopost_config", json.dumps(clean))
+        changed.append("x_config")
+
     if not changed:
         raise HTTPException(422, "Değiştirilecek bir alan gönderilmedi.")
+
+    if any(x.startswith("x_") for x in changed) or "public_base_url" in changed:
+        _reconfigure_x()
+
     log.info("Admin ayar değişikliği: %s", ", ".join(changed))
     return {"ok": True, "changed": changed}
+
+
+@app.post("/api/admin/x/test", dependencies=[Depends(_admin)])
+async def admin_x_test(payload: dict = Body(default={})):
+    """Manuel test tweet'i — eşik kontrolü yok, sadece kimlik denemesi.
+
+    payload.mint verilirse o tokenın kayıtlı taramasıyla gerçek biçimde atar.
+    """
+    cache = state["cache"]
+    sample = None
+    mint = str((payload or {}).get("mint") or "").strip()
+    if mint:
+        try:
+            mint = _validate(mint)
+        except HTTPException:
+            raise HTTPException(422, "Geçersiz mint.") from None
+        sample = cache.scan_payload(mint)
+        if not sample:
+            raise HTTPException(404, "Bu mint için kayıtlı tarama yok — önce tara.")
+    try:
+        res = await xpost.send_test_tweet(cache, sample)
+    except xpost.XError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"X hatası: {exc}") from exc
+    return {"ok": True, **res}
+
+
+@app.get("/api/admin/x/posts", dependencies=[Depends(_admin)])
+async def admin_x_posts():
+    return {"posts": state["cache"].x_posts_recent(30)}
 
 
 def _reload_flagged() -> None:
@@ -776,6 +863,30 @@ def _reload_flagged() -> None:
         for r in state["cache"].flagged_list()
     }
     registry.set_runtime_flagged(rows)
+
+
+def _reconfigure_x() -> None:
+    """DB config + env → xpost.configure(). Her admin değişikliğinden sonra çağır."""
+    c = state["cache"]
+    raw = c.config_get("x_autopost_config")
+    extra: dict = {}
+    if raw:
+        try:
+            extra = json.loads(raw) or {}
+        except (TypeError, ValueError):
+            extra = {}
+    xpost.configure({
+        "enabled": c.config_get("x_autopost_enabled") == "1",
+        "api_key": c.config_get("x_api_key") or os.getenv("X_API_KEY", ""),
+        "api_secret": c.config_get("x_api_secret") or os.getenv("X_API_SECRET", ""),
+        "access_token": c.config_get("x_access_token")
+        or os.getenv("X_ACCESS_TOKEN", ""),
+        "access_secret": c.config_get("x_access_secret")
+        or os.getenv("X_ACCESS_SECRET", ""),
+        "base_url": c.config_get("public_base_url")
+        or os.getenv("PUBLIC_BASE_URL", ""),
+        **extra,
+    })
 
 
 @app.exception_handler(Exception)

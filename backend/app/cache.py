@@ -65,6 +65,14 @@ CREATE TABLE IF NOT EXISTS lessons (
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 
 CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT);
+
+CREATE TABLE IF NOT EXISTS x_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, tweet_id TEXT,
+    verdict TEXT, ok INTEGER NOT NULL DEFAULT 1, detail TEXT,
+    posted_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_xposts_posted ON x_posts(posted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_xposts_mint ON x_posts(mint, posted_at DESC);
 """
 
 _SCHEMA_PG = """
@@ -109,6 +117,14 @@ CREATE TABLE IF NOT EXISTS lessons (
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 
 CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT);
+
+CREATE TABLE IF NOT EXISTS x_posts (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
+    tweet_id TEXT, verdict TEXT, ok INTEGER NOT NULL DEFAULT 1, detail TEXT,
+    posted_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_xposts_posted ON x_posts(posted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_xposts_mint ON x_posts(mint, posted_at DESC);
 """
 
 
@@ -436,6 +452,43 @@ class ScanCache:
             "INSERT INTO config (k, v) VALUES (?, ?) "
             "ON CONFLICT(k) DO UPDATE SET v = excluded.v",
             (key, value),
+        )
+
+    # ---- X (Twitter) otomatik paylaşım kaydı --------------------------
+
+    def x_post_record(
+        self, mint: str, tweet_id: str | None, verdict: str | None,
+        ok: bool, detail: str | None,
+    ) -> None:
+        self._write(
+            "INSERT INTO x_posts (mint, tweet_id, verdict, ok, detail, posted_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (mint, tweet_id, verdict, 1 if ok else 0,
+             (detail or "")[:300] or None, int(time.time())),
+        )
+
+    def x_posted_since(self, mint: str, since_ts: float) -> bool:
+        """Bu mint için `since_ts`'den bu yana BAŞARILI bir paylaşım var mı?"""
+        row = self._one(
+            "SELECT 1 AS x FROM x_posts WHERE mint = ? AND ok = 1 AND posted_at >= ? "
+            "LIMIT 1",
+            (mint, int(since_ts)),
+        )
+        return row is not None
+
+    def x_posts_today(self) -> int:
+        cutoff = int(time.time()) - 86400
+        row = self._one(
+            "SELECT COUNT(*) AS n FROM x_posts WHERE ok = 1 AND posted_at >= ?",
+            (cutoff,),
+        )
+        return int(row["n"]) if row else 0
+
+    def x_posts_recent(self, limit: int = 25) -> list[dict]:
+        return self._rows(
+            "SELECT mint, tweet_id, verdict, ok, detail, posted_at "
+            "FROM x_posts ORDER BY posted_at DESC LIMIT ?",
+            (limit,),
         )
 
     # ---- öğrenme / dersler --------------------------------------------

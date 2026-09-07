@@ -145,6 +145,25 @@ vermezsen SQLite ile çalışır.
 
 Tüm ayarlar tek endpoint'ten: `GET/POST /api/admin/settings`.
 
+### X (Twitter) otomatik paylaşım
+
+`app/xpost.py` — eşikleri geçen tarama sonuçlarını otomatik tweet'ler (kart
+görseli + `/t/{mint}` linki). Tarama akışını bloklamaz, hata taramayı etkilemez.
+
+- **Kimlik**: X Developer App (Read and write) → 4 OAuth 1.0a anahtarı. Env
+  (`X_API_KEY` / `X_API_SECRET` / `X_ACCESS_TOKEN` / `X_ACCESS_SECRET`) ya da
+  admin panel → Ayarlar → "X otomatik paylaşım" (DB, canlı).
+- **Varsayılan KAPALI.** Admin panelden aç/kapa.
+- **Eşikler** (panelden): hangi kararlar (Bundled/Cabaled), min market cap
+  ($50k), min skor (70), min güven (60), token başına bekleme (7 gün),
+  günlük üst sınır (20), tweet dili (EN/TR), kart görseli aç/kapa.
+- OAuth 1.0a imzalama stdlib ile (ek bağımlılık yok). Medya: v1.1
+  `media/upload`; başarısız olursa metin+link ile devam.
+- `POST /api/admin/x/test` — eşik atlayarak kimlikleri dener.
+  `GET /api/admin/x/posts` — denetim kaydı. Tablo: `x_posts`.
+- **Hukuki**: her tweet "algoritmik sinyal, dolandırıcılık hükmü değil" ibaresi
+  taşır ve yöntem sayfasına link verir. Yüksek eşik + kill-switch.
+
 Token üret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
 
 ### Öğrenme döngüsü

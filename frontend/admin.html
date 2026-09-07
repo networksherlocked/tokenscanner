@@ -328,6 +328,7 @@ function srcBadge(src){
 }
 function renderSettings(d){
   const b = d.birdeye || {}, e = d.env_only || {};
+  const x = d.x_autopost || {verdicts:[],min_mcap:50000,min_score:70,min_confidence:60,cooldown_h:168,max_per_day:20,media:true,lang:'en'};
   $('#view').innerHTML = `
     <div class="section-title">API & bağlantı</div>
 
@@ -362,6 +363,65 @@ function renderSettings(d){
           <button id="bkeySave">kaydet</button>
           <button class="danger sm" id="bkeyClear">sil</button>
         </div>
+      </div>
+    </div>
+
+    <div class="section-title">X (Twitter) otomatik paylaşım</div>
+
+    <div class="card">
+      <h3>Otomatik paylaşım</h3>
+      <p class="desc">Eşikleri geçen tarama sonuçları otomatik olarak X hesabına atılır
+        (kart görseli + link). Tarama akışını bloklamaz. Hukuki risk nedeniyle
+        <b>varsayılan kapalı</b> — açmadan önce eşikleri gözden geçir.</p>
+      <div class="statusline">
+        ${x.enabled?'<span class="badge b-resolved">AÇIK</span>':'<span class="badge b-open">KAPALI</span>'}
+        ${x.creds_ok?'<span class="ok">kimlik tamam</span>':'<span class="bad">kimlik eksik</span>'}
+        ${x.api_key?`<span class="muted">key <code>${esc(x.api_key)}</code></span>`:''}
+      </div>
+
+      <div class="field"><label>durum</label>
+        <div class="row">
+          <button id="xToggle" class="${x.enabled?'danger':''}">${x.enabled?'kapat':'aç'}</button>
+          <button class="ghost sm" id="xTest">test tweet gönder</button>
+        </div>
+        <div class="hint">"Test tweet" eşik kontrolü yapmadan, kimlik bilgilerini denemek için 1 tweet atar.</div>
+      </div>
+
+      <div class="field"><label>API kimlik bilgileri (OAuth 1.0a, "Read and write")</label>
+        <div class="row"><input id="xk1" type="password" placeholder="API Key" autocomplete="off"></div>
+        <div class="row" style="margin-top:6px"><input id="xk2" type="password" placeholder="API Key Secret" autocomplete="off"></div>
+        <div class="row" style="margin-top:6px"><input id="xk3" type="password" placeholder="Access Token" autocomplete="off"></div>
+        <div class="row" style="margin-top:6px"><input id="xk4" type="password" placeholder="Access Token Secret" autocomplete="off"></div>
+        <div class="row" style="margin-top:8px"><button id="xKeysSave">kimlikleri kaydet</button></div>
+      </div>
+
+      <div class="field"><label>public site adresi (tweet linkleri için)</label>
+        <div class="row">
+          <input id="xBase" placeholder="https://america.sx" value="${esc(x.base_url||'')}">
+          <button id="xBaseSave">kaydet</button>
+        </div>
+      </div>
+
+      <div class="field"><label>eşikler & davranış</label>
+        <table>
+          <tr><td>hangi kararlar</td><td>
+            <label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="xvB" style="width:auto" ${x.verdicts.includes('bundled')?'checked':''}> Bundled</label>
+            &nbsp;&nbsp;
+            <label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="xvC" style="width:auto" ${x.verdicts.includes('cabaled')?'checked':''}> Cabaled</label>
+          </td></tr>
+          <tr><td>min market cap ($)</td><td><input id="xMcap" type="number" min="0" step="1000" value="${x.min_mcap}" style="max-width:160px"></td></tr>
+          <tr><td>min skor</td><td><input id="xScore" type="number" min="0" max="100" value="${x.min_score}" style="max-width:110px"></td></tr>
+          <tr><td>min güven</td><td><input id="xConf" type="number" min="0" max="100" value="${x.min_confidence}" style="max-width:110px"></td></tr>
+          <tr><td>token başına bekleme (saat)</td><td><input id="xCool" type="number" min="1" value="${x.cooldown_h}" style="max-width:110px"></td></tr>
+          <tr><td>günlük üst sınır</td><td><input id="xMax" type="number" min="1" value="${x.max_per_day}" style="max-width:110px"></td></tr>
+          <tr><td>tweet dili</td><td><select id="xLang" style="max-width:120px"><option value="en"${x.lang==='en'?' selected':''}>EN</option><option value="tr"${x.lang==='tr'?' selected':''}>TR</option></select></td></tr>
+          <tr><td>kart görseli yükle</td><td><label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="xMedia" style="width:auto" ${x.media?'checked':''}> evet</label></td></tr>
+        </table>
+        <div class="row" style="margin-top:8px"><button id="xCfgSave">eşikleri kaydet</button></div>
+      </div>
+
+      <div class="field"><label>son otomatik paylaşımlar</label>
+        <div id="xPosts" class="muted">yükleniyor…</div>
       </div>
     </div>
 
@@ -431,6 +491,75 @@ function renderSettings(d){
       flash('önbellek süresi kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
   };
+
+  // --- X otomatik paylaşım ---
+  $('#xToggle').onclick = async ()=>{
+    const turnOn = !x.enabled;
+    if(turnOn && !x.creds_ok){ flash('önce API kimliklerini kaydet'); return; }
+    if(turnOn && !confirm('Otomatik X paylaşımı AÇILSIN mı? Eşikleri geçen her tarama tweet atar.')) return;
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({x_autopost_enabled:turnOn})});
+      flash(turnOn?'açıldı':'kapatıldı'); route('settings');
+    }catch(err){ flash(err.message); }
+  };
+  $('#xTest').onclick = async ()=>{
+    const btn = $('#xTest'); btn.disabled = true; btn.textContent = 'gönderiliyor…';
+    try{ const j = await api('/x/test', {method:'POST', body:'{}'});
+      flash('test tweet gönderildi: '+(j.tweet_id||'')); loadXPosts();
+    }catch(err){ flash('hata: '+err.message); }
+    finally{ btn.disabled = false; btn.textContent = 'test tweet gönder'; }
+  };
+  $('#xKeysSave').onclick = async ()=>{
+    const p = {};
+    if($('#xk1').value.trim()) p.x_api_key = $('#xk1').value.trim();
+    if($('#xk2').value.trim()) p.x_api_secret = $('#xk2').value.trim();
+    if($('#xk3').value.trim()) p.x_access_token = $('#xk3').value.trim();
+    if($('#xk4').value.trim()) p.x_access_secret = $('#xk4').value.trim();
+    if(!Object.keys(p).length){ flash('alanları doldur'); return; }
+    try{ await api('/settings', {method:'POST', body:JSON.stringify(p)});
+      flash('kimlikler kaydedildi'); route('settings');
+    }catch(err){ flash(err.message); }
+  };
+  $('#xBaseSave').onclick = async ()=>{
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({public_base_url:$('#xBase').value.trim()})});
+      flash('kaydedildi'); route('settings');
+    }catch(err){ flash(err.message); }
+  };
+  $('#xCfgSave').onclick = async ()=>{
+    const verdicts = [];
+    if($('#xvB').checked) verdicts.push('bundled');
+    if($('#xvC').checked) verdicts.push('cabaled');
+    const cfg = {
+      verdicts,
+      min_mcap: parseFloat($('#xMcap').value)||0,
+      min_score: parseInt($('#xScore').value)||0,
+      min_confidence: parseInt($('#xConf').value)||0,
+      cooldown_h: parseInt($('#xCool').value)||1,
+      max_per_day: parseInt($('#xMax').value)||1,
+      lang: $('#xLang').value,
+      media: $('#xMedia').checked,
+    };
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({x_autopost_config:cfg})});
+      flash('eşikler kaydedildi'); route('settings');
+    }catch(err){ flash(err.message); }
+  };
+  loadXPosts();
+}
+
+async function loadXPosts(){
+  const box = $('#xPosts'); if(!box) return;
+  try{
+    const j = await api('/x/posts');
+    const rows = (j.posts||[]).map(p=>`<tr>
+      <td>${p.ok?'<span class="ok">✓</span>':'<span class="bad">✗</span>'}</td>
+      <td>${vb(p.verdict)}</td>
+      <td class="mono">${short(p.mint)}</td>
+      <td>${p.tweet_id?`<a href="https://x.com/i/status/${esc(p.tweet_id)}" target="_blank">tweet ↗</a>`:esc((p.detail||'').slice(0,60))}</td>
+      <td class="muted">${ago(p.posted_at)} önce</td>
+    </tr>`).join('');
+    box.innerHTML = rows
+      ? `<div class="tbl-card"><table><tbody>${rows}</tbody></table></div>`
+      : '<span class="muted">henüz paylaşım yok</span>';
+  }catch(e){ box.innerHTML = '<span class="bad">'+esc(e.message)+'</span>'; }
 }
 
 /* ================= DENETİM ================= */
