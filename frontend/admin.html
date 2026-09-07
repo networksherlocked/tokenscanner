@@ -211,10 +211,33 @@ function renderOverview(d){
       min mcap $${c.min_market_cap} &nbsp; · &nbsp; rate ${c.rate_limit_per_min}/dk
       ${q?`&nbsp; · &nbsp; RPC kotası ${q.toLocaleString()}/ay`:''}
       <div class="muted" style="margin-top:6px">RPC sayacı instance yeniden başladığında sıfırlanır (aylık gerçek kullanımı Helius panelinden gör).</div></div>
+    <div class="card">
+      <b class="muted">ÖNBELLEK SÜRESİ</b>
+      <p class="muted" style="margin:4px 0 8px">Bir token tarandıktan sonra sonucu kaç saat önbellekte tutulsun.
+        Bu süre içinde aynı token için gelen istekler zincire gitmeden yanıtlanır (RPC tasarrufu).
+        Kaynak: <b>${esc(c.cache_ttl_source||'env')}</b>.</p>
+      <div class="row" style="align-items:center">
+        <input id="ttlHours" type="number" min="0.05" max="168" step="0.25"
+          value="${c.cache_ttl_hours}" style="width:120px">
+        <span class="muted">saat</span>
+        <button id="ttlSave">kaydet</button>
+      </div>
+      <p class="muted" style="font-size:11px;margin-top:6px">0.05–168 saat. Anında geçerli olur, DB'ye yazılır;
+        env <code>CACHE_TTL</code> hâlâ başlangıç varsayılanı olarak çalışır.</p>
+    </div>
     <div class="card"><table><thead><tr><th>RPC sağlayıcı</th><th>çağrı</th><th>hata</th><th>durum</th></tr></thead>
       <tbody id="provRows">${provRows||'<tr><td colspan=4 class=muted>—</td></tr>'}</tbody></table></div>`;
 
   paintRpc(d);
+  const ttlBtn = $('#ttlSave');
+  if(ttlBtn) ttlBtn.onclick = async ()=>{
+    const h = parseFloat($('#ttlHours').value);
+    if(!(h > 0)){ flash('geçersiz süre'); return; }
+    try{
+      await api('/settings', {method:'POST', body:JSON.stringify({cache_ttl_hours:h})});
+      flash('önbellek süresi kaydedildi'); route('overview');
+    }catch(e){ flash(e.message); }
+  };
   let _last = totalCalls;
   _ovPoll = setInterval(async ()=>{
     let j; try{ j = await api('/overview'); }catch(e){ return; }

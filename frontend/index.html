@@ -280,7 +280,7 @@ footer p{margin:0 0 6px;max-width:76ch}
   background:linear-gradient(180deg,transparent,rgba(224,179,82,.06) 60%,rgba(224,179,82,.20));
   animation:scanline 3.4s cubic-bezier(.5,0,.5,1) infinite;
 }
-@keyframes scanline{0%{transform:translateY(-140px)}100%{transform:translateY(560px)}}
+@keyframes scanline{0%{transform:translateY(-120px)}100%{transform:translateY(400px)}}
 
 .scan-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .scan-title{display:flex;align-items:center;gap:12px;font-family:var(--display);font-weight:900;
@@ -321,7 +321,7 @@ footer p{margin:0 0 6px;max-width:76ch}
 .hero-eagle.no-img{display:none}
 
 /* tarama arenası: kartal ORTADA + BÜYÜK, kutucuklar etrafında; dalgalı bağ + sinyal */
-.eagle-arena{position:relative;margin:0 0 16px;height:clamp(360px,46vw,520px);
+.eagle-arena{position:relative;margin:0 0 16px;height:clamp(180px,23vw,260px);
   border:1px solid var(--gold-dim);border-radius:3px;overflow:hidden;
   box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 100px rgba(0,0,0,.55);
   background:radial-gradient(130% 110% at 50% 44%,#172c4e,#080f1c 76%)}
@@ -331,13 +331,13 @@ footer p{margin:0 0 6px;max-width:76ch}
     repeating-linear-gradient(90deg,rgba(200,164,92,.05) 0 1px,transparent 1px 44px)}
 /* kartalı ortalayan sarmalayıcı — animasyon transform'u merkezlemeyi bozmasın */
 .ea-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
-  width:min(56%,360px);pointer-events:none}
+  width:min(38%,220px);pointer-events:none}
 .ea-center img{width:100%;height:auto;display:block;
   filter:drop-shadow(0 0 34px rgba(34,211,238,.3)) drop-shadow(0 0 54px rgba(232,121,249,.2));
   animation:eaglehover 5s ease-in-out infinite alternate}
 .eagle-arena.firing .ea-center img{filter:drop-shadow(0 0 44px rgba(34,211,238,.5)) drop-shadow(0 0 72px rgba(232,121,249,.34))}
 .eagle-arena.no-img .ea-center img{display:none}
-.ea-center .crest{width:150px;height:150px;color:var(--gold);display:none;margin:0 auto}
+.ea-center .crest{width:110px;height:110px;color:var(--gold);display:none;margin:0 auto}
 .eagle-arena.no-img .ea-center .crest{display:block}
 
 /* tarama hedefleri: yavaş yanıp sönen, çerçevede yavaşça gezinen noktalar */
@@ -429,7 +429,7 @@ footer p{margin:0 0 6px;max-width:76ch}
           <button id="scanBtn" data-i18n="scanBtn">Scan</button>
           <button id="pasteBtn" class="ghost" type="button" data-i18n="pasteBtn">Paste</button>
         </div>
-        <div class="hint" id="hint" data-i18n="hint">Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.</div>
+        <div class="hint" id="hint" data-i18n="hint">Results are cached briefly. A deep scan usually takes 25–75 seconds.</div>
         <div class="err" id="err" hidden></div>
       </div>
       <div class="hero-eagle" id="heroEagle" aria-hidden="true">
@@ -462,7 +462,7 @@ footer p{margin:0 0 6px;max-width:76ch}
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <div class="scan-stat"><b id="statSignals">0/15</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="statSignals">0/16</b><span data-i18n="statSignalsLbl">signals</span></div>
         <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
       </div>
     </div>
@@ -553,7 +553,7 @@ footer p{margin:0 0 6px;max-width:76ch}
     <p data-i18n="aboutLimitsP">Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.</p>
 
     <h3 data-i18n="aboutDataH">Data &amp; cost</h3>
-    <p data-i18n="aboutDataP">One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for 15 minutes so popular tokens are not re-scanned on every request.</p>
+    <p data-i18n="aboutDataP">One scan is roughly 125 RPC calls against Solana infrastructure, plus DexScreener for market data. Results are cached for a short window so popular tokens are not re-scanned on every request.</p>
 
     <button class="back" id="aboutBack" type="button" data-i18n="aboutBack">← Back to scanner</button>
   </div>
@@ -603,7 +603,7 @@ const STR = {
     lede:'Paste a mint address. Sixteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
     mintPh:'Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
-    hint:'Results are cached for 15 minutes. A deep scan usually takes 25–75 seconds.',
+    hint:'Results are cached briefly. A deep scan usually takes 25–75 seconds.',
     scanTitle:'Scanning chain',
     statHoldersLbl:'launch buyers', statRpcLbl:'RPC calls', statSignalsLbl:'signals',
     scanCancel:'Stop scan',
@@ -629,7 +629,7 @@ const STR = {
     aboutLimitsH:'Limits',
     aboutLimitsP:'Results are an algorithmic opinion, not a factual finding. They can produce false positives and false negatives, and the verdict changes as on-chain data changes. Not investment advice.',
     aboutDataH:'Data & cost',
-    aboutDataP:'A deep scan is roughly 150–250 RPC calls against Solana infrastructure, plus DexScreener and pump.fun for market and launch data. Results are cached for 15 minutes so popular tokens are not re-scanned on every request.',
+    aboutDataP:'A deep scan is roughly 150–250 RPC calls against Solana infrastructure, plus DexScreener and pump.fun for market and launch data. Results are cached for a short window so popular tokens are not re-scanned on every request.',
     aboutBack:'← Back to scanner',
     // dynamic
     errNoAddr:'Enter a mint address.',
@@ -681,7 +681,7 @@ const STR = {
     lede:'Mint adresini yapıştırın. On altı bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
     mintPh:'Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
-    hint:'Sonuçlar 15 dakika önbellekte tutulur. Derin tarama genelde 25–75 saniye sürer.',
+    hint:'Sonuçlar kısa süre önbellekte tutulur. Derin tarama genelde 25–75 saniye sürer.',
     scanTitle:'Zincir taranıyor',
     statHoldersLbl:'lansman alıcısı', statRpcLbl:'RPC çağrısı', statSignalsLbl:'sinyal',
     scanCancel:'Taramayı durdur',
@@ -707,7 +707,7 @@ const STR = {
     aboutLimitsH:'Sınırlar',
     aboutLimitsP:'Sonuçlar algoritmik görüştür, olgusal tespit değildir. Yanlış pozitif ve yanlış negatif üretebilir; veri değiştikçe karar da değişir. Yatırım tavsiyesi değildir.',
     aboutDataH:'Veri ve maliyet',
-    aboutDataP:'Derin bir tarama yaklaşık 150–250 RPC çağrısı ile Solana altyapısına, ayrıca piyasa ve lansman verisi için DexScreener ve pump.fun\'a gider. Sonuçlar 15 dakika önbellekte tutulur; popüler tokenlar her istekte yeniden taranmaz.',
+    aboutDataP:'Derin bir tarama yaklaşık 150–250 RPC çağrısı ile Solana altyapısına, ayrıca piyasa ve lansman verisi için DexScreener ve pump.fun\'a gider. Sonuçlar kısa bir süre önbellekte tutulur; popüler tokenlar her istekte yeniden taranmaz.',
     aboutBack:'← Tarayıcıya dön',
     errNoAddr:'Bir mint adresi girin.',
     errBadAddr:'Bu geçerli bir Solana adresi değil.',

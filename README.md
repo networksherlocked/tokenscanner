@@ -128,7 +128,8 @@ vermezsen SQLite ile çalışır.
 `ADMIN_TOKEN` env verilirse `<servis>/admin` adresinde bir panel açılır
 (verilmezse 404). Token'ı `X-Admin-Token` başlığıyla gönderir. Panel:
 
-- **Genel** — istatistikler, RPC sağlayıcı durumu, aktif config
+- **Genel** — istatistikler, RPC sağlayıcı durumu, aktif config +
+  **önbellek süresi** (saat) canlı ayarı
 - **İtirazlar** — kuyruk; çöz / yok say + not
 - **Karne** — tüm izlenen tokenlar; kayıt sil
 - **Önbellek / Tarama** — bir mint'in önbelleğini sil ya da zorla yeniden tara

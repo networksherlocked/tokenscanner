@@ -240,6 +240,13 @@ async def lifespan(app: FastAPI):
             log.info("Birdeye anahtarı DB'den yüklendi.")
     except Exception:  # noqa: BLE001
         log.exception("Entegrasyon anahtarları yüklenemedi")
+    try:
+        ttl_db = state["cache"].config_get("cache_ttl_sec")
+        if ttl_db and int(ttl_db) > 0:
+            state["cache"].ttl = int(ttl_db)
+            log.info("Önbellek süresi DB'den: %s sn", ttl_db)
+    except Exception:  # noqa: BLE001
+        log.exception("Önbellek süresi yüklenemedi")
     track_task = asyncio.create_task(_track_loop())
     yield
     track_task.cancel()
@@ -540,6 +547,11 @@ async def admin_overview():
             "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
             "rate_limit_per_min": RATE_LIMIT,
             "rpc_quota": RPC_QUOTA,
+            "cache_ttl_sec": state["cache"].ttl,
+            "cache_ttl_hours": round(state["cache"].ttl / 3600, 2),
+            "cache_ttl_source": "db"
+            if state["cache"].config_get("cache_ttl_sec")
+            else "env",
         },
     }
 
@@ -651,6 +663,27 @@ async def admin_integrations():
             "masked": _mask_key(db_key or env_key),
             "base": os.getenv("BIRDEYE_BASE", "https://public-api.birdeye.so"),
         }
+    }
+
+
+@app.post("/api/admin/settings", dependencies=[Depends(_admin)])
+async def admin_settings_set(payload: dict = Body(...)):
+    """Çalışma anında ayarlanabilir motor ayarları. Şimdilik: önbellek süresi."""
+    if "cache_ttl_hours" in payload:
+        try:
+            hours = float(payload["cache_ttl_hours"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "cache_ttl_hours bir sayı olmalı.") from None
+        if not 0 < hours <= 168:
+            raise HTTPException(422, "Önbellek süresi 0 ile 168 saat (7 gün) arasında olmalı.")
+        sec = int(round(hours * 3600))
+        state["cache"].config_set("cache_ttl_sec", str(sec))
+        state["cache"].ttl = sec
+        log.info("Önbellek süresi ayarlandı: %.2f saat (%s sn)", hours, sec)
+    return {
+        "ok": True,
+        "cache_ttl_sec": state["cache"].ttl,
+        "cache_ttl_hours": round(state["cache"].ttl / 3600, 2),
     }
 
 
