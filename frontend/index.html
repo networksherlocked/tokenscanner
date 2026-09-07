@@ -259,7 +259,8 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 /* ---------- karne / track record ---------- */
 .trackrec{padding:34px 0 50px;border-top:1px solid var(--gold-dim)}
 .trackrec .head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;
-  font-family:var(--display);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+  font-family:var(--display);font-weight:700;font-size:clamp(17px,2.1vw,22px);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:8px}
 .trackrec .subhead{font-size:11px;color:var(--dim);margin-bottom:16px}
 .trackrec .tscore{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.04em;color:var(--gold)}
 .tlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
@@ -338,15 +339,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .hero-eagle{position:relative;order:0}
 .hero-text{order:1}
 @media(max-width:860px){.hero-eagle{max-width:230px;margin:0 auto 4px;order:0}.hero-text{order:1}}
-/* kartalın arkasında dalgalanan bayrak */
+/* kartalın arkasında dalgalanan bayrak — sol taraf (arma) daha net, sağa doğru siliniyor */
 .hero-eagle::before{
   content:"";position:absolute;z-index:0;pointer-events:none;
   left:50%;top:48%;transform:translate(-50%,-50%);
-  width:200%;aspect-ratio:1900/1013;
+  width:200%;aspect-ratio:1919/984;
   background:url('/flag.png') center/contain no-repeat;
-  opacity:.42;filter:saturate(.92) contrast(1.02);
-  -webkit-mask:radial-gradient(closest-side at 50% 50%,#000 34%,rgba(0,0,0,.35) 62%,transparent 84%);
-          mask:radial-gradient(closest-side at 50% 50%,#000 34%,rgba(0,0,0,.35) 62%,transparent 84%);
+  opacity:.5;filter:saturate(.95) contrast(1.03);
+  -webkit-mask:radial-gradient(closest-side at 30% 50%,#000 55%,rgba(0,0,0,.5) 78%,transparent 100%);
+          mask:radial-gradient(closest-side at 30% 50%,#000 55%,rgba(0,0,0,.5) 78%,transparent 100%);
 }
 .hero-eagle img{position:relative;z-index:1;width:100%;height:auto;display:block;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
