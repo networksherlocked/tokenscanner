@@ -562,6 +562,15 @@ class ScanCache:
             "SELECT outcome FROM track WHERE settled = 1 AND outcome IS NOT NULL"
         )
         hits = sum(1 for r in settled if r["outcome"] in ("hit", "clear"))
+
+        # Organik tespit başarısı: "organic" denip 24s izlemede korunan / toplam.
+        org = self._rows(
+            "SELECT outcome FROM track WHERE settled = 1 AND verdict = 'organic' "
+            "AND outcome IS NOT NULL ORDER BY latest_at ASC"
+        )
+        org_seq = [1 if r["outcome"] == "clear" else 0 for r in org]
+        org_ok = sum(org_seq)
+
         return {
             "scans_cached": n("SELECT COUNT(*) FROM scans"),
             "scans_total": n("SELECT COUNT(*) FROM scan_history"),
@@ -574,6 +583,12 @@ class ScanCache:
             "flagged": n("SELECT COUNT(*) FROM flagged"),
             "lessons": n("SELECT COUNT(*) FROM lessons"),
             "backend": "postgres" if self.pg else "sqlite",
+            "organic_perf": {
+                "settled": len(org_seq),
+                "correct": org_ok,
+                "rate": round(org_ok / len(org_seq), 4) if org_seq else None,
+                "recent": org_seq[-48:],
+            },
         }
 
     def history(self, mint: str, limit: int = 20) -> list[dict]:

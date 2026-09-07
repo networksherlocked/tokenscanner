@@ -55,12 +55,18 @@ code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;paddin
 .subtabs button.on{color:var(--gold);border-color:var(--gold-dim);background:var(--panel2)}
 
 /* --- kart --- */
-.card{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:18px;margin-bottom:14px}
+.card{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:20px;margin-bottom:14px;
+  display:flex;flex-direction:column}
 .card > h3{font-family:var(--disp);font-weight:600;font-size:14px;letter-spacing:.05em;
-  text-transform:uppercase;color:var(--text);margin:0 0 4px}
-.card > .desc{color:var(--muted);font-size:12px;margin:0 0 14px;max-width:74ch}
+  text-transform:uppercase;color:var(--text);margin:0 0 6px}
+.card > .desc{color:var(--muted);font-size:12px;margin:0 0 16px;max-width:70ch;line-height:1.65}
 .card > .desc:last-child{margin-bottom:0}
-.hint{color:var(--dim);font-size:11px;margin-top:8px;max-width:74ch}
+.card > .desc code,.hint code{white-space:nowrap}
+.hint{color:var(--dim);font-size:11px;margin-top:8px;max-width:70ch;line-height:1.55}
+/* kaydet vb. butonları her kartın sağ alt köşesinde */
+.card-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:18px;padding-top:14px;border-top:1px solid var(--rule)}
+.card-actions .note{margin-right:auto;color:var(--dim);font-size:11px;max-width:60ch;text-align:left}
 .section-title{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.16em;
   text-transform:uppercase;color:var(--gold);margin:22px 0 10px}
 
@@ -110,7 +116,9 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 .loginbox{width:100%;max-width:380px;border:1px solid var(--gold-dim);border-radius:4px;
   background:linear-gradient(180deg,var(--panel2),var(--panel));padding:36px 30px 30px;text-align:center;
   box-shadow:0 24px 60px rgba(0,0,0,.45)}
-.loginbox svg{width:50px;height:50px;color:var(--gold);margin:0 auto 12px;display:block}
+.loginbox .crest{width:96px;height:96px;margin:0 auto 14px;display:block;object-fit:contain;
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.5))}
+.loginbox svg.crest{color:var(--gold);width:56px;height:56px}
 .loginbox .lbrand{font-family:var(--disp);font-weight:700;letter-spacing:.18em;font-size:15px;color:var(--text);margin-bottom:24px}
 .loginbox .lbrand span{color:var(--gold);font-weight:400}
 .loginbox .ltitle{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
@@ -124,13 +132,27 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 .rpcbox .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .rpcbox .big{font-family:var(--disp);font-weight:700;font-size:30px;color:var(--text);line-height:1}
 .rpcbox .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
-.rpcbox .live{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
-.rpcbox .live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.4s ease-in-out infinite}
+.rpcbox .live,.orgbox .live{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
+.rpcbox .live i,.orgbox .live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.4s ease-in-out infinite}
+.orgbox .live{color:var(--blue)}.orgbox .live i{background:var(--blue)}
 @keyframes lp{0%,100%{opacity:.3}50%{opacity:1}}
 .gauge{height:12px;background:var(--ink);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
 .gauge i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--amber) 75%,var(--red));transition:width .6s ease}
 .gauge.flash i{box-shadow:0 0 12px var(--amber)}
 .rpcbox .sub{margin-top:8px;font-size:11px;color:var(--muted)}
+
+/* --- organik tespit oranı --- */
+.orgbox{border:1px solid var(--blue);background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border-radius:3px;padding:16px;margin-bottom:14px}
+.orgbox .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.orgbox .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.orgbox .big{font-family:var(--disp);font-weight:700;font-size:30px;color:var(--blue);line-height:1}
+.orgbox .gauge i{background:linear-gradient(90deg,var(--red),var(--amber) 45%,var(--green))}
+.orgbox .sub{margin-top:8px;font-size:11px;color:var(--muted)}
+.spark{display:flex;align-items:flex-end;gap:2px;height:30px;margin-top:12px}
+.spark i{flex:1 1 0;min-width:2px;border-radius:1px;background:var(--green);opacity:.85}
+.spark i.miss{background:var(--red)}
+.spark.empty{color:var(--dim);font-size:11px;height:auto;display:block}
 
 /* --- modal --- */
 .modal-bg{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
@@ -169,10 +191,9 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 <div class="wrap">
   <div id="loginView" class="login">
     <div class="loginbox">
-      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <path d="M32 4 L58 13 V31 C58 46 47 55 32 60 C17 55 6 46 6 31 V13 Z" stroke="currentColor" stroke-width="3"/>
-        <path d="M32 13 L27 19 L10 16 L21 27 L6 30 L23 35 L12 45 L32 37 L52 45 L41 35 L58 30 L43 27 L54 16 L37 19 Z" fill="currentColor"/>
-      </svg>
+      <img class="crest" src="/eagle.png" alt="" aria-hidden="true"
+           onerror="this.onerror=null;this.replaceWith(document.getElementById('crestFallback').content.cloneNode(true))">
+      <template id="crestFallback"><svg class="crest" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 4 L58 13 V31 C58 46 47 55 32 60 C17 55 6 46 6 31 V13 Z" stroke="currentColor" stroke-width="3"/><path d="M32 13 L27 19 L10 16 L21 27 L6 30 L23 35 L12 45 L32 37 L52 45 L41 35 L58 30 L43 27 L54 16 L37 19 Z" fill="currentColor"/></svg></template>
       <div class="lbrand">AMERICA<span>.SX</span></div>
       <div class="ltitle">Yönetim Paneli</div>
       <div class="lsub">Devam etmek için erişim anahtarını gir.</div>
@@ -293,6 +314,8 @@ function renderPanel(d){
   ].map(([k,l])=>`<div class="stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
 
   $('#view').innerHTML = `
+    <div class="section-title">Algoritma başarısı</div>
+    <div id="orgBox"></div>
     <div id="rpcBox"></div>
     <div class="section-title">Özet</div>
     <div class="grid">${cards}</div>
@@ -314,12 +337,36 @@ function renderPanel(d){
 
   paintProv(d);
   paintRpc(d);
+  paintOrg(d);
   let last = calls(d);
   _poll = setInterval(async ()=>{
     let j; try{ j = await api('/overview'); }catch(e){ return; }
     const now = calls(j);
-    paintProv(j); paintRpc(j, now !== last); last = now;
+    paintProv(j); paintRpc(j, now !== last); paintOrg(j); last = now;
   }, 4000);
+}
+function paintOrg(d){
+  const box = $('#orgBox'); if(!box) return;
+  const p = (d.stats && d.stats.organic_perf) || {};
+  const seq = p.recent || [];
+  if(!p.settled){
+    box.innerHTML = `<div class="orgbox"><div class="top">
+      <div><div class="lbl">Organik tespit oranı</div><div class="big">—</div></div></div>
+      <div class="spark empty">Henüz 24 saatlik izlemesi biten "organic" tarama yok. Sonuçlar geldikçe buraya oran ve başarı eğrisi çizilir.</div></div>`;
+    return;
+  }
+  const rate = p.rate != null ? Math.round(p.rate * 100) : 0;
+  const bars = seq.map((v,i)=>{
+    const w = seq.slice(Math.max(0, i-9), i+1);
+    const r = w.reduce((a,b)=>a+b, 0) / w.length;
+    return `<i class="${v?'':'miss'}" style="height:${Math.max(8, Math.round(r*100))}%" title="${v?'korudu':'çöktü'}"></i>`;
+  }).join('');
+  box.innerHTML = `<div class="orgbox"><div class="top">
+    <div><div class="lbl">Organik tespit oranı · son ${seq.length} sonuç</div><div class="big">%${rate}</div></div>
+    <span class="live"><i></i>canlı</span></div>
+    <div class="gauge"><i style="width:${rate}%"></i></div>
+    <div class="sub">${p.correct} / ${p.settled} &ldquo;organic&rdquo; çağrısı 24s izlemede korundu · eğri = son 10 sonucun kayan ortalaması</div>
+    <div class="spark">${bars}</div></div>`;
 }
 const calls = d => Object.values(d.providers||{}).reduce((n,p)=>n+(p.calls||0),0);
 function paintProv(d){
@@ -374,7 +421,10 @@ function renderSettings(d){
       <div class="field">
         <label>yeni değer</label>
         <textarea id="rpcInput" rows="3" placeholder="https://mainnet.helius-rpc.com/?api-key=XXX|10,https://solana-mainnet.g.alchemy.com/v2/YYY|25"></textarea>
-        <div class="row" style="margin-top:8px"><button id="rpcSave">kaydet & yeniden yapılandır</button></div>
+      </div>
+      <div class="card-actions">
+        <span class="note">Kaydedilince RPC havuzu anında yeniden kurulur; yeniden dağıtım gerekmez.</span>
+        <button id="rpcSave">kaydet &amp; yeniden yapılandır</button>
       </div>
     </div>
 
@@ -386,11 +436,11 @@ function renderSettings(d){
         ${b.configured?`<span>aktif · <code>${esc(b.masked||'')}</code></span>`:'<span class="muted">anahtar yok</span>'}</div>
       <div class="field">
         <label>anahtar</label>
-        <div class="row">
-          <input id="bkeyInput" type="password" placeholder="Birdeye API anahtarı" autocomplete="off">
-          <button id="bkeySave">kaydet</button>
-          <button class="danger sm" id="bkeyClear">sil</button>
-        </div>
+        <input id="bkeyInput" type="password" placeholder="Birdeye API anahtarı" autocomplete="off">
+      </div>
+      <div class="card-actions">
+        <button class="danger sm" id="bkeyClear">sil</button>
+        <button id="bkeySave">kaydet</button>
       </div>
     </div>
 
@@ -402,11 +452,11 @@ function renderSettings(d){
       <div class="statusline">${srcBadge(d.cache_ttl_source)}</div>
       <div class="field">
         <label>saat</label>
-        <div class="row">
-          <input id="ttlInput" type="number" min="0.05" max="168" step="0.25" value="${d.cache_ttl_hours}" style="max-width:140px">
-          <button id="ttlSave">kaydet</button>
-        </div>
-        <div class="hint">0.05–168 saat. Anında geçerli, DB'ye yazılır.</div>
+        <input id="ttlInput" type="number" min="0.05" max="168" step="0.25" value="${d.cache_ttl_hours}" style="max-width:140px">
+      </div>
+      <div class="card-actions">
+        <span class="note">0.05–168 saat. Anında geçerli, DB'ye yazılır.</span>
+        <button id="ttlSave">kaydet</button>
       </div>
     </div>
 
@@ -469,12 +519,12 @@ function renderXShare(d){
         ${x.creds_ok?'<span class="ok">kimlik tamam</span>':'<span class="bad">kimlik eksik</span>'}
         ${x.api_key?`<span class="muted">key <code>${esc(x.api_key)}</code></span>`:''}
       </div>
-      <div class="row">
-        <button id="xToggle" class="${x.enabled?'danger':''}">${x.enabled?'kapat':'aç'}</button>
+      <pre id="xTestOut" class="muted" style="white-space:pre-wrap;word-break:break-word;margin:14px 0 0;max-height:240px;overflow:auto"></pre>
+      <div class="card-actions">
+        <span class="note">"Test tweet" eşik kontrolü yapmadan, kimlik bilgilerini denemek için 1 tweet atar.</span>
         <button class="ghost sm" id="xTest">test tweet gönder</button>
+        <button id="xToggle" class="${x.enabled?'danger':''}">${x.enabled?'kapat':'aç'}</button>
       </div>
-      <div class="hint">"Test tweet" eşik kontrolü yapmadan, kimlik bilgilerini denemek için 1 tweet atar.</div>
-      <pre id="xTestOut" class="muted" style="white-space:pre-wrap;word-break:break-word;margin:10px 0 0;max-height:240px;overflow:auto"></pre>
     </div>
 
     <div class="card">
@@ -485,17 +535,20 @@ function renderXShare(d){
       <div class="field"><label>API Key Secret</label><input id="xk2" type="password" placeholder="API Key Secret" autocomplete="off"></div>
       <div class="field"><label>Access Token</label><input id="xk3" type="password" placeholder="${x.access_token?'(kayıtlı)':'Access Token'}" autocomplete="off"></div>
       <div class="field"><label>Access Token Secret</label><input id="xk4" type="password" placeholder="Access Token Secret" autocomplete="off"></div>
-      <div class="row"><button id="xKeysSave">kimlikleri kaydet</button></div>
+      <div class="card-actions">
+        <span class="note">Boş bıraktığın alanlar olduğu gibi kalır.</span>
+        <button id="xKeysSave">kimlikleri kaydet</button>
+      </div>
     </div>
 
     <div class="card">
       <h3>Public site adresi</h3>
       <p class="desc">Tweet'lerdeki <code>/t/&lt;mint&gt;</code> linkleri bu adresle kurulur.</p>
       <div class="field"><label>URL</label>
-        <div class="row">
-          <input id="xBase" placeholder="https://america.sx" value="${esc(x.base_url||'')}">
-          <button id="xBaseSave">kaydet</button>
-        </div>
+        <input id="xBase" placeholder="https://america.sx" value="${esc(x.base_url||'')}">
+      </div>
+      <div class="card-actions">
+        <button id="xBaseSave">kaydet</button>
       </div>
     </div>
 
@@ -523,7 +576,9 @@ function renderXShare(d){
       <div class="field"><label>kart görseli</label>
         <label ${cbl}><input type="checkbox" id="xMedia" style="width:auto" ${x.media?'checked':''}> tweet'e 1200×630 kartı yükle</label>
       </div>
-      <div class="row"><button id="xCfgSave">eşikleri kaydet</button></div>
+      <div class="card-actions">
+        <button id="xCfgSave">eşikleri kaydet</button>
+      </div>
     </div>
 
     <div class="card">
