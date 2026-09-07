@@ -126,18 +126,24 @@ vermezsen SQLite ile çalışır.
 ### Admin paneli — `/admin`
 
 `ADMIN_TOKEN` env verilirse `<servis>/admin` adresinde bir panel açılır
-(verilmezse 404). Token'ı `X-Admin-Token` başlığıyla gönderir. Panel:
+(verilmezse 404). Token'ı `X-Admin-Token` başlığıyla gönderir. 5 sekme:
 
-- **Genel** — istatistikler, RPC sağlayıcı durumu, aktif config +
-  **önbellek süresi** (saat) canlı ayarı
-- **İtirazlar** — kuyruk; çöz / yok say + not
-- **Karne** — tüm izlenen tokenlar; kayıt sil
-- **Önbellek / Tarama** — bir mint'in önbelleğini sil ya da zorla yeniden tara
-- **İşaretli cüzdanlar** — DB'de tutulur, motorun `flagged_wallets` /
-  `deployer_history` sinyalinde **anında** kullanılır (yeniden dağıtım gerekmez)
-- **Öğrenilenler** — aşağıya bak; işaretlemeyi "geri al" burada
-- **Entegrasyonlar** — Birdeye API anahtarı (eski token lansman verisi için).
-  DB'ye yazılır, anında devreye girer; `BIRDEYE_API_KEY` env'ini ezer.
+- **Panel** — istatistikler, RPC kota göstergesi, sağlayıcı durumu (izleme).
+- **Ayarlar** — panelden canlı düzenlenen her şey tek yerde:
+  - **RPC uç noktaları** (`RPC_ENDPOINTS`) — kaydedince havuz **anında yeniden
+    yapılandırılır**, yeniden dağıtım yok.
+  - **Birdeye API anahtarı** — eski token lansman verisi için.
+  - **Önbellek süresi** (saat).
+  - **Admin şifresi** değiştir.
+  - Yalnızca-env değerler (bilgi amaçlı liste).
+  Hepsi DB'ye yazılır ve ilgili env değişkenini ezer.
+- **Denetim** — alt sekmeler: İtirazlar / İşaretli cüzdanlar / Öğrenilenler (AI).
+  İşaretli cüzdanlar motorun `flagged_wallets` / `deployer_history` sinyalinde
+  **anında** kullanılır.
+- **Karne** — tüm izlenen tokenlar; kayıt sil.
+- **Araçlar** — bir mint'in önbelleğini sil ya da zincirden zorla yeniden tara.
+
+Tüm ayarlar tek endpoint'ten: `GET/POST /api/admin/settings`.
 
 Token üret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
 
