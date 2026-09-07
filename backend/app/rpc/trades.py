@@ -24,8 +24,23 @@ log = logging.getLogger(__name__)
 EARLY_TRADES_PROVIDER = os.getenv("EARLY_TRADES_PROVIDER", "birdeye").lower()
 EARLY_TRADES_MAX = int(os.getenv("EARLY_TRADES_MAX", "60"))
 
-BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY", "")
 BIRDEYE_BASE = os.getenv("BIRDEYE_BASE", "https://public-api.birdeye.so")
+
+# Admin panelinden / DB'den çalışma anında verilen anahtarlar env'i ezer.
+_RUNTIME: dict[str, str] = {}
+
+
+def set_runtime_config(**kw: str | None) -> None:
+    """Admin/DB kaynaklı anahtarları canlı ayarlar (ör. birdeye_api_key)."""
+    for k, v in kw.items():
+        if v:
+            _RUNTIME[k] = v.strip()
+        else:
+            _RUNTIME.pop(k, None)
+
+
+def _birdeye_key() -> str:
+    return _RUNTIME.get("birdeye_api_key") or os.getenv("BIRDEYE_API_KEY", "")
 
 
 @dataclass
@@ -48,10 +63,8 @@ def provider_name() -> str:
 def available() -> bool:
     """Bu sağlayıcı için anahtar/config hazır mı?"""
     if EARLY_TRADES_PROVIDER == "birdeye":
-        return bool(BIRDEYE_API_KEY)
-    if EARLY_TRADES_PROVIDER in ("none", "off", "disabled"):
-        return False
-    return False  # bilinmeyen sağlayıcı
+        return bool(_birdeye_key())
+    return False  # bilinmeyen / kapalı sağlayıcı
 
 
 async def fetch_early_trades(
@@ -84,7 +97,10 @@ async def fetch_early_trades(
 # blockUnixTime / blockTime). Anahtar geldiğinde tek bir gerçek şemaya sadeleştir.
 
 async def _birdeye_early_trades(mint: str, limit: int) -> list[EarlyTrade]:
-    headers = {"X-API-KEY": BIRDEYE_API_KEY, "x-chain": "solana"}
+    key = _birdeye_key()
+    if not key:
+        return []
+    headers = {"X-API-KEY": key, "x-chain": "solana"}
     url = f"{BIRDEYE_BASE}/defi/txs/token"
     out: list[EarlyTrade] = []
     async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:

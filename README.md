@@ -135,6 +135,8 @@ vermezsen SQLite ile çalışır.
 - **İşaretli cüzdanlar** — DB'de tutulur, motorun `flagged_wallets` /
   `deployer_history` sinyalinde **anında** kullanılır (yeniden dağıtım gerekmez)
 - **Öğrenilenler** — aşağıya bak; işaretlemeyi "geri al" burada
+- **Entegrasyonlar** — Birdeye API anahtarı (eski token lansman verisi için).
+  DB'ye yazılır, anında devreye girer; `BIRDEYE_API_KEY` env'ini ezer.
 
 Token üret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
 
@@ -238,8 +240,9 @@ Sıradaki en yüksek getirili işler:
    kontrol etmek.
 3. ~~**Yüksek hacimli eski tokenlar için lansman verisi.**~~ İskele v6'da
    eklendi: `rpc/trades.py` sağlayıcı-agnostik `fetch_early_trades()` +
-   Birdeye adaptörü (`sort_type=asc`). `BIRDEYE_API_KEY` boşsa sessizce
-   atlanır. **Yapılacak:** anahtar geldiğinde Birdeye şemasını doğrula
+   Birdeye adaptörü (`sort_type=asc`). Anahtar env (`BIRDEYE_API_KEY`) ya da
+   **admin panel → Entegrasyonlar** (DB, canlı); boşsa sessizce atlanır.
+   **Yapılacak:** anahtar geldiğinde Birdeye şemasını doğrula
    (`_parse_birdeye_item` birden çok alan adı deniyor), Bitquery adaptörü ekle.
 4. ~~**LP kilit durumu.**~~ v6'da eklendi (`rpc/liquidity.py` + `sig_lp_lock`):
    pump.fun bonding curve / PumpSwap → protokol kilidi; Raydium → API'nin

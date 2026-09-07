@@ -110,6 +110,7 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
       <button data-t="flagged">İşaretli cüzdanlar</button>
       <button data-t="track">UAVSX AI izleme</button>
       <button data-t="lessons">AI tespit</button>
+      <button data-t="integrations">Entegrasyonlar</button>
     </div>
     <div class="msg" id="msg"></div>
     <div id="view"></div>
@@ -186,6 +187,7 @@ async function route(t){
     if(t==='tools')    return renderTools();
     if(t==='flagged')  return renderFlagged(await api('/flagged'));
     if(t==='lessons')  return renderLessons(await api('/lessons'));
+    if(t==='integrations') return renderIntegrations(await api('/integrations'));
   }catch(e){ if(e.message!=='auth') v.innerHTML = `<p style="color:var(--red)">${esc(e.message)}</p>`; }
 }
 
@@ -322,6 +324,41 @@ function renderTools(){
       $('#tout').textContent = `${j.verdict.label} · skor ${j.verdict.score} · güven ${j.verdict.confidence}\n`+
         (j.verdict.reasons||[]).join('\n'); flash('tarandı');
     }catch(e){ $('#tout').textContent = e.message; }
+  };
+}
+
+function renderIntegrations(d){
+  const b = d.birdeye || {};
+  const st = b.configured
+    ? `<span class="badge b-resolved">aktif · ${esc(b.masked||'')} <span class="muted">(${b.source})</span></span>`
+    : `<span class="badge b-open">anahtar yok</span>`;
+  $('#view').innerHTML = `
+    <div class="card">
+      <h3 style="margin:0 0 4px">Birdeye — eski token lansman verisi</h3>
+      <p class="muted">Çok eski / yüksek hacimli Raydium tokenlarında zincir imza taraması
+        lansmanın başına ulaşamaz. Anahtar verilirse ilk trade'ler Birdeye'den çekilir
+        (<code>${esc(b.provider||'birdeye')}</code>). Boşsa bu adım atlanır, motor
+        "yalnızca mevcut yapı" moduna düşer.</p>
+      <p>Durum: ${st}</p>
+      <div class="row"><input id="bkey" type="password" placeholder="Birdeye API anahtarı" style="flex:1" autocomplete="off"></div>
+      <div class="row">
+        <button id="bsave">kaydet</button>
+        <button class="danger" id="bclear">anahtarı sil</button>
+      </div>
+      <p class="muted" style="font-size:11px">Anahtar DB'ye yazılır ve <b>anında</b> devreye girer
+        (yeniden dağıtım gerekmez). Env değişkeni <code>BIRDEYE_API_KEY</code> hâlâ çalışır;
+        DB'deki değer onu ezer.</p>
+    </div>`;
+  $('#bsave').onclick = async ()=>{
+    const k = $('#bkey').value.trim();
+    if(!k){ flash('anahtar boş'); return; }
+    await api('/integrations', {method:'POST', body:JSON.stringify({birdeye_api_key:k})});
+    $('#bkey').value=''; flash('kaydedildi'); route('integrations');
+  };
+  $('#bclear').onclick = async ()=>{
+    if(!confirm('Birdeye anahtarı silinsin mi?')) return;
+    await api('/integrations', {method:'POST', body:JSON.stringify({birdeye_api_key:''})});
+    flash('silindi'); route('integrations');
   };
 }
 

@@ -30,6 +30,7 @@ from .cache import ScanCache
 from .engine import registry
 from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
+from .rpc import trades as rpc_trades
 from .rpc.market import fetch_market
 from .rpc.pool import RpcPool, RpcError
 
@@ -232,6 +233,13 @@ async def lifespan(app: FastAPI):
             log.info("İşaretli cüzdan yüklendi: %s", len(rows))
     except Exception:  # noqa: BLE001
         log.exception("İşaretli cüzdan listesi yüklenemedi")
+    try:
+        bkey = state["cache"].config_get("birdeye_api_key")
+        rpc_trades.set_runtime_config(birdeye_api_key=bkey)
+        if bkey:
+            log.info("Birdeye anahtarı DB'den yüklendi.")
+    except Exception:  # noqa: BLE001
+        log.exception("Entegrasyon anahtarları yüklenemedi")
     track_task = asyncio.create_task(_track_loop())
     yield
     track_task.cancel()
@@ -621,6 +629,40 @@ async def admin_lesson_undo(mint: str):
     removed = state["cache"].lesson_undo(_validate(mint))
     _reload_flagged()
     return {"ok": True, "removed": removed}
+
+
+def _mask_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "•" * len(key)
+    return key[:4] + "…" + key[-4:]
+
+
+@app.get("/api/admin/integrations", dependencies=[Depends(_admin)])
+async def admin_integrations():
+    db_key = state["cache"].config_get("birdeye_api_key") or ""
+    env_key = os.getenv("BIRDEYE_API_KEY", "")
+    return {
+        "birdeye": {
+            "provider": rpc_trades.provider_name(),
+            "configured": rpc_trades.available(),
+            "source": "db" if db_key else ("env" if env_key else "none"),
+            "masked": _mask_key(db_key or env_key),
+            "base": os.getenv("BIRDEYE_BASE", "https://public-api.birdeye.so"),
+        }
+    }
+
+
+@app.post("/api/admin/integrations", dependencies=[Depends(_admin)])
+async def admin_integrations_set(payload: dict = Body(...)):
+    if "birdeye_api_key" not in payload:
+        raise HTTPException(422, "birdeye_api_key alanı gerekli (silmek için boş gönder).")
+    key = str(payload.get("birdeye_api_key") or "").strip()
+    state["cache"].config_set("birdeye_api_key", key)
+    rpc_trades.set_runtime_config(birdeye_api_key=key or None)
+    log.info("Birdeye anahtarı %s.", "güncellendi" if key else "silindi")
+    return {"ok": True, "configured": rpc_trades.available()}
 
 
 def _reload_flagged() -> None:
