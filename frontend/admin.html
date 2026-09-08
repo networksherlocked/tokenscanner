@@ -688,27 +688,14 @@ async function loadXPosts(){
 }
 
 /* ================= DENETİM ================= */
-let _modSub = 'appeals';
 function renderModeration(){
-  $('#view').innerHTML = `
-    <div class="subtabs" id="modSub">
-      <button data-s="appeals">İtirazlar</button>
-      <button data-s="flagged">İşaretli cüzdanlar</button>
-    </div>
-    <div id="modView"><p class="muted">yükleniyor…</p></div>`;
-  $('#modSub').onclick = e=>{
-    const b = e.target.closest('button'); if(!b) return;
-    _modSub = b.dataset.s; paintModSub();
-  };
+  $('#view').innerHTML = `<div id="modView"><p class="muted">yükleniyor…</p></div>`;
   paintModSub();
 }
 async function paintModSub(){
-  if(_modSub!=='appeals' && _modSub!=='flagged') _modSub = 'appeals';
-  document.querySelectorAll('#modSub button').forEach(x=>x.classList.toggle('on', x.dataset.s===_modSub));
   const mv = $('#modView'); mv.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
-    if(_modSub==='appeals')  mv.innerHTML = modAppeals(await api('/appeals'+(window.__astatus?('?status='+window.__astatus):'')));
-    if(_modSub==='flagged')  mv.innerHTML = modFlagged(await api('/flagged'));
+    mv.innerHTML = modAppeals(await api('/appeals'+(window.__astatus?('?status='+window.__astatus):'')));
     wireMod();
   }catch(e){ if(e.message!=='auth') mv.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
@@ -742,7 +729,9 @@ function modFlagged(d){
   </tr>`).join('');
   return `
     <div class="card">
-      <p class="desc">Motorun <code>flagged_wallets</code> / <code>deployer_history</code> sinyalinde <b>anında</b> kullanılır. ×N = kaç ayrı çöküşte görüldü.</p>
+      <p class="desc">AI tespit derslerinin <b>otomatik</b> eklediği + buradan <b>elle</b> eklediğin adresler.
+        Motorun <code>flagged_wallets</code> / <code>deployer_history</code> sinyalinde <b>anında</b> kullanılır;
+        ×N = adres kaç ayrı token çöküşünde görüldü. "← mint" = hangi dersten geldi.</p>
       <div class="field"><div class="row">
         <input id="faddr" placeholder="cüzdan adresi" style="flex:2 1 240px">
         <input id="fnote" placeholder="not (ör. X tokende pakette)" style="flex:3 1 240px">
@@ -760,20 +749,55 @@ function wireMod(){
     await api('/appeals/'+b.dataset.a, {method:'POST', body:JSON.stringify({status:b.dataset.as, note})});
     flash('güncellendi'); paintModSub();
   });
-  const fadd = mv.querySelector('#fadd');
+}
+function wireFlagged(root){
+  const fadd = root.querySelector('#fadd');
   if(fadd) fadd.onclick = async ()=>{
-    const address = mv.querySelector('#faddr').value.trim(); if(!address) return;
-    try{ await api('/flagged', {method:'POST', body:JSON.stringify({address, note:mv.querySelector('#fnote').value.trim()})});
-      flash('eklendi'); paintModSub();
+    const address = root.querySelector('#faddr').value.trim(); if(!address) return;
+    try{ await api('/flagged', {method:'POST', body:JSON.stringify({address, note:root.querySelector('#fnote').value.trim()})});
+      flash('eklendi'); paintAiSub();
     }catch(e){ flash(e.message); }
   };
-  mv.querySelectorAll('[data-fx]').forEach(b=> b.onclick = async ()=>{
-    await api('/flagged/'+encodeURIComponent(b.dataset.fx), {method:'DELETE'}); flash('kaldırıldı'); paintModSub();
+  root.querySelectorAll('[data-fx]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Bu adres kara listeden kaldırılsın mı?')) return;
+    await api('/flagged/'+encodeURIComponent(b.dataset.fx), {method:'DELETE'}); flash('kaldırıldı'); paintAiSub();
   });
 }
 
-/* ================= AI TESPİT (öğrenilenler) ================= */
+/* ================= AI TESPİT (dersler + işaretli cüzdanlar) ================= */
+let _aiSub = 'lessons', _aiFirst = null;
 function renderLessons(d){
+  _aiFirst = d;
+  $('#view').innerHTML = `
+    <div class="subtabs" id="aiSub">
+      <button data-s="lessons">Dersler</button>
+      <button data-s="flagged">İşaretli cüzdanlar</button>
+    </div>
+    <div id="aiView"><p class="muted">yükleniyor…</p></div>`;
+  $('#aiSub').onclick = e=>{ const b = e.target.closest('button'); if(!b) return; _aiSub = b.dataset.s; paintAiSub(); };
+  paintAiSub();
+}
+async function paintAiSub(){
+  if(_aiSub!=='lessons' && _aiSub!=='flagged') _aiSub = 'lessons';
+  document.querySelectorAll('#aiSub button').forEach(x=>x.classList.toggle('on', x.dataset.s===_aiSub));
+  const av = $('#aiView'); av.innerHTML = '<p class="muted">yükleniyor…</p>';
+  try{
+    if(_aiSub==='lessons'){
+      const d = _aiFirst || await api('/lessons'); _aiFirst = null;
+      av.innerHTML = lessonsTable(d);
+      av.querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
+        if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
+        const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
+        flash((j.removed||0)+' cüzdan geri alındı'); paintAiSub();
+      });
+    }else{
+      _aiFirst = null;
+      av.innerHTML = modFlagged(await api('/flagged'));
+      wireFlagged(av);
+    }
+  }catch(e){ if(e.message!=='auth') av.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
+}
+function lessonsTable(d){
   const rows = (d.lessons||[]).map(l=>`<tr>
     <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
     <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
@@ -782,21 +806,16 @@ function renderLessons(d){
     <td style="white-space:nowrap">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}
       ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}</td>
   </tr>`).join('');
-  $('#view').innerHTML = `
+  return `
     <div class="card"><p class="desc"><b>Öz-öğrenme döngüsü.</b> "organic" ya da "inconclusive" denip
       sonraki ${Math.round((d.window_h||24))} saatte sert çöken (≥%55) tokenlar burada listelenir.
       Sistem çöken her tokenın kayıtlı tarama verisini geriye dönük inceler; ortak fonlayıcı, gizli
       (çok-hop) fonlama ağacı, taze cüzdan kümesi ya da arzı tek elde toplamış bir cüzdan bulursa
-      o adresleri (ve varsa deployer'ı) kalıcı kara listeye ekler — sonraki taramalarda bu adresler
-      "Daha önce işaretlenmiş cüzdanlar" sinyalini tetikler. Bir ders yanlışsa "geri al" ile
-      o dersin eklediği tüm adresler listeden çıkarılır.</p></div>
+      o adresleri (ve varsa deployer'ı) kalıcı kara listeye ("İşaretli cüzdanlar" sekmesi) ekler —
+      sonraki taramalarda bu adresler "Daha önce işaretlenmiş cüzdanlar" sinyalini tetikler.
+      Bir ders yanlışsa "geri al" ile o dersin eklediği tüm adresler listeden çıkarılır.</p></div>
     <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi?</th><th>kara liste</th></tr></thead>
       <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok — organic bir token sert çökene kadar boş kalır</td></tr>'}</tbody></table></div>`;
-  $('#view').querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
-    if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
-    const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
-    flash((j.removed||0)+' cüzdan geri alındı'); route('lessons');
-  });
 }
 
 /* ================= KARNE ================= */
