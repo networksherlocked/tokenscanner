@@ -194,7 +194,14 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .cell .why code{color:var(--live);font-size:11px;word-break:break-all}
 
 /* ---------- holder tablosu ---------- */
-.tablewrap{margin-top:34px;border:1px solid var(--rule);border-radius:2px;overflow:auto}
+.tablewrap{margin-top:14px;border:1px solid var(--rule);border-radius:2px;overflow:auto}
+/* açılır/kapanır "en büyük cüzdanlar" başlığı */
+.wallet-toggle{width:100%;background:none;border:0;cursor:pointer;font:inherit;color:inherit;
+  padding:0;align-items:center;gap:12px}
+.wallet-toggle .chev{margin-left:auto;color:var(--gold);font-size:13px;transition:transform .2s;flex:none}
+.wallet-toggle[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.wallet-toggle #holderNote{margin-left:0;font-family:var(--mono);letter-spacing:0;text-transform:none;
+  font-size:11px;color:var(--dim)}
 table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 th{
   text-align:left;padding:11px 14px;background:var(--panel);color:var(--gold);
@@ -219,13 +226,15 @@ td.addr{color:var(--text)}
   background:var(--panel);border-radius:2px;overflow:hidden}
 .chartbox .head{font-family:var(--display);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
   color:var(--gold);padding:14px 16px 12px}
-.chartbox .chart-frame{position:relative;width:100%;aspect-ratio:16/9;min-height:340px;
-  background:var(--ink);border-top:1px solid var(--rule)}
-.chartbox .chart-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.chartbox .chart-frame{position:relative;width:100%;aspect-ratio:16/9;min-height:360px;
+  background:var(--ink);border-top:1px solid var(--rule);overflow:hidden}
+/* iframe'i alta doğru 46px taşır, "Powered by GeckoTerminal" şeridi kırpılır */
+.chartbox .chart-frame iframe{position:absolute;left:0;right:0;top:0;bottom:-46px;
+  width:100%;height:calc(100% + 46px);border:0;display:block}
 .chartbox .chart-src{display:block;padding:9px 16px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
   font-family:var(--display);color:var(--dim);border-top:1px solid var(--rule);text-decoration:none}
 .chartbox .chart-src:hover{color:var(--gold)}
-@media(max-width:560px){.chartbox .chart-frame{aspect-ratio:auto;min-height:300px}}
+@media(max-width:560px){.chartbox .chart-frame{aspect-ratio:auto;min-height:320px}}
 
 .sharebox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
   background:var(--panel);padding:16px;border-radius:2px}
@@ -606,11 +615,13 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         </div>
       </div>
 
-      <div class="section-label" style="margin-top:36px">
-        <span data-i18n="largestWallets">Largest wallets</span>
+      <button type="button" class="section-label wallet-toggle" id="walletToggle"
+              style="margin-top:36px" aria-expanded="false">
+        <span id="walletLabel" data-i18n="largestWallets">Largest wallets</span>
         <span id="holderNote"></span>
-      </div>
-      <div class="tablewrap"><table id="holders"></table></div>
+        <span class="chev" aria-hidden="true">▾</span>
+      </button>
+      <div class="tablewrap" id="walletWrap" hidden><table id="holders"></table></div>
     </div>
   </section>
 
@@ -774,6 +785,7 @@ const STR = {
     whatLimits:'What limits this reading',
     noSignalData:'No data to compute this signal.',
     thWallet:'Wallet', thShare:'Share', thBalance:'Balance', thTxns:'Txns', thFunder:'Funded by', thTag:'Tag',
+    thEntry:'Entry slot', thAge:'Wallet age', launchBuyersLabel:'Launch first buyers',
     noHolders:'No holder data.',
     cacheAge: s => `cache · ${s}s`, ms: n => `${n} ms`,
     scanDone:'done — fetching result',
@@ -859,6 +871,7 @@ const STR = {
     whatLimits:'Bu okumayı sınırlayanlar',
     noSignalData:'Bu sinyali hesaplayacak veri bulunamadı.',
     thWallet:'Cüzdan', thShare:'Pay', thBalance:'Bakiye', thTxns:'İşlem', thFunder:'Fonlayan', thTag:'Etiket',
+    thEntry:'Giriş slotu', thAge:'Cüzdan yaşı', launchBuyersLabel:'Lansman ilk alıcıları',
     noHolders:'Holder verisi yok.',
     cacheAge: s => `önbellek · ${s}s`, ms: n => `${n} ms`,
     scanDone:'tamamlandı — sonuç getiriliyor',
@@ -1542,19 +1555,42 @@ function render(d){
 
   renderChart(t.pair_address);
 
-  const rows = (d.holders||[]).map(h=>`
+  // Lansman verisi varsa: ilk alıcılar (fonlayan + işlem + yaş DOLU).
+  // Yoksa: mevcut en büyük holder'lar.
+  const useLaunch = !!(d.launch && d.launch.available && (d.launch.buyers||[]).length);
+  const list = useLaunch ? d.launch.buyers : (d.holders||[]);
+  const fnd = h => h.funder_tag ? esc(h.funder_tag) : (h.funder ? short(h.funder) : '—');
+
+  const rows = list.map(h=> useLaunch ? `
     <tr>
       <td class="addr">${short(h.owner)}</td>
-      <td>${h.share.toFixed(2)}%</td>
+      <td>${(h.share||0).toFixed(2)}%</td>
+      <td>${h.slot || '—'}</td>
+      <td>${h.tx_count!=null ? h.tx_count : '—'}</td>
+      <td>${fnd(h)}</td>
+      <td>${h.created_at ? relTime(h.created_at) : '—'}</td>
+    </tr>` : `
+    <tr>
+      <td class="addr">${short(h.owner)}</td>
+      <td>${(h.share||0).toFixed(2)}%</td>
       <td>${num(h.amount)}</td>
       <td>${h.tx_count || '—'}</td>
-      <td>${h.funder_tag ? h.funder_tag : short(h.funder)}</td>
-      <td>${h.tag && h.tag!=='unknown' ? `<span class="pill ${h.tag}">${h.tag}</span>` : ''}</td>
+      <td>${fnd(h)}</td>
+      <td>${h.tag && h.tag!=='unknown' ? `<span class="pill ${esc(h.tag)}">${esc(h.tag)}</span>` : ''}</td>
     </tr>`).join('');
+
+  const heads = useLaunch
+    ? [L('thWallet'), L('thShare'), L('thEntry'), L('thTxns'), L('thFunder'), L('thAge')]
+    : [L('thWallet'), L('thShare'), L('thBalance'), L('thTxns'), L('thFunder'), L('thTag')];
   $('holders').innerHTML = `
-    <thead><tr><th>${L('thWallet')}</th><th>${L('thShare')}</th><th>${L('thBalance')}</th><th>${L('thTxns')}</th><th>${L('thFunder')}</th><th>${L('thTag')}</th></tr></thead>
+    <thead><tr>${heads.map(x=>`<th>${x}</th>`).join('')}</tr></thead>
     <tbody>${rows || `<tr><td colspan="6">${L('noHolders')}</td></tr>`}</tbody>`;
+  $('walletLabel').textContent = useLaunch ? L('launchBuyersLabel') : L('largestWallets');
   $('holderNote').textContent = d.cached ? L('cacheAge', d.cache_age_s) : L('ms', d.duration_ms);
+  // her taramada kapalı başla
+  $('walletWrap').hidden = true;
+  $('walletToggle').setAttribute('aria-expanded', 'false');
+
   wireShare(d);
 }
 
@@ -1684,6 +1720,11 @@ $('aboutBack').onclick = ()=> showAbout(false);
 document.querySelector('.brand').style.cursor = 'pointer';
 document.querySelector('.brand').onclick = goHome;
 document.querySelectorAll('.langsel button').forEach(b=>{ b.onclick = ()=> setLang(b.dataset.lang); });
+$('walletToggle').onclick = ()=>{
+  const show = $('walletWrap').hidden;
+  $('walletWrap').hidden = !show;
+  $('walletToggle').setAttribute('aria-expanded', show ? 'true' : 'false');
+};
 
 applyI18n();
 loadRecent();
