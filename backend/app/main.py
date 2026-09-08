@@ -406,8 +406,7 @@ def _check_refresh_cooldown(mint: str) -> None:
         raise HTTPException(
             429,
             f"Bu token yakın zamanda tarandı. Sonuç ekranındaki karar güncel — "
-            f"tekrar canlı taramak için ~{mins} dk sonra dene. "
-            f"(Yenileme aralığı admin panelinden ayarlanır.)",
+            f"tekrar canlı taramak için ~{mins} dk sonra dene.",
         )
 
 
