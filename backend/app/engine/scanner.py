@@ -42,7 +42,25 @@ from .signals import SignalContext, run_signals
 
 log = logging.getLogger(__name__)
 
-MIN_MARKET_CAP = float(os.getenv("MIN_MARKET_CAP_USD", "10000"))
+MIN_MARKET_CAP_ENV = float(os.getenv("MIN_MARKET_CAP_USD", "10000"))
+# Admin panelinden canlı ayarlanır (config: min_market_cap_usd). Env yalnızca
+# başlangıç varsayılanı.
+_min_market_cap = MIN_MARKET_CAP_ENV
+
+
+def set_min_market_cap(value) -> None:
+    """Geçerli bir sayı (0 dahil — 0 = eşik yok) uygulanır; None / geçersiz /
+    negatif → env varsayılanına döner."""
+    global _min_market_cap
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = -1.0
+    _min_market_cap = v if v >= 0 else MIN_MARKET_CAP_ENV
+
+
+def get_min_market_cap() -> float:
+    return _min_market_cap
 
 
 class TokenTooSmall(Exception):
@@ -118,12 +136,13 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
 
     # 1) Piyasa + pump.fun meta (ikisi de anahtarsız, ucuz).
     market = await fetch_market(mint)
-    if not market.market_cap or market.market_cap < MIN_MARKET_CAP:
+    floor = _min_market_cap
+    if (market.market_cap or 0) < floor:
         seen = f"${market.market_cap:,.0f}" if market.market_cap else "unknown"
         raise TokenTooSmall(
             f"This token's market cap is {seen} — UAVSX only scans tokens above "
-            f"${MIN_MARKET_CAP:,.0f}. · Bu tokenın market cap'i {seen}; UAVSX "
-            f"yalnızca ${MIN_MARKET_CAP:,.0f} üzerindeki tokenları tarar."
+            f"${floor:,.0f}. · Bu tokenın market cap'i {seen}; UAVSX "
+            f"yalnızca ${floor:,.0f} üzerindeki tokenları tarar."
         )
 
     pump = await fetch_pumpfun(mint)

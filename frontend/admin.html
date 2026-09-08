@@ -453,6 +453,21 @@ function renderSettings(d){
     <div class="section-title">Motor</div>
 
     <div class="card">
+      <h3>Minimum tarama eşiği</h3>
+      <p class="desc">Bir tokenın taranabilmesi için gereken en düşük piyasa değeri (USD). Bunun altındaki tokenlar hiç taranmaz — ziyaretçiye "market cap çok düşük" uyarısı döner ve RPC bütçesi harcanmaz. <b>0 = eşik yok</b> (her token taranır).</p>
+      <div class="statusline">${srcBadge(d.min_market_cap_source)}
+        <span>şu an <b class="ok">${money(d.min_market_cap)}</b></span></div>
+      <div class="field">
+        <label>USD</label>
+        <input id="mmcInput" type="number" min="0" max="100000000" step="1000" value="${d.min_market_cap!=null?Math.round(d.min_market_cap):10000}" style="max-width:180px">
+      </div>
+      <div class="card-actions">
+        <span class="note">0–100.000.000 USD. Anında geçerli, DB'ye yazılır.</span>
+        <button id="mmcSave">kaydet</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Önbellek süresi</h3>
       <p class="desc">Bir token tarandıktan sonra sonucu kaç saat önbellekte tutulsun. Bu sürede aynı token için gelen istekler zincire gitmeden yanıtlanır.</p>
       <div class="statusline">${srcBadge(d.cache_ttl_source)}</div>
@@ -484,7 +499,6 @@ function renderSettings(d){
     <div class="card">
       <p class="desc">Bunlar servis env değişkenleridir; değiştirmek için Render'da güncelle + yeniden dağıt.</p>
       <table>
-        <tr><td>MIN_MARKET_CAP_USD</td><td class="mono">${money(e.min_market_cap)}</td></tr>
         <tr><td>RATE_LIMIT_PER_MIN</td><td class="mono">${e.rate_limit_per_min}</td></tr>
         <tr><td>TRACK_WINDOW_SEC</td><td class="mono">${e.track_window_sec} (${(e.track_window_sec||0)/3600} sa)</td></tr>
         <tr><td>TRACK_DROP_PCT</td><td class="mono">${e.track_drop_pct}</td></tr>
@@ -527,6 +541,13 @@ function renderSettings(d){
     if(!(m >= 0)){ flash('geçersiz süre'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify({refresh_cooldown_min:m})});
       flash('yenileme aralığı kaydedildi'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+  $('#mmcSave').onclick = async ()=>{
+    const v = parseFloat($('#mmcInput').value);
+    if(!(v >= 0)){ flash('geçersiz değer'); return; }
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({min_market_cap:v})});
+      flash('tarama eşiği kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
   };
 }

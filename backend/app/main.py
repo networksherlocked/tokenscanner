@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .cache import ScanCache
 from .engine import registry
+from .engine import scanner
 from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
 from . import xpost
@@ -497,6 +498,13 @@ async def lifespan(app: FastAPI):
             log.info("Önbellek süresi DB'den: %s sn", ttl_db)
     except Exception:  # noqa: BLE001
         log.exception("Önbellek süresi yüklenemedi")
+    try:
+        mmc_db = state["cache"].config_get("min_market_cap_usd")
+        if mmc_db is not None:
+            scanner.set_min_market_cap(mmc_db)
+            log.info("Min. tarama eşiği DB'den: $%s", scanner.get_min_market_cap())
+    except Exception:  # noqa: BLE001
+        log.exception("Min. tarama eşiği yüklenemedi")
     track_task = asyncio.create_task(_track_loop())
     yield
     track_task.cancel()
@@ -874,7 +882,7 @@ async def admin_overview():
         "config": {
             "track_window_sec": TRACK_WINDOW,
             "track_drop_pct": TRACK_DROP,
-            "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
+            "min_market_cap": scanner.get_min_market_cap(),
             "rate_limit_per_min": RATE_LIMIT,
             "rpc_quota": RPC_QUOTA,
             "cache_ttl_hours": round(state["cache"].ttl / 3600, 2),
@@ -1026,6 +1034,10 @@ async def admin_settings():
         "refresh_cooldown_source": (
             "db" if cache.config_get("refresh_cooldown_sec") is not None else "env"
         ),
+        "min_market_cap": scanner.get_min_market_cap(),
+        "min_market_cap_source": (
+            "db" if cache.config_get("min_market_cap_usd") is not None else "env"
+        ),
         "rpc_endpoints_masked": pool_mask(pool.raw),
         "rpc_endpoints_source": "db" if db_rpc else "env",
         "rpc_provider_count": len(pool.providers),
@@ -1039,7 +1051,6 @@ async def admin_settings():
         "x_autopost": xpost.public_status(),
         # --- yalnızca env (bilgi amaçlı) ---
         "env_only": {
-            "min_market_cap": float(os.getenv("MIN_MARKET_CAP_USD", "10000")),
             "rate_limit_per_min": RATE_LIMIT,
             "track_window_sec": TRACK_WINDOW,
             "track_drop_pct": TRACK_DROP,
@@ -1077,6 +1088,17 @@ async def admin_settings_set(payload: dict = Body(...)):
             raise HTTPException(422, "Yenileme aralığı 0–1440 dakika arasında olmalı.")
         cache.config_set("refresh_cooldown_sec", str(int(round(mins * 60))))
         changed.append("refresh_cooldown")
+
+    if "min_market_cap" in payload:
+        try:
+            mmc = float(payload["min_market_cap"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "min_market_cap bir sayı olmalı.") from None
+        if not 0 <= mmc <= 100_000_000:
+            raise HTTPException(422, "Eşik 0–100.000.000 USD arasında olmalı.")
+        cache.config_set("min_market_cap_usd", str(mmc))
+        scanner.set_min_market_cap(mmc)
+        changed.append("min_market_cap")
 
     if "rpc_endpoints" in payload:
         raw = str(payload.get("rpc_endpoints") or "").strip()
