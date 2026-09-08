@@ -255,6 +255,11 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   border-radius:2px;padding:9px 13px;cursor:pointer;font-family:var(--mono);color:inherit;
   transition:border-color .2s,background .2s;
 }
+.tok-img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex:none;
+  background:var(--panel-2);border:1px solid var(--rule)}
+.titem .row1 .tok-img{width:22px;height:22px}
+.tokhead .tok-img{width:clamp(30px,4.4vw,46px);height:clamp(30px,4.4vw,46px);
+  align-self:center;border-radius:8px}
 .recitem:hover{background:var(--panel-2);border-color:var(--muted)}
 .recitem:focus-visible{outline:2px solid var(--live);outline-offset:2px}
 .recitem .rv{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--sig,var(--muted))}
@@ -662,6 +667,10 @@ const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic',
 const $ = id => document.getElementById(id);
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+// token logosu — url yoksa ya da yüklenmezse sessizce kaybolur
+const tokImg = (url, cls='tok-img') => url
+  ? `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
+  : '';
 // /eagle.png yoksa: kartal görselini gizle, kutuya .no-img ver (SVG arma devreye girer)
 function eagleImgFail(img){ img.style.display='none'; const p=img.closest('.hero-eagle,.eagle-arena'); if(p) p.classList.add('no-img'); }
 
@@ -1227,6 +1236,7 @@ function renderRecent(scans){
     b.style.setProperty('--sig', col);
     b.title = `${s.mint} — ${label}`;
     b.innerHTML =
+      tokImg(s.image) +
       `<span class="rv">${label}</span>` +
       `<span class="rm">${esc(s.symbol || short(s.mint))}</span>` +
       `<span class="rmc">${mcapShort(s.market_cap)}</span>` +
@@ -1308,6 +1318,7 @@ function renderTrack(rec){
     b.title = `${t.mint} — ${L('predWas', label)}`;
     b.innerHTML = `
       <div class="row1">
+        ${tokImg(t.image)}
         <span class="tv">${label}</span>
         <span class="tsym">${esc(t.symbol || short(t.mint))}</span>
         <span class="tage">${relTime(t.scored_at)}</span>
@@ -1367,6 +1378,7 @@ function renderOrganic(rec){
     b.title = `${t.mint} — Organic`;
     b.innerHTML = `
       <div class="row1">
+        ${tokImg(t.image)}
         <span class="tv">Organic</span>
         <span class="tsym">${esc(t.symbol || short(t.mint))}</span>
         <span class="tage">${relTime(t.scored_at)}</span>
@@ -1408,6 +1420,7 @@ function render(d){
 
   // --- taranan token başlığı (durum kutusunun üstünde) ---
   $('tokHead').innerHTML = `
+    ${tokImg(t.image)}
     <span class="sym" style="color:${c}">${t.symbol ? esc(t.symbol) : L('noName')}</span>
     ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ''}
     <span class="vpill" style="color:${c}">${v.label}</span>

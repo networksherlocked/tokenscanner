@@ -32,6 +32,7 @@ class MarketSnapshot:
     buys_24h: int | None = None
     sells_24h: int | None = None
     socials: list[str] = field(default_factory=list)
+    image_url: str | None = None        # token logosu (DexScreener CDN)
 
     @property
     def liquidity_ratio(self) -> float | None:
@@ -78,6 +79,9 @@ async def fetch_market(mint: str, timeout: float = 12.0) -> MarketSnapshot:
         snap.pair_created_at = int(created) // 1000  # ms -> s
 
     info = pair.get("info") or {}
+    img = info.get("imageUrl") or info.get("openGraph")
+    if isinstance(img, str) and img.startswith("http"):
+        snap.image_url = img
     snap.socials = [
         s.get("url") for s in (info.get("socials") or []) if s.get("url")
     ] + [w.get("url") for w in (info.get("websites") or []) if w.get("url")]

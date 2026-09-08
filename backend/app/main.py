@@ -82,15 +82,17 @@ async def refresh_track() -> None:
         mint = row["mint"]
         mcap_min = row.get("mcap_min")
         sym = None
+        img = None
         try:
             snap = await fetch_market(mint)
             mcap = snap.market_cap
             sym = snap.symbol
+            img = snap.image_url
         except Exception:  # noqa: BLE001
             mcap = None
         if mcap:
             mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
-            cache.track_update(mint, mcap, mcap_min, now, symbol=sym)
+            cache.track_update(mint, mcap, mcap_min, now, symbol=sym, image=img)
 
         if now - row["scored_at"] >= TRACK_WINDOW:
             base = row.get("mcap_at_scan")
@@ -436,6 +438,7 @@ async def _run_scan(mint: str) -> dict:
                     verdict.get("kind"),
                     verdict.get("score"),
                     token.get("market_cap"),
+                    image=token.get("image"),
                 )
             # X otomatik paylaşım — bloklamaz, hata taramayı etkilemez.
             asyncio.create_task(xpost.maybe_autopost(result, state["cache"]))
@@ -502,16 +505,18 @@ async def organic(limit: int = 30):
 
 
 async def _backfill_track_symbols(limit: int = 25, budget: float = 6.0) -> None:
-    """Sembolü eksik karne kayıtlarını (settled dahil) DexScreener'dan doldurur.
+    """Sembolü / logosu eksik karne kayıtlarını DexScreener'dan doldurur.
 
-    Eski kayıtlarda `symbol` çoğu zaman NULL; kayıtlı tarama payload'ı da
-    silinmiş olabilir. Burada tazeden çekip kalıcı yazıyoruz. Eşzamanlı ve
+    Eski kayıtlarda `symbol`/`image` çoğu zaman NULL; kayıtlı tarama payload'ı
+    da silinmiş olabilir. Burada tazeden çekip kalıcı yazıyoruz. Eşzamanlı ve
     süre sınırlı — /api/track yanıtını fazla bekletmesin.
     """
     cache = state.get("cache")
     if cache is None:
         return
-    mints = cache.track_missing_symbol(limit)
+    mints = list(dict.fromkeys(
+        cache.track_missing_symbol(limit) + cache.track_missing_image(limit)
+    ))
     if not mints:
         return
 
@@ -522,6 +527,8 @@ async def _backfill_track_symbols(limit: int = 25, budget: float = 6.0) -> None:
             return
         if snap.symbol:
             cache.track_set_symbol(mint, snap.symbol)
+        if snap.image_url:
+            cache.track_set_image(mint, snap.image_url)
 
     try:
         await asyncio.wait_for(

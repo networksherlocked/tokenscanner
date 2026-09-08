@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS track (
     mint TEXT PRIMARY KEY, symbol TEXT, verdict TEXT, score INTEGER,
     scored_at INTEGER NOT NULL, mcap_at_scan REAL, mcap_latest REAL,
     mcap_min REAL, latest_at INTEGER, outcome TEXT,
-    settled INTEGER NOT NULL DEFAULT 0
+    settled INTEGER NOT NULL DEFAULT 0, image TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 
@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS track (
     mint TEXT PRIMARY KEY, symbol TEXT, verdict TEXT, score INTEGER,
     scored_at BIGINT NOT NULL, mcap_at_scan DOUBLE PRECISION,
     mcap_latest DOUBLE PRECISION, mcap_min DOUBLE PRECISION,
-    latest_at BIGINT, outcome TEXT, settled INTEGER NOT NULL DEFAULT 0
+    latest_at BIGINT, outcome TEXT, settled INTEGER NOT NULL DEFAULT 0,
+    image TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 
@@ -192,6 +193,7 @@ class ScanCache:
             "ALTER TABLE flagged ADD COLUMN hits INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE flagged ADD COLUMN via TEXT",
             "ALTER TABLE flagged ADD COLUMN kind TEXT NOT NULL DEFAULT 'wallet'",
+            "ALTER TABLE track ADD COLUMN image TEXT",
         ):
             try:
                 self._write(stmt)
@@ -276,6 +278,7 @@ class ScanCache:
             d["symbol"] = token.get("symbol")
             d["name"] = token.get("name")
             d["market_cap"] = token.get("market_cap")
+            d["image"] = token.get("image")
             out.append(d)
         return out
 
@@ -283,20 +286,21 @@ class ScanCache:
 
     def track_start(
         self, mint: str, symbol: str | None, verdict: str | None,
-        score: int | None, mcap: float | None,
+        score: int | None, mcap: float | None, image: str | None = None,
     ) -> None:
         now = int(time.time())
         self._write(
             "INSERT INTO track "
             "(mint, symbol, verdict, score, scored_at, mcap_at_scan, "
-            " mcap_latest, mcap_min, latest_at, outcome, settled) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0) "
+            " mcap_latest, mcap_min, latest_at, outcome, settled, image) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?) "
             "ON CONFLICT(mint) DO UPDATE SET symbol=excluded.symbol, "
             "verdict=excluded.verdict, score=excluded.score, "
             "scored_at=excluded.scored_at, mcap_at_scan=excluded.mcap_at_scan, "
             "mcap_latest=excluded.mcap_latest, mcap_min=excluded.mcap_min, "
-            "latest_at=excluded.latest_at, outcome=NULL, settled=0",
-            (mint, symbol, verdict, score, now, mcap, mcap, mcap, now),
+            "latest_at=excluded.latest_at, outcome=NULL, settled=0, "
+            "image=COALESCE(excluded.image, track.image)",
+            (mint, symbol, verdict, score, now, mcap, mcap, mcap, now, image),
         )
 
     def track_pending(self, max_age: int) -> list[dict]:
@@ -314,12 +318,14 @@ class ScanCache:
         mcap_min: float,
         at: int,
         symbol: str | None = None,
+        image: str | None = None,
     ) -> None:
-        # symbol yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
+        # symbol/image yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
         self._write(
             "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ?, "
-            "symbol = COALESCE(NULLIF(symbol, ''), ?) WHERE mint = ?",
-            (mcap_latest, mcap_min, at, symbol, mint),
+            "symbol = COALESCE(NULLIF(symbol, ''), ?), "
+            "image = COALESCE(NULLIF(image, ''), ?) WHERE mint = ?",
+            (mcap_latest, mcap_min, at, symbol, image, mint),
         )
 
     def track_settle(self, mint: str, outcome: str) -> None:
@@ -336,11 +342,26 @@ class ScanCache:
         )
         return [r["mint"] for r in rows]
 
+    def track_missing_image(self, limit: int = 25) -> list[str]:
+        rows = self._rows(
+            "SELECT mint FROM track WHERE image IS NULL OR image = '' "
+            "ORDER BY scored_at DESC LIMIT ?",
+            (limit,),
+        )
+        return [r["mint"] for r in rows]
+
     def track_set_symbol(self, mint: str, symbol: str) -> None:
         self._write(
             "UPDATE track SET symbol = ? "
             "WHERE mint = ? AND (symbol IS NULL OR symbol = '')",
             (symbol, mint),
+        )
+
+    def track_set_image(self, mint: str, image: str) -> None:
+        self._write(
+            "UPDATE track SET image = ? "
+            "WHERE mint = ? AND (image IS NULL OR image = '')",
+            (image, mint),
         )
 
     def _track_enrich(self, rows: list[dict]) -> list[dict]:
@@ -356,11 +377,13 @@ class ScanCache:
                 max(0.0, (base - low) / base) if base and low is not None else None
             )
             d["age_sec"] = now - d["scored_at"]
-            # Sembolü olmayan (eski) kayıtlar için kayıtlı taramadan doldur.
-            if not d.get("symbol"):
+            # Sembolü/logosu olmayan (eski) kayıtlar için kayıtlı taramadan doldur.
+            if not d.get("symbol") or not d.get("image"):
                 pl = self.scan_payload(d["mint"])
-                if pl:
-                    d["symbol"] = (pl.get("token") or {}).get("symbol")
+                tok = (pl or {}).get("token") or {}
+                if tok:
+                    d["symbol"] = d.get("symbol") or tok.get("symbol")
+                    d["image"] = d.get("image") or tok.get("image")
         return rows
 
     def track_list(self, limit: int = 20) -> list[dict]:
