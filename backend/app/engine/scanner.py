@@ -186,6 +186,36 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
         launch_available=launch_ok,
     )
 
+    # Karar kararlılığı: bu tarama veri toplayamayıp "inconclusive" çıktıysa ama
+    # daha önce (son 14 gün) gerçek bir karar verdiysek onu koru. "inconclusive"
+    # bir sınıf değişimi değil, "bu sefer zincir verisi gelmedi" demektir;
+    # lansman ve dağıtım olguları değişmez.
+    if verdict.kind == "inconclusive" and cache is not None:
+        try:
+            prev = cache.scan_payload(mint)
+        except Exception:  # noqa: BLE001
+            prev = None
+        pv = (prev or {}).get("verdict") or {}
+        prev_age = time.time() - float((prev or {}).get("scanned_at") or 0)
+        if (prev and pv.get("kind") in ("bundled", "cabaled", "organic")
+                and prev_age < 14 * 86400):
+            prev["scanned_at"] = int(time.time())
+            prev["duration_ms"] = int((time.monotonic() - started) * 1000)
+            cav = list(pv.get("caveats") or [])
+            cav.append(
+                "Bu yeniden tarama karar vermeye yetecek zincir verisi toplayamadı "
+                "(sağlayıcı sınırı / çok aktif ya da eski token). Önceki taramanın "
+                "kararı gösteriliyor — bir tokenın lansman ve dağıtım geçmişi değişmez."
+            )
+            prev["verdict"]["caveats"] = cav
+            prev["verdict"]["stale"] = True
+            prev["restored_from_prev"] = True
+            log.info(
+                "inconclusive → önceki karar korundu: %s (%s, %.0f gün önce)",
+                mint, pv.get("kind"), prev_age / 86400,
+            )
+            return prev
+
     if restored_launch and launch_ok:
         verdict.caveats.append(
             "Lansman verisi ilk taramada önbelleğe alınmıştı; canlı zincir taraması "

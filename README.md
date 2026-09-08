@@ -241,6 +241,14 @@ Tek sinyal asla karar vermez. `classifier.py`:
 - **Inconclusive** — coverage < 0.4 ya da 3+ sert sinyal veri yokluğundan kör.
 - **Organic** — hiçbiri.
 
+> **Karar kararlılığı:** Bir tokenı tekrar taradığında zincir verisi toplanamayıp
+> sonuç *Inconclusive* çıkarsa ve son 14 gün içinde **gerçek** bir karar (bundled/
+> cabaled/organic) verilmişse, o önceki karar korunur (`scanner.py`, "restored
+> from prev" caveat'ıyla). "Inconclusive" bir sınıf değişimi değil, "bu sefer
+> veri gelmedi" demektir — lansman ve dağıtım geçmişi değişmez. Buna ek olarak
+> `launch_cache` tablosu ilk başarılı taramadaki değişmez lansman verisini
+> (pump.fun meta + ilk alıcılar) saklar ve canlı çağrı düşerse geri yükler.
+
 İki ayrı sayı döner: **skor** (kategoriye uyum gücü, fiyat tahmini değil) ve
 **güven** (elimizde ne kadar veri vardı).
 
