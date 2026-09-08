@@ -33,6 +33,9 @@ SIGNAL_TUNING = {
     "fresh_wallet_ratio_high": 0.60,
     "wallet_age_cluster_hours": 24,     # token doğumundan önceki pencere
     "wallet_age_cluster_min": 4,        # kaç cüzdan aynı pencerede
+    "wallet_age_batch_span_days": 3.0,  # cüzdanların açıldığı dar pencere
+    "wallet_age_batch_min": 6,          # en az kaç cüzdan aynı partide
+    "wallet_age_batch_max_days": 45,    # ve hiçbiri bundan eski değil
     "common_funder_min": 3,             # aynı fonlayıcıdan kaç cüzdan
     "same_slot_window": 5,              # slot farkı
     "same_slot_min": 3,
@@ -277,6 +280,76 @@ def sig_wallet_age_cluster(ctx: SignalContext) -> Signal:
             s.detail = (
                 f"Cüzdan yaşları dağınık (medyan {median_age:.0f} gün önce açılmış)."
             )
+    return s
+
+
+def sig_wallet_age_batch(ctx: SignalContext) -> Signal:
+    """Önceden hazırlanıp bekletilmiş cüzdan partisi.
+
+    `wallet_age_cluster` yalnızca lansmandan önceki 24 saate bakar; sofistike
+    bir paketleyici cüzdanları günler/haftalar önce açıp "yaşlandırır" ve o
+    pencere sinyalini atlatır. Ama hazırlanmış bir parti hâlâ iki ize sahiptir:
+    (a) cüzdanların hepsi birbirine çok yakın tarihlerde açılmıştır ve
+    (b) hiçbiri gerçekten eski değildir. Dar açılış penceresi + genç yaş,
+    24 saatlik kümeden bağımsız bir paket imzasıdır.
+    """
+    s = Signal(
+        key="wallet_age_batch",
+        label="Hazırlanmış cüzdan partisi",
+        direction="bundled",
+        weight=1.0,
+    )
+    if not ctx.launch_ts:
+        s.data_ok = False
+        return s
+    days_before = sorted(
+        (ctx.launch_ts - h.owner_created_at) / DAY
+        for h in ctx.bundle_wallets
+        if h.owner_created_at and h.owner_created_at <= ctx.launch_ts
+    )
+    need = SIGNAL_TUNING["wallet_age_batch_min"]
+    if len(days_before) < need:
+        s.data_ok = False
+        return s
+
+    span = SIGNAL_TUNING["wallet_age_batch_span_days"]
+    max_days = SIGNAL_TUNING["wallet_age_batch_max_days"]
+    # en büyük "span günlük pencere" kümesi
+    best: list[float] = []
+    for i, base in enumerate(days_before):
+        grp = [d for d in days_before[i:] if d - base <= span]
+        if len(grp) > len(best):
+            best = grp
+
+    window_days = (best[-1] - best[0]) if best else 0.0
+    median_days = statistics.median(best) if best else 0.0
+    s.evidence = {
+        "batch_size": len(best),
+        "resolved_ages": len(days_before),
+        "window_days": round(window_days, 2),
+        "median_days_before": round(median_days, 1),
+        "oldest_days": round(days_before[-1], 1),
+    }
+
+    # medyan < 1 gün ise bu zaten "taze kohort" — onu wallet_age_cluster görür,
+    # burada tekrar saymayalım.
+    fresh_cohort = median_days < 1.0
+    is_batch = (
+        len(best) >= need
+        and len(best) >= len(days_before) * 0.6
+        and best[-1] <= max_days
+        and not fresh_cohort
+    )
+    if is_batch:
+        s.fired = True
+        s.strength = _count_strength(len(best), need, span=10)
+        s.detail = (
+            f"{len(best)} lansman cüzdanı, lansmandan medyan {median_days:.0f} gün "
+            f"önce ve {window_days:.1f} günlük dar bir pencerede açılmış — önceden "
+            "hazırlanıp bekletilmiş bir cüzdan partisi."
+        )
+    else:
+        s.detail = "Lansman cüzdanlarının açılış tarihleri bir parti oluşturmuyor."
     return s
 
 
@@ -801,6 +874,7 @@ def sig_wallet_age_diversity(ctx: SignalContext) -> Signal:
 
 ALL_SIGNALS: list[Callable[[SignalContext], Signal]] = [
     sig_wallet_age_cluster,
+    sig_wallet_age_batch,
     sig_common_funder,
     sig_same_slot_entry,
     sig_identical_balances,

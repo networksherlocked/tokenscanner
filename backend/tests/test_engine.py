@@ -309,6 +309,50 @@ def obfuscated_funding_case():
     return chain, _market(liq=20_000.0, mcap=500_000.0), launch, True
 
 
+def disguised_bundle_case():
+    """Sofistike / kamufle paket. 20 lansman alıcısı AYNI slotta girmiş ama
+    operatör klasik imzaları özenle gizlemiş: cüzdanlar lansmandan ~6 gün önce
+    dar bir pencerede açılıp 'yaşlandırılmış' (24h kümesi görmez), her cüzdanın
+    AYRI fonlayıcısı var, ücretler rastgele, cüzdanlar ısıtılmış, miktarlar
+    ±%8 oynatılmış. Yakalayan: hazırlanmış cüzdan partisi + kütle eşzamanlı
+    giriş → Bundled beklenir (gerçek vaka: vc.fun / DRqXeQA5…pump)."""
+    holders = []
+    for i in range(14):
+        holders.append(
+            HolderRecord(
+                token_account=f"HA{i:040d}",
+                owner=f"HOLD{i:039d}",
+                amount_raw=int(SUPPLY * (0.04 - i * 0.001)),
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    chain = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=1.0)
+
+    buyers = []
+    for i in range(20):
+        jitter = 1.0 + ((i % 5) - 2) * 0.03          # ±%6
+        age_days = 6 + (i % 3) * 0.4                  # 6.0–6.8 gün, dar pencere
+        buyers.append(
+            LaunchBuyer(
+                owner=f"DBUY{i:038d}",
+                amount_raw=int(SUPPLY * 0.038 * jitter),
+                first_slot=445_000_000 + (i % 2),        # hepsi 1-2 slot
+                first_block_time=LAUNCH + 4,
+                entry_fee=60_000 + i * 4_137,            # her biri farklı
+                first_signature=f"db{i}",
+                owner_created_at=LAUNCH - int(age_days * 86_400),
+                owner_tx_count=15 + i,                    # ısıtılmış
+                funder=f"DFUND{i:037d}",                  # her cüzdana ayrı fonlayıcı
+            )
+        )
+    total = sum(b.amount_raw for b in buyers)
+    for b in buyers:
+        b.share = b.amount_raw / total * 100
+    launch = LaunchSnapshot(available=True, source="bonding_curve", buyers=buyers)
+    return chain, _market(liq=130_000.0, mcap=2_200_000.0), launch, True
+
+
 def indexer_launch_case():
     """Çok eski Raydium token: zincir imza taraması başlangıcı göremedi, lansman
     verisi bir indeksleyiciden (EarlyTrade) geldi. Slot/ücret yok ama yaş kümesi
@@ -392,6 +436,7 @@ if __name__ == "__main__":
         "GİZLİ FONLAMA (3-hop)": run(
             "GİZLİ FONLAMA (3-hop)", obfuscated_funding_case, age_hours=1000.0
         ),
+        "KAMUFLE PAKET": run("KAMUFLE PAKET", disguised_bundle_case, age_hours=19.0),
         "KİLİTSİZ LP": run("KİLİTSİZ LP", unlocked_lp_case, age_hours=400.0),
         "İNDEKSLEYİCİ LANSMANI": run(
             "İNDEKSLEYİCİ LANSMANI", indexer_launch_case, age_hours=2400.0
@@ -404,6 +449,7 @@ if __name__ == "__main__":
         "ESKİ TOKEN + BALİNA": "bundled",
         "LANSMAN PAKETİ": "bundled",
         "GİZLİ FONLAMA (3-hop)": "bundled",
+        "KAMUFLE PAKET": "bundled",
         "KİLİTSİZ LP": "cabaled",
         "İNDEKSLEYİCİ LANSMANI": "bundled",
     }

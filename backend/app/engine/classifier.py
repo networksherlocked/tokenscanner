@@ -20,6 +20,7 @@ from .signals import Signal
 # "Sert" sinyaller: tek başına değil ama birkaçı birleşince Bundled kararı verir.
 HARD_SIGNALS = {
     "wallet_age_cluster",
+    "wallet_age_batch",
     "common_funder",
     "same_slot_entry",
     "identical_balances",
@@ -28,6 +29,12 @@ HARD_SIGNALS = {
     "supply_whale",
     "funding_tree",
 }
+
+# Kütle eşzamanlı giriş: lansman alıcılarının ezici çoğunluğu tek-iki slotta
+# girdiyse bu tek başına bir paket imzasıdır — bir sniper sürüsü zamana yayılır.
+MASS_SLOT_MIN_WALLETS = 10
+MASS_SLOT_MIN_RATIO = 0.8
+MASS_SLOT_MAX_SPAN = 2   # slot
 
 # Klasik yol: taze lansman paketleri — çok sayıda sert sinyal.
 BUNDLED_MIN_HARD = 3
@@ -132,8 +139,34 @@ def classify(
     )
     alt_bundle = len(hard_fired) >= BUNDLED_ALT_HARD and combo >= BUNDLED_ALT_COMBO
 
+    # Kütle eşzamanlı giriş: same_slot_entry lansman alıcılarının ≥%80'ini ve
+    # ≥10 cüzdanı, ≤2 slotluk bir aralıkta yakaladıysa. Tek başına karar vermesin
+    # ("no single signal") — en az bir doğrulayıcı sinyal daha gerekli.
+    ss = next((s for s in fired if s.key == "same_slot_entry"), None)
+    mass_same_slot = False
+    if ss:
+        ev = ss.evidence or {}
+        cs = ev.get("cluster_size", 0) or 0
+        tot = ev.get("total", 0) or 1
+        rng = ev.get("slot_range") or [0, 0]
+        slot_span = (rng[1] - rng[0]) if isinstance(rng, list) and len(rng) == 2 else 99
+        mass_same_slot = (
+            cs >= MASS_SLOT_MIN_WALLETS
+            and cs / tot >= MASS_SLOT_MIN_RATIO
+            and slot_span <= MASS_SLOT_MAX_SPAN
+        )
+    corroborating = [
+        s for s in fired
+        if s.key != "same_slot_entry"
+        and (
+            s.key in HARD_SIGNALS
+            or s.key in ("top10_concentration", "funding_profile", "deployer_history")
+        )
+    ]
+    mass_slot_bundle = mass_same_slot and len(corroborating) >= 1
+
     # --- Karar kuralı --------------------------------------------------
-    if strong_bundle or alt_bundle:
+    if strong_bundle or alt_bundle or mass_slot_bundle:
         kind = "bundled"
         # Tetiklenen bundled ağırlığı / veri BULUNAN bundled sinyallerin tavanı
         # (kör sinyaller skoru boşuna düşürmesin). Yoğunlaşma ağırlığını da bir
@@ -142,6 +175,10 @@ def classify(
             s.weight for s in signals if s.direction == "bundled" and s.data_ok
         ) or 1.0
         score_frac = min(1.0, bundled_weight / avail_ceiling + 0.15 * cabaled_weight)
+        # Kütle eşzamanlı giriş yüksek güvenli bir imzadır — parmak izinin geri
+        # kalanı gizlenmiş olsa bile skor taban 60'ın altına düşmesin.
+        if mass_same_slot:
+            score_frac = max(score_frac, 0.60)
     elif combo >= CABALED_MIN_WEIGHT:
         kind = "cabaled"
         ceiling = sum(
@@ -168,6 +205,13 @@ def classify(
     conf = 0.55 * signal_coverage + 0.30 * coverage + 0.15 * (1.0 if market_available else 0.0)
 
     caveats: list[str] = []
+    if kind == "bundled" and mass_slot_bundle and not strong_bundle:
+        caveats.append(
+            "Lansman alıcılarının neredeyse tamamı tek-iki slot içinde girmiş "
+            "(paket imzası), ancak fonlama ve cüzdan-hazırlık izleri gizlenmiş — "
+            "parmak izini bilinçli olarak örten bir paket olabilir; klasik "
+            "paketlerin tüm sert sinyalleri tetiklenmedi."
+        )
     if not launch_available:
         conf *= 0.8
         caveats.append(

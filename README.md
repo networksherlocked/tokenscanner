@@ -7,7 +7,7 @@
 > `americasx_lang` (eski `uavsx_lang` geriye dönük okunuyor).
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
-Bir mint adresi alır, **16 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
+Bir mint adresi alır, **17 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
 Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 
 **Paylaşım & şeffaflık (v5):**
@@ -16,7 +16,7 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 - `GET /badge/{mint}.svg` — projeler sitelerine gömebilir (`<img src=…>`).
 - `POST /api/appeal` — karara itiraz (SQLite `appeals`, elle inceleme kuyruğu).
 - Sonuç panelinde "Bu kararı paylaş": link kopyala · X'te paylaş · rozet göm · itiraz.
-- "Yöntem" sayfası: 16 sinyalin tam listesi + lansman analizi açıklaması.
+- "Yöntem" sayfası: 17 sinyalin tam listesi + lansman analizi açıklaması.
 
 **Motor doğruluğu (v6):**
 - Yeni `lp_lock` sinyali: likidite yakılmış/kilitli mi yoksa geliştirici
@@ -225,7 +225,7 @@ backend/app/
   rpc/solana.py     Zincir sorguları: holder, cüzdan yaşı, fonlama kaynağı, ücret
   rpc/market.py     DexScreener — fiyat, likidite, çift oluşum zamanı
   engine/registry.py  Küratörlü adres listeleri (CEX, LP, burn, işaretli cüzdan)
-  engine/signals.py   16 bağımsız sinyal + kalibrasyon tablosu
+  engine/signals.py   17 bağımsız sinyal + kalibrasyon tablosu
   rpc/liquidity.py    LP kilit durumu (Raydium API burnPercent + LP mint analizi)
   rpc/trades.py       Eski token lansman verisi — indeksleyici adaptörleri (Birdeye)
   engine/classifier.py  Yakınsama kuralı → karar, skor, güven
@@ -238,11 +238,16 @@ backend/app/
 
 Tek sinyal asla karar vermez. `classifier.py`:
 
-- **Bundled** — ya (a) ≥ 3 *sert* sinyal + bundled ağırlık ≥ 1.8 (klasik taze
-  lansman), ya da (b) ≥ 2 sert sinyal + `combo` ≥ 2.0 (eski/konsolide token;
-  `combo = bundled_ağırlık + 0.6·cabaled_ağırlık`). Sert sinyaller: yaş kümesi,
-  ortak fonlayıcı, eşzamanlı giriş, eşit bakiyeler, ücret parmak izi, işaretli
-  cüzdan, **tek cüzdan baskınlığı**.
+- **Bundled** — şu üç yoldan biri:
+  (a) ≥ 3 *sert* sinyal + bundled ağırlık ≥ 1.8 (klasik taze lansman);
+  (b) ≥ 2 sert sinyal + `combo` ≥ 2.0 (eski/konsolide token;
+  `combo = bundled_ağırlık + 0.6·cabaled_ağırlık`);
+  (c) **kütle eşzamanlı giriş** — `same_slot_entry` lansman alıcılarının ≥%80'ini
+  ve ≥10 cüzdanı ≤2 slotta yakaladıysa + en az bir doğrulayıcı sinyal (sniper
+  sürüsü zamana yayılır; tek-iki slotluk kütle giriş bir paket imzasıdır).
+  Sert sinyaller: yaş kümesi, **hazırlanmış cüzdan partisi**, ortak fonlayıcı,
+  eşzamanlı giriş, eşit bakiyeler, ücret parmak izi, işaretli cüzdan, tek cüzdan
+  baskınlığı, fonlama ağacı.
 - **Cabaled** — `combo` ≥ 0.9, bundled eşiği tutmamış.
 - **Inconclusive** — coverage < 0.4 ya da 3+ sert sinyal veri yokluğundan kör.
 - **Organic** — hiçbiri.
