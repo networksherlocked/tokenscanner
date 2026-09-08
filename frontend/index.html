@@ -195,13 +195,23 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 
 /* ---------- holder tablosu ---------- */
 .tablewrap{margin-top:14px;border:1px solid var(--rule);border-radius:2px;overflow:auto}
-/* açılır/kapanır "en büyük cüzdanlar" başlığı */
-.wallet-toggle{width:100%;background:none;border:0;cursor:pointer;font:inherit;color:inherit;
-  padding:0;align-items:center;gap:12px}
-.wallet-toggle .chev{margin-left:auto;color:var(--gold);font-size:13px;transition:transform .2s;flex:none}
-.wallet-toggle[aria-expanded="true"] .chev{transform:rotate(180deg)}
-.wallet-toggle #holderNote{margin-left:0;font-family:var(--mono);letter-spacing:0;text-transform:none;
+/* açılır/kapanır "cüzdanlar" paneli — diğer kartlarla aynı çerçeve + fon */
+.wallet-panel{border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
+  background:var(--panel);border-radius:2px;overflow:hidden}
+.wallet-toggle{width:100%;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));border:0;border-bottom:1px solid transparent;
+  padding:15px 16px;font-family:var(--display);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold);transition:background .15s}
+.wallet-toggle:hover{background:var(--panel-2)}
+.wallet-toggle[aria-expanded="true"]{border-bottom-color:var(--rule)}
+.wallet-toggle #holderNote{font-family:var(--mono);letter-spacing:0;text-transform:none;
   font-size:11px;color:var(--dim)}
+.wallet-toggle .wt-hint{margin-left:auto;font-family:var(--display);font-size:10px;letter-spacing:.12em;
+  color:var(--muted);border:1px solid var(--rule);border-radius:2px;padding:3px 9px;flex:none}
+.wallet-toggle .chev{color:var(--gold);font-size:12px;line-height:1;transition:transform .2s;flex:none}
+.wallet-toggle[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.wallet-toggle[aria-expanded="true"] .wt-hint{color:var(--gold);border-color:var(--gold-dim)}
+.wallet-panel .tablewrap{margin-top:0;border:0;border-radius:0}
 table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
 th{
   text-align:left;padding:11px 14px;background:var(--panel);color:var(--gold);
@@ -615,13 +625,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         </div>
       </div>
 
-      <button type="button" class="section-label wallet-toggle" id="walletToggle"
-              style="margin-top:36px" aria-expanded="false">
-        <span id="walletLabel" data-i18n="largestWallets">Largest wallets</span>
-        <span id="holderNote"></span>
-        <span class="chev" aria-hidden="true">▾</span>
-      </button>
-      <div class="tablewrap" id="walletWrap" hidden><table id="holders"></table></div>
+      <div class="wallet-panel" style="margin-top:36px">
+        <button type="button" class="wallet-toggle" id="walletToggle" aria-expanded="false">
+          <span id="walletLabel" data-i18n="largestWallets">Largest wallets</span>
+          <span id="holderNote"></span>
+          <span class="wt-hint" id="walletHint" data-i18n="wtShow">Show</span>
+          <span class="chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="tablewrap" id="walletWrap" hidden><table id="holders"></table></div>
+      </div>
     </div>
   </section>
 
@@ -786,6 +798,7 @@ const STR = {
     noSignalData:'No data to compute this signal.',
     thWallet:'Wallet', thShare:'Share', thBalance:'Balance', thTxns:'Txns', thFunder:'Funded by', thTag:'Tag',
     thEntry:'Entry slot', thAge:'Wallet age', launchBuyersLabel:'Launch first buyers',
+    wtShow:'Show', wtHide:'Hide',
     noHolders:'No holder data.',
     cacheAge: s => `cache · ${s}s`, ms: n => `${n} ms`,
     scanDone:'done — fetching result',
@@ -872,6 +885,7 @@ const STR = {
     noSignalData:'Bu sinyali hesaplayacak veri bulunamadı.',
     thWallet:'Cüzdan', thShare:'Pay', thBalance:'Bakiye', thTxns:'İşlem', thFunder:'Fonlayan', thTag:'Etiket',
     thEntry:'Giriş slotu', thAge:'Cüzdan yaşı', launchBuyersLabel:'Lansman ilk alıcıları',
+    wtShow:'Göster', wtHide:'Gizle',
     noHolders:'Holder verisi yok.',
     cacheAge: s => `önbellek · ${s}s`, ms: n => `${n} ms`,
     scanDone:'tamamlandı — sonuç getiriliyor',
@@ -1590,6 +1604,7 @@ function render(d){
   // her taramada kapalı başla
   $('walletWrap').hidden = true;
   $('walletToggle').setAttribute('aria-expanded', 'false');
+  $('walletHint').textContent = L('wtShow');
 
   wireShare(d);
 }
@@ -1724,6 +1739,7 @@ $('walletToggle').onclick = ()=>{
   const show = $('walletWrap').hidden;
   $('walletWrap').hidden = !show;
   $('walletToggle').setAttribute('aria-expanded', show ? 'true' : 'false');
+  $('walletHint').textContent = show ? L('wtHide') : L('wtShow');
 };
 
 applyI18n();
