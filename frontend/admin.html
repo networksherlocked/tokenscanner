@@ -819,26 +819,60 @@ function lessonsTable(d){
 }
 
 /* ================= KARNE ================= */
+let _trkAll = null, _trkSub = 'all';
+const TRK_GROUPS = [
+  ['all','Hepsi'], ['bundled','Bundled'], ['cabaled','Cabaled'],
+  ['organic','Organic'], ['inconclusive','Inconclusive'],
+];
 function renderTrack(d){
-  const rows = (d.records||[]).map(t=>{
+  _trkAll = d;
+  const recs = d.records || [];
+  const cnt = k => k === 'all' ? recs.length : recs.filter(t => t.verdict === k).length;
+  $('#view').innerHTML = `
+    <div class="card"><p class="desc">Taranan her token 24 saat izlenir; tarama anına göre en düşük noktadaki düşüş eşiği geçerse "çöktü" sayılır (isabet / kaçırdı / korudu). Sekmeler tokenları taramadaki sınıflandırmalarına göre ayırır.</p></div>
+    <div class="subtabs" id="trkSub">
+      ${TRK_GROUPS.map(([k,l])=>`<button data-s="${k}">${l} <span class="muted">${cnt(k)}</span></button>`).join('')}
+    </div>
+    <div id="trkView"><p class="muted">yükleniyor…</p></div>`;
+  $('#trkSub').onclick = e => {
+    const b = e.target.closest('button'); if(!b) return;
+    _trkSub = b.dataset.s; paintTrkSub();
+  };
+  paintTrkSub();
+}
+function paintTrkSub(){
+  const recs = (_trkAll && _trkAll.records) || [];
+  if(!TRK_GROUPS.some(([k]) => k === _trkSub)) _trkSub = 'all';
+  document.querySelectorAll('#trkSub button').forEach(x => x.classList.toggle('on', x.dataset.s === _trkSub));
+  const list = _trkSub === 'all' ? recs : recs.filter(t => t.verdict === _trkSub);
+
+  const done = list.filter(t => t.settled);
+  const open = list.length - done.length;
+  const correct = done.filter(t => t.outcome === 'hit' || t.outcome === 'clear').length;
+  const summary = `${list.length} token · ${open} izlemede · ${done.length} sonuçlandı`
+    + (done.length ? ` · <b class="ok">${correct} doğru</b>` : '');
+
+  const rows = list.map(t => {
     const chg = t.change_pct;
-    const dl = chg==null?'—':((chg>0?'+':'')+Math.round(chg*100)+'%');
+    const dl = chg == null ? '—' : ((chg > 0 ? '+' : '') + Math.round(chg * 100) + '%');
     return `<tr>
       <td>${vb(t.verdict)}</td>
-      <td class="mono">${esc(t.symbol||short(t.mint))}<div class="muted">${short(t.mint)}</div></td>
-      <td>${money(t.mcap_at_scan)} → ${money(t.mcap_latest)} <b class="${chg<0?'bad':'ok'}">${dl}</b></td>
-      <td>${t.settled?vb(t.outcome):('izleniyor '+ago(t.scored_at))}</td>
+      <td class="mono">${esc(t.symbol || short(t.mint))}<div class="muted">${short(t.mint)}</div></td>
+      <td>${money(t.mcap_at_scan)} → ${money(t.mcap_latest)} <b class="${chg < 0 ? 'bad' : 'ok'}">${dl}</b></td>
+      <td>${t.settled ? vb(t.outcome) : ('izleniyor ' + ago(t.scored_at))}</td>
       <td><button class="danger sm" data-tm="${esc(t.mint)}">sil</button></td>
     </tr>`;
   }).join('');
-  $('#view').innerHTML = `
-    <div class="card"><p class="desc">Taranan her token 24 saat izlenir; en düşük noktaya göre düşüş eşiği geçerse "çöktü" sayılır (isabet / kaçırdı / korudu).</p></div>
+
+  const v = $('#trkView');
+  v.innerHTML = `
+    <div class="statusline">${summary}</div>
     <div class="tbl-card"><table>
       <thead><tr><th>karar</th><th>token</th><th>mcap</th><th>sonuç</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table></div>`;
-  $('#view').querySelectorAll('[data-tm]').forEach(b=> b.onclick = async ()=>{
+      <tbody>${rows || '<tr><td colspan="5" class="muted">bu sınıfta izlenen token yok</td></tr>'}</tbody></table></div>`;
+  v.querySelectorAll('[data-tm]').forEach(b => b.onclick = async () => {
     if(!confirm('Karne kaydı silinsin mi?')) return;
-    await api('/track/'+b.dataset.tm, {method:'DELETE'}); flash('silindi'); route('track');
+    await api('/track/' + b.dataset.tm, {method:'DELETE'}); flash('silindi'); route('track');
   });
 }
 

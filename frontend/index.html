@@ -810,7 +810,7 @@ const STR = {
     organicSub:'Organic launches stay under watch for the whole cycle. If one crashes for any reason, the UAVSX AI algorithm detects it and writes it to the database — so the next analysis gives you a sharper call.',
     organicCount: n => `${n} tracked`,
     trackHead:'UAVSX AI tespit',
-    trackSub:'Every scanned token, watched for 24 hours.',
+    trackSub:'Every bundled / cabaled / inconclusive call, watched for 24 hours. Organic launches are tracked in their own section above.',
     trackWatching: n => `${n} watching`,
     trackNote:"After each scan, america.sx follows the token's market cap for 24 hours. A drop of more than 35% below the scan-time value counts as a crash. Not a backtest — a live, running log.",
     trackScore: (n,m) => `${n} / ${m} correct`,
@@ -897,7 +897,7 @@ const STR = {
     organicSub:'Organik lansmanlar tüm süreç boyunca izlenmeye devam eder. Herhangi bir sebeple çökerse UAVSX AI algoritması bunu tespit eder ve veritabanına yazar. Bu sayede bir sonraki analiz için size daha iyi tespit sunarız.',
     organicCount: n => `${n} izleniyor`,
     trackHead:'UAVSX AI tespit',
-    trackSub:'Taranan her token, 24 saat izlenir.',
+    trackSub:'Her paketli / kabal / belirsiz karar 24 saat izlenir. Organik lansmanlar yukarıdaki kendi bölümünde takip edilir.',
     trackWatching: n => `${n} izleniyor`,
     trackNote:'Her taramadan sonra america.sx, tokenın market cap\'ini 24 saat izler. Tarama anına göre %35\'ten fazla düşüş "çöktü" sayılır. Bu bir geriye dönük test değil — canlı, işleyen bir kayıt.',
     trackScore: (n,m) => `${n} / ${m} doğru`,
@@ -1340,7 +1340,10 @@ function fmtLeft(sec){
   return h >= 1 ? `${h}h ${m}m` : `${m}m`;
 }
 function renderTrack(rec){
-  if(!rec || !rec.length){ $('trackSection').hidden = true; return; }
+  // Organik tokenlar ayrı "Organik lansmanlar" başlığında gösteriliyor —
+  // AI tespit karnesi yalnızca paketli/kabal/belirsiz kararları içerir.
+  rec = (rec || []).filter(t => t.verdict !== 'organic');
+  if(!rec.length){ $('trackSection').hidden = true; return; }
   $('trackSection').hidden = false;
   const box = $('tlist'); box.innerHTML = '';
   let correct = 0, settled = 0, watching = 0;
@@ -1395,7 +1398,7 @@ function renderTrack(rec){
 }
 async function loadTrack(){
   try{
-    const r = await fetch(`${API}/api/track?limit=20`);
+    const r = await fetch(`${API}/api/track?limit=40`);
     if(!r.ok) return;
     const data = await r.json();
     if(data.window_sec) trackWindow = data.window_sec;
