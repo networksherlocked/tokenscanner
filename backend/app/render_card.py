@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import io
+import os
 from pathlib import Path
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
@@ -114,8 +115,8 @@ def render_png(scan: dict | None, mint: str) -> bytes:
             names = ", ".join(s.get("label", s.get("key", "")) for s in fired[:4])
             d.text((64, y), f"fired: {names}"[:78], font=f_small, fill=_MUTED)
 
-    # crest + wordmark (sağ alt)
-    _draw_crest(d, W - 150, H - 150, 90, _GOLD)
+    # filigran (dalgalanan ABD bayrağı + altın kartal) + wordmark (sağ alt)
+    _draw_watermark(img)
     d.text((64, H - 58), "america", font=f_brand, fill=_TEXT)
     tw = d.textlength("america", font=f_brand)
     d.text((64 + tw + 2, H - 58), ".sx", font=f_brand, fill=_GOLD)
@@ -126,19 +127,58 @@ def render_png(scan: dict | None, mint: str) -> bytes:
     return buf.getvalue()
 
 
-def _draw_crest(d, cx: int, cy: int, size: float, color) -> None:
-    s = size / 64.0
+def _frontend_dir() -> Path:
+    return Path(
+        os.getenv("FRONTEND_DIR") or (Path(__file__).resolve().parents[2] / "frontend")
+    )
 
-    def p(x, y):
-        return (cx + (x - 32) * s, cy + (y - 32) * s)
 
-    shield = [p(32, 3), p(60, 12), p(60, 31), p(46, 55), p(32, 61),
-              p(18, 55), p(4, 31), p(4, 12)]
-    d.line(shield + [shield[0]], fill=color, width=max(2, int(3 * s)))
-    wing = [p(32, 12), p(28, 17), p(12, 15), p(22, 24), p(8, 26),
-            p(24, 31), p(14, 40), p(32, 33), p(50, 40), p(40, 31),
-            p(56, 26), p(42, 24), p(52, 15), p(36, 17)]
-    d.polygon(wing, fill=color)
+def _fit_width(im, w: int):
+    if im.width == w:
+        return im
+    return im.resize((w, max(1, round(im.height * w / im.width))))
+
+
+def _scale_alpha(im, factor: float):
+    """RGBA görüntünün alfa kanalını `factor` ile çarpar — silikleştirir."""
+    from PIL import Image
+
+    r, g, b, a = im.convert("RGBA").split()
+    a = a.point(lambda v: int(v * factor))
+    return Image.merge("RGBA", (r, g, b, a))
+
+
+def _draw_watermark(img) -> None:
+    """Sağ alt köşeye silik filigran: dalgalanan ABD bayrağı + altın kartal.
+
+    Görseller (frontend/flag.png, frontend/eagle.png) bulunamazsa sessizce
+    atlanır — eski SVG kalkan arması tamamen kaldırıldı.
+    """
+    from PIL import Image, ImageDraw, ImageFilter
+
+    W, H = img.size
+    fdir = _frontend_dir()
+    try:
+        flag = Image.open(fdir / "flag.png").convert("RGBA")
+        eagle = Image.open(fdir / "eagle.png").convert("RGBA")
+    except Exception:  # noqa: BLE001
+        return
+
+    # bayrak: yumuşak eliptik maskeyle bulanık, çok silik bir yıkama
+    flag = _fit_width(flag, int(W * 0.46))
+    mask = Image.new("L", flag.size, 0)
+    ImageDraw.Draw(mask).ellipse(
+        [flag.width * 0.12, flag.height * 0.04,
+         flag.width * 1.02, flag.height * 1.05],
+        fill=int(255 * 0.10),
+    )
+    mask = mask.filter(ImageFilter.GaussianBlur(flag.width * 0.12))
+    flag.putalpha(mask)
+    img.paste(flag, (W - flag.width + 46, H - flag.height + 34), flag)
+
+    # kartal: düz düşük opaklık (altın siluet zaten şeffaf zeminde)
+    eagle = _scale_alpha(_fit_width(eagle, int(W * 0.30)), 0.15)
+    img.paste(eagle, (W - eagle.width - 8, H - eagle.height + 18), eagle)
 
 
 # ---------- SVG rozet ----------------------------------------------------
@@ -155,10 +195,10 @@ def render_badge_svg(scan: dict | None, mint: str) -> str:
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="46" role="img" aria-label="america.sx: {right}">
   <rect width="{w}" height="46" rx="3" fill="#0b1424"/>
   <rect x="0.5" y="0.5" width="{w - 1}" height="45" rx="2.5" fill="none" stroke="#283a5c"/>
-  <g transform="translate(10,9)" fill="#c8a45c">
-    <g transform="scale(0.42)">
-      <path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 31 4 31 V12 Z" fill="none" stroke="#c8a45c" stroke-width="4"/>
+  <g transform="translate(4,9)" fill="#c8a45c">
+    <g transform="scale(0.58)">
       <path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z"/>
+      <circle cx="32" cy="13" r="2.4"/>
     </g>
   </g>
   <text x="44" y="19" font-family="Verdana,Segoe UI,sans-serif" font-size="10" fill="#c8a45c" letter-spacing="1">AMERICA.SX</text>
