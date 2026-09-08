@@ -464,6 +464,20 @@ function renderSettings(d){
       </div>
     </div>
 
+    <div class="card">
+      <h3>Yenile butonu aralığı</h3>
+      <p class="desc">Sonuç ekranındaki <b>Yenile</b> butonu bir tokenı zincirden canlı yeniden taratır — bu, RPC bütçesi harcar. Aynı token için iki canlı yeniden tarama arasında en az bu kadar süre geçmeli. Bu sürede Yenile'ye basan ziyaretçiye son taramanın kararı gösterilir ve “~N dk sonra dene” denir. <b>0 = sınır yok.</b></p>
+      <div class="statusline">${srcBadge(d.refresh_cooldown_source)}</div>
+      <div class="field">
+        <label>dakika</label>
+        <input id="rcInput" type="number" min="0" max="1440" step="5" value="${d.refresh_cooldown_min!=null?d.refresh_cooldown_min:60}" style="max-width:140px">
+      </div>
+      <div class="card-actions">
+        <span class="note">0–1440 dk. Admin panelindeki “yeniden tara” bu sınıra takılmaz.</span>
+        <button id="rcSave">kaydet</button>
+      </div>
+    </div>
+
     <div class="section-title">Yalnızca env (bilgi)</div>
     <div class="card">
       <p class="desc">Bunlar servis env değişkenleridir; değiştirmek için Render'da güncelle + yeniden dağıt.</p>
@@ -504,6 +518,13 @@ function renderSettings(d){
     if(!(h > 0)){ flash('geçersiz süre'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify({cache_ttl_hours:h})});
       flash('önbellek süresi kaydedildi'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+  $('#rcSave').onclick = async ()=>{
+    const m = parseFloat($('#rcInput').value);
+    if(!(m >= 0)){ flash('geçersiz süre'); return; }
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({refresh_cooldown_min:m})});
+      flash('yenileme aralığı kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
   };
 }
@@ -756,16 +777,20 @@ function renderLessons(d){
     <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
     <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
     <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
-    <td>${esc(l.detail||'')}${l.deployer?`<div class="muted">deployer: ${short(l.deployer)}</div>`:''}</td>
-    <td style="white-space:nowrap">${l.wallets_flagged||0} cüzdan
+    <td style="min-width:340px;max-width:560px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
+    <td style="white-space:nowrap">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}
       ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}</td>
   </tr>`).join('');
   $('#view').innerHTML = `
-    <div class="card"><p class="desc">"organic/inconclusive" denip sonradan sert çöken (≥%55) tokenlar.
-      Koordinasyon izi bulunduysa o cüzdanlar/deployer işaretlendi ve sonraki taramalarda kullanılıyor.
-      Yanlışsa "geri al".</p></div>
-    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi</th><th>eylem</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok</td></tr>'}</tbody></table></div>`;
+    <div class="card"><p class="desc"><b>Öz-öğrenme döngüsü.</b> "organic" ya da "inconclusive" denip
+      sonraki ${Math.round((d.window_h||24))} saatte sert çöken (≥%55) tokenlar burada listelenir.
+      Sistem çöken her tokenın kayıtlı tarama verisini geriye dönük inceler; ortak fonlayıcı, gizli
+      (çok-hop) fonlama ağacı, taze cüzdan kümesi ya da arzı tek elde toplamış bir cüzdan bulursa
+      o adresleri (ve varsa deployer'ı) kalıcı kara listeye ekler — sonraki taramalarda bu adresler
+      "Daha önce işaretlenmiş cüzdanlar" sinyalini tetikler. Bir ders yanlışsa "geri al" ile
+      o dersin eklediği tüm adresler listeden çıkarılır.</p></div>
+    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi?</th><th>kara liste</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok — organic bir token sert çökene kadar boş kalır</td></tr>'}</tbody></table></div>`;
   $('#view').querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
     if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
     const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});

@@ -171,12 +171,18 @@ Token üret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
 Bir token **organic/inconclusive** dendi ve 24 saat izlemede **sert çöktü** ise
 (`LEARN_MIN_DROP`, varsayılan %55) motor kendi kayıtlı taramasına geri döner:
 
-1. Lansman alıcıları + fonlayıcıları + 2-hop fonlama ağacı + deployer'ı inceler.
+1. Lansman alıcıları + fonlayıcıları + çok-hop fonlama ağacı + deployer +
+   **mevcut yapıda arzı tek elde toplamış cüzdanı** inceler.
 2. **Koordinasyon izi varsa** (ortak fonlayıcı ≥2 cüzdan, taze cüzdan kümesi,
-   tek üst kaynak, eşik-altı bot imzaları) → o cüzdanları ve deployer'ı
+   gizli tek üst kaynak, eşik-altı bot imzaları, ya da çöküşten önce dolaşan
+   arzın ≥%15'ini biriktirmiş tek cüzdan) → o cüzdanları ve deployer'ı
    `flagged` tablosuna ekler (`via = mint`, `hits` = kaç ayrı çöküşte görüldü).
 3. **İz yoksa** → hiçbir şey işaretlemez, "muhtemelen piyasa çöküşü" diye
    ders kaydeder (masum cüzdanları kirletmemek için).
+
+Her ders admin → **AI tespit**'te tam cümlelik açıklamayla listelenir: ne
+karar verilmişti, ne kadar düştü, hangi izler bulundu, hangi adresler kara
+listeye eklendi.
 
 Sonraki taramalarda bu cüzdanlar `sig_flagged_wallets`'i, bu deployer
 `sig_deployer_history`'yi anında tetikler — token buna göre yeniden sınıflanır.
@@ -242,12 +248,18 @@ Tek sinyal asla karar vermez. `classifier.py`:
 - **Organic** — hiçbiri.
 
 > **Karar kararlılığı:** Bir tokenı tekrar taradığında zincir verisi toplanamayıp
-> sonuç *Inconclusive* çıkarsa ve son 14 gün içinde **gerçek** bir karar (bundled/
+> sonuç *Inconclusive* çıkarsa ve daha önce **gerçek** bir karar (bundled/
 > cabaled/organic) verilmişse, o önceki karar korunur (`scanner.py`, "restored
-> from prev" caveat'ıyla). "Inconclusive" bir sınıf değişimi değil, "bu sefer
-> veri gelmedi" demektir — lansman ve dağıtım geçmişi değişmez. Buna ek olarak
-> `launch_cache` tablosu ilk başarılı taramadaki değişmez lansman verisini
-> (pump.fun meta + ilk alıcılar) saklar ve canlı çağrı düşerse geri yükler.
+> from prev" caveat'ıyla) — zaman sınırı yok. "Inconclusive" bir sınıf değişimi
+> değil, "bu sefer veri gelmedi" demektir — lansman ve dağıtım geçmişi değişmez.
+> Buna ek olarak `launch_cache` tablosu ilk başarılı taramadaki değişmez lansman
+> verisini (pump.fun meta + ilk alıcılar) saklar ve canlı çağrı düşerse geri yükler.
+>
+> **Yenile aralığı:** Sonuç ekranındaki *Yenile* butonu zincirden canlı yeniden
+> tarama yapar (RPC bütçesi harcar). Aynı token için iki canlı yeniden tarama
+> arası en az `refresh_cooldown_sec` (admin panel → Ayarlar → *Yenile butonu
+> aralığı*, varsayılan 60 dk; 0 = sınırsız). Sınıra takılan istek 429 + son
+> kararı görür. Admin panelindeki "yeniden tara" bu sınıra tabi değildir.
 
 İki ayrı sayı döner: **skor** (kategoriye uyum gücü, fiyat tahmini değil) ve
 **güven** (elimizde ne kadar veri vardı).

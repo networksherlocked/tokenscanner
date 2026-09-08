@@ -51,6 +51,11 @@ _ip_hits: dict[str, list[float]] = {}
 
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MIN", "10"))
 
+# "Yenile" butonu maliyet kontrolü: aynı token için iki canlı yeniden tarama
+# arasında en az bu kadar saniye geçmeli. 0 = sınırsız. Admin panelinden
+# (config: refresh_cooldown_sec) canlı ayarlanır; env yalnızca ilk varsayılan.
+REFRESH_COOLDOWN_DEFAULT = int(os.getenv("REFRESH_COOLDOWN_SEC", "3600"))
+
 # --- Karne (outcome tracking) --------------------------------------------
 # Tarama sonrası tokenın market cap'i TRACK_WINDOW_SEC boyunca izlenir.
 # Pencerede en düşük noktaya göre düşüş TRACK_DROP_PCT'i geçtiyse "çöktü".
@@ -119,10 +124,17 @@ async def refresh_track() -> None:
         log.exception("Sembol backfill hatası")
 
 
+def _short_addr(a: str | None) -> str:
+    return f"{a[:4]}…{a[-4:]}" if a and len(a) > 12 else (a or "?")
+
+
 def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
-    """Kayıtlı taramada koordinasyon izi var mı? Varsa şüpheli cüzdanları + kısa
-    açıklama döndür. YOKSA boş — piyasa çöküşünü bundle sanıp masum cüzdanları
-    işaretlemeyelim."""
+    """Kayıtlı taramada (YENİ RPC çağrısı yapmadan) organize dağıtım izi ara.
+
+    Bulursa şüpheli cüzdanlar + insan-okur açıklama listesi döndürür. Bulamazsa
+    boş — genel piyasa çöküşünü koordineli rug sanıp masum cüzdanları
+    işaretlememek için.
+    """
     launch = scan.get("launch") or {}
     buyers = launch.get("buyers") or []
     signals = {s.get("key"): s for s in scan.get("signals", [])}
@@ -130,7 +142,7 @@ def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
     reasons: list[str] = []
     suspects: set[str] = set()
 
-    # 1) ortak fonlayıcı (eşik tutmamış olsa bile)
+    # 1) ortak fonlayıcı — birden çok lansman alıcısının ilk SOL'u aynı cüzdandan
     funders: dict[str, list[str]] = {}
     for b in buyers:
         f = b.get("funder")
@@ -138,79 +150,148 @@ def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
             funders.setdefault(f, []).append(b.get("owner"))
     for f, owners in funders.items():
         if len(owners) >= 2:
-            reasons.append(f"{len(owners)} lansman alıcısı aynı adresten fonlanmış ({f[:6]}…)")
+            reasons.append(
+                f"{len(owners)} lansman alıcısının ilk SOL'unu aynı cüzdan "
+                f"({_short_addr(f)}) göndermiş — cüzdanları bu adres finanse etmiş"
+            )
             suspects.update(o for o in owners if o)
             suspects.add(f)
 
-    # 2) çok-hop fonlama ağacı
+    # 2) çok-hop fonlama ağacı — araya cüzdan koyarak gizlenmiş ortak kaynak
     ft = launch.get("funding_tree") or {}
     conv = ft.get("convergence") or {}
     if conv.get("buyers", 0) >= 2 and conv.get("ancestor"):
         reasons.append(
-            f"{conv['buyers']} alıcı {conv.get('max_hop', 2)} hop geriden tek "
-            f"kaynağa çıkıyor ({conv['ancestor'][:6]}…)"
+            f"{conv['buyers']} lansman alıcısının parası {conv.get('max_hop', 2)} "
+            f"adım geriden tek adrese ({_short_addr(conv['ancestor'])}) çıkıyor — "
+            f"araya cüzdan koyarak gizlenmiş ortak kaynak"
         )
         suspects.add(conv["ancestor"])
     for gf, ffs in (ft.get("grandfunders") or {}).items():
         if len(ffs) >= 2:
-            reasons.append(f"{len(ffs)} fonlayıcı tek üst kaynağa çıkıyor ({gf[:6]}…)")
+            reasons.append(
+                f"{len(ffs)} ayrı fonlayıcı tek üst kaynağa "
+                f"({_short_addr(gf)}) bağlanıyor"
+            )
             suspects.add(gf)
             suspects.update(ffs)
 
-    # 3) taze cüzdan kümesi
+    # 3) taze cüzdan kümesi — lansmanda geçmişsiz cüzdanlarla giriş
     fresh = [b.get("owner") for b in buyers if 0 < (b.get("tx_count") or 0) <= 10]
     if len(fresh) >= 3:
-        reasons.append(f"{len(fresh)} lansman alıcısı geçmişsiz (taze) cüzdan")
+        reasons.append(
+            f"{len(fresh)} lansman alıcısı sıfır geçmişli (o gün açılmış) cüzdan"
+        )
         suspects.update(o for o in fresh if o)
 
-    # 4) motorun zaten "yakın" olduğu sert sinyaller
-    for key in ("common_funder", "same_slot_entry", "fee_fingerprint", "identical_balances"):
-        sg = signals.get(key)
-        if sg and (sg.get("evidence") or {}).get("cluster_size", 0) >= 2:
-            reasons.append(f"{key}: {sg['evidence']['cluster_size']} cüzdanlık küme (eşik altı)")
+    # 4) motorun eşik altında kalan sert küme sinyalleri
+    _labels = {
+        "common_funder": "ortak fonlayıcı",
+        "same_slot_entry": "aynı slotta giriş",
+        "fee_fingerprint": "aynı öncelik ücreti",
+        "identical_balances": "birebir eşit bakiye",
+    }
+    for key, lbl in _labels.items():
+        sg = signals.get(key) or {}
+        n = (sg.get("evidence") or {}).get("cluster_size", 0)
+        if n >= 2:
+            reasons.append(f"eşik altında kalan ama görünür {n} cüzdanlık '{lbl}' kümesi")
 
-    return sorted(suspects), " · ".join(reasons)
+    # 5) mevcut yapıda tek elde toplanmış arz — çöküş anında satan taraf
+    ev = (signals.get("supply_whale") or {}).get("evidence") or {}
+    top_owner = ev.get("top_owner")
+    top_share = ev.get("top_share") or 0
+    if top_owner and top_share >= 15 and ev.get("top_tag") in (None, "", "unknown"):
+        reasons.append(
+            f"tek cüzdan ({_short_addr(top_owner)}) çöküşten önce dolaşan arzın "
+            f"%{top_share:.0f}'ini biriktirmişti — büyük olasılıkla satışı yapan taraf"
+        )
+        suspects.add(top_owner)
+
+    return sorted(x for x in suspects if x), "; ".join(reasons)
 
 
 def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
     mint = row["mint"]
+    sym = row.get("symbol") or mint[:6]
+    verdict_was = row.get("verdict") or "?"
+    pct = f"%{drop * 100:.0f}"
+    win_h = max(1, round(TRACK_WINDOW / 3600))
+
     scan = cache.scan_payload(mint)
     if not scan:
         cache.add_lesson(
-            mint=mint, symbol=row.get("symbol"), verdict_was=row.get("verdict"),
+            mint=mint, symbol=row.get("symbol"), verdict_was=verdict_was,
             outcome="miss", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
             learned_at=int(time.time()), wallets_flagged=0, deployer=None,
-            detail="Orijinal tarama verisi yok — ders çıkarılamadı.",
+            detail=(
+                f"{sym}: ilk taramada '{verdict_was}' kararı verildi, sonraki "
+                f"{win_h} saatte piyasa değeri {pct} düştü. O taramanın ham "
+                f"verisi artık saklı olmadığı için geriye dönük cüzdan analizi "
+                f"yapılamadı — kimse kara listeye eklenmedi."
+            ),
         )
         return
 
     suspects, why = _cluster_evidence(scan)
     deployer = ((scan.get("launch") or {}).get("deployer") or {}).get("address")
-    pct = f"−%{drop * 100:.0f}"
-    flagged_n = 0
 
-    if suspects or deployer:
-        note = f"{row.get('symbol') or mint[:6]} '{row.get('verdict')}' dendi, {pct} çöktü"
-        for addr in suspects[:LEARN_MAX_WALLETS]:
-            if addr and not registry.is_infrastructure(addr):
-                cache.flagged_add(addr, note, via=mint, kind="wallet", bump=True)
-                flagged_n += 1
-        if deployer and not registry.is_infrastructure(deployer):
-            cache.flagged_add(
-                deployer, note + " (deployer)", via=mint, kind="deployer", bump=True
-            )
+    note = (
+        f"{sym}: '{verdict_was}' dendi, {win_h} saatte {pct} çöktü — "
+        f"otomatik ders (mint {mint[:6]}…)"
+    )
+    flagged_wallets: list[str] = []
+    for addr in suspects[:LEARN_MAX_WALLETS]:
+        if addr and not registry.is_infrastructure(addr):
+            cache.flagged_add(addr, note, via=mint, kind="wallet", bump=True)
+            flagged_wallets.append(addr)
+    dep_flagged = bool(deployer) and not registry.is_infrastructure(deployer)
+    if dep_flagged:
+        cache.flagged_add(
+            deployer, note + " · deployer", via=mint, kind="deployer", bump=True
+        )
+    if flagged_wallets or dep_flagged:
         _reload_flagged()
+    flagged_n = len(flagged_wallets) + (1 if dep_flagged else 0)
 
-    detail = why or "Koordinasyon izi bulunamadı — muhtemelen piyasa çöküşü."
+    head = (
+        f"{sym}: ilk taramada '{verdict_was}' kararı verildi; sonraki {win_h} "
+        f"saatte piyasa değeri {pct} düştü (sert çöküş)."
+    )
+    if why:
+        detail = (
+            f"{head} Kayıtlı tarama verisi geriye dönük incelendi ve şu "
+            f"organize dağıtım izleri bulundu: {why}."
+        )
+        if flagged_n:
+            who = []
+            if flagged_wallets:
+                who.append(f"{len(flagged_wallets)} cüzdan")
+            if dep_flagged:
+                who.append("deployer")
+            detail += (
+                f" {' + '.join(who)} kara listeye eklendi; bundan sonra bu "
+                f"adreslerin geçtiği her taramada 'Daha önce işaretlenmiş "
+                f"cüzdanlar' sinyali tetiklenip karar sertleşecek."
+            )
+    else:
+        detail = (
+            f"{head} Kayıtlı tarama verisinde organize dağıtım izi (ortak "
+            f"fonlayıcı, gizli fonlama ağacı, taze cüzdan kümesi, tek elde "
+            f"toplanmış arz) bulunamadı — bu büyük olasılıkla genel "
+            f"piyasa/likidite çöküşü, koordineli bir rug değil. Masum "
+            f"cüzdanları cezalandırmamak için hiçbir adres işaretlenmedi."
+        )
+
     cache.add_lesson(
-        mint=mint, symbol=row.get("symbol"), verdict_was=row.get("verdict"),
+        mint=mint, symbol=row.get("symbol"), verdict_was=verdict_was,
         outcome="miss", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
         learned_at=int(time.time()), wallets_flagged=flagged_n, deployer=deployer,
         detail=detail,
     )
     log.info(
-        "DERS: %s (%s → %s) · %s cüzdan işaretlendi · %s",
-        mint, row.get("verdict"), pct, flagged_n, detail[:120],
+        "DERS: %s (%s, -%s) · %s işaretlendi · %s",
+        mint, verdict_was, pct, flagged_n, (why or "iz yok")[:120],
     )
 
 
@@ -297,6 +378,39 @@ def _check_rate(request: Request) -> None:
     _ip_hits[ip] = hits
 
 
+def _refresh_cooldown_sec() -> int:
+    try:
+        v = state["cache"].config_get("refresh_cooldown_sec")
+        if v is not None:
+            return max(0, int(v))
+    except Exception:  # noqa: BLE001
+        pass
+    return max(0, REFRESH_COOLDOWN_DEFAULT)
+
+
+def _check_refresh_cooldown(mint: str) -> None:
+    """Yakın zamanda taranmış bir tokenı tekrar canlı taramayı engeller."""
+    cd = _refresh_cooldown_sec()
+    if cd <= 0:
+        return
+    try:
+        prev = state["cache"].scan_payload(mint)
+    except Exception:  # noqa: BLE001
+        prev = None
+    if not prev:
+        return
+    last = float(prev.get("scanned_at") or 0)
+    wait = cd - (time.time() - last)
+    if wait > 0:
+        mins = max(1, round(wait / 60))
+        raise HTTPException(
+            429,
+            f"Bu token yakın zamanda tarandı. Sonuç ekranındaki karar güncel — "
+            f"tekrar canlı taramak için ~{mins} dk sonra dene. "
+            f"(Yenileme aralığı admin panelinden ayarlanır.)",
+        )
+
+
 def _validate(mint: str) -> str:
     mint = mint.strip()
     if not BASE58.match(mint):
@@ -358,6 +472,7 @@ async def scan(mint: str, request: Request):
 async def rescan(mint: str, request: Request):
     mint = _validate(mint)
     _check_rate(request)
+    _check_refresh_cooldown(mint)
     try:
         return await _run_scan(mint)
     except TokenTooSmall as exc:
@@ -695,7 +810,12 @@ async def admin_flagged_remove(address: str):
 
 @app.get("/api/admin/lessons", dependencies=[Depends(_admin)])
 async def admin_lessons():
-    return {"lessons": state["cache"].lessons_list()}
+    return {
+        "lessons": state["cache"].lessons_list(),
+        "window_h": round(TRACK_WINDOW / 3600, 1),
+        "min_drop_pct": LEARN_MIN_DROP,
+        "learn_enabled": LEARN_ENABLED,
+    }
 
 
 @app.post("/api/admin/lessons/{mint}/undo", dependencies=[Depends(_admin)])
@@ -725,6 +845,10 @@ async def admin_settings():
         # --- düzenlenebilir ---
         "cache_ttl_hours": round(cache.ttl / 3600, 3),
         "cache_ttl_source": "db" if cache.config_get("cache_ttl_sec") else "env",
+        "refresh_cooldown_min": round(_refresh_cooldown_sec() / 60, 2),
+        "refresh_cooldown_source": (
+            "db" if cache.config_get("refresh_cooldown_sec") is not None else "env"
+        ),
         "rpc_endpoints_masked": pool_mask(pool.raw),
         "rpc_endpoints_source": "db" if db_rpc else "env",
         "rpc_provider_count": len(pool.providers),
@@ -766,6 +890,16 @@ async def admin_settings_set(payload: dict = Body(...)):
         cache.config_set("cache_ttl_sec", str(sec))
         cache.ttl = sec
         changed.append("cache_ttl")
+
+    if "refresh_cooldown_min" in payload:
+        try:
+            mins = float(payload["refresh_cooldown_min"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "refresh_cooldown_min bir sayı olmalı.") from None
+        if not 0 <= mins <= 1440:
+            raise HTTPException(422, "Yenileme aralığı 0–1440 dakika arasında olmalı.")
+        cache.config_set("refresh_cooldown_sec", str(int(round(mins * 60))))
+        changed.append("refresh_cooldown")
 
     if "rpc_endpoints" in payload:
         raw = str(payload.get("rpc_endpoints") or "").strip()
