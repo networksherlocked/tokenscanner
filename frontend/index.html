@@ -214,6 +214,19 @@ td.addr{color:var(--text)}
 .caveats li{margin-bottom:4px}
 .caveats ul{margin:0;padding-left:18px}
 
+/* fiyat grafiği (GeckoTerminal embed) */
+.chartbox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
+  background:var(--panel);border-radius:2px;overflow:hidden}
+.chartbox .head{font-family:var(--display);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold);padding:14px 16px 12px}
+.chartbox .chart-frame{position:relative;width:100%;aspect-ratio:16/9;min-height:340px;
+  background:var(--ink);border-top:1px solid var(--rule)}
+.chartbox .chart-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.chartbox .chart-src{display:block;padding:9px 16px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  font-family:var(--display);color:var(--dim);border-top:1px solid var(--rule);text-decoration:none}
+.chartbox .chart-src:hover{color:var(--gold)}
+@media(max-width:560px){.chartbox .chart-frame{aspect-ratio:auto;min-height:300px}}
+
 .sharebox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
   background:var(--panel);padding:16px;border-radius:2px}
 .sharebox .head{font-family:var(--display);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
@@ -255,15 +268,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   border-radius:2px;padding:9px 13px;cursor:pointer;font-family:var(--mono);color:inherit;
   transition:border-color .2s,background .2s;
 }
-.tok-img{width:20px;height:20px;border-radius:50%;object-fit:cover;flex:none;
+.tok-img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex:none;
   background:var(--panel-2);border:1px solid var(--rule)}
-.titem .row1 .tok-img{width:22px;height:22px}
+.titem .row1 .tok-img{width:27px;height:27px}
 .tokhead .tok-img{width:clamp(30px,4.4vw,46px);height:clamp(30px,4.4vw,46px);
   align-self:center;border-radius:8px}
 .recitem:hover{background:var(--panel-2);border-color:var(--muted)}
 .recitem:focus-visible{outline:2px solid var(--live);outline-offset:2px}
 .recitem .rv{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--sig,var(--muted))}
-.recitem .rm{font-size:12px;color:var(--text);white-space:nowrap}
+.recitem .rm{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
 .recitem .rmc{font-size:11px;color:var(--muted);white-space:nowrap}
 .recitem .rt{font-size:11px;color:var(--dim);white-space:nowrap}
 
@@ -301,7 +314,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   text-transform:uppercase;color:var(--sig,var(--muted));
   background:rgba(255,255,255,.02);border-right:1px solid var(--rule)}
 .titem .row1{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-.titem .tsym{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.02em;color:var(--text);
+.titem .tsym{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:.02em;color:var(--text);
   text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .titem .tage{margin-left:auto;font-size:10px;color:var(--dim);white-space:nowrap;flex:none}
 .titem .row2{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -562,6 +575,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
           <div class="siglegend" id="sigLegend"></div>
           <div class="grid" id="grid"></div>
           <div id="caveats"></div>
+          <div class="chartbox" id="chartBox" hidden>
+            <div class="head" data-i18n="chartHead">Price chart</div>
+            <div class="chart-frame">
+              <iframe id="chartFrame" title="price chart" loading="lazy"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+            </div>
+            <a id="chartLink" target="_blank" rel="noopener" class="chart-src"
+               data-i18n="chartSrc">Open full chart on GeckoTerminal ↗</a>
+          </div>
           <div class="sharebox" id="shareBox" hidden>
             <div class="head" data-i18n="shareHead">Share this determination</div>
             <div class="sharebtns">
@@ -688,6 +710,8 @@ const STR = {
   en: {
     navHome:'Home',
     navAbout:'About',
+    chartHead:'Price chart',
+    chartSrc:'Open full chart on GeckoTerminal ↗',
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
     copied:'Copied',
@@ -772,6 +796,8 @@ const STR = {
   tr: {
     navHome:'Ana sayfa',
     navAbout:'Hakkında',
+    chartHead:'Fiyat grafiği',
+    chartSrc:"GeckoTerminal'de tam grafiği aç ↗",
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
     copied:'Kopyalandı',
@@ -1514,6 +1540,8 @@ function render(d){
     <div class="caveats"><b>${L('whatLimits')}</b>
       <ul>${v.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
 
+  renderChart(t.pair_address);
+
   const rows = (d.holders||[]).map(h=>`
     <tr>
       <td class="addr">${short(h.owner)}</td>
@@ -1528,6 +1556,25 @@ function render(d){
     <tbody>${rows || `<tr><td colspan="6">${L('noHolders')}</td></tr>`}</tbody>`;
   $('holderNote').textContent = d.cached ? L('cacheAge', d.cache_age_s) : L('ms', d.duration_ms);
   wireShare(d);
+}
+
+/* ---------------- fiyat grafiği (GeckoTerminal embed) ---------------- */
+let _chartPool = null;
+function renderChart(pool){
+  const box = $('chartBox'), fr = $('chartFrame');
+  if(!pool){
+    _chartPool = null;
+    fr.removeAttribute('src');
+    box.hidden = true;
+    return;
+  }
+  if(pool === _chartPool && !box.hidden) return;   // aynı token — yeniden yükleme
+  _chartPool = pool;
+  const p = encodeURIComponent(pool);
+  fr.src = `https://www.geckoterminal.com/solana/pools/${p}`
+    + '?embed=1&info=0&swaps=0&grayscale=0&light_chart=0';
+  $('chartLink').href = `https://www.geckoterminal.com/solana/pools/${p}`;
+  box.hidden = false;
 }
 
 /* ---------------- paylaşım / rozet / itiraz ---------------- */
@@ -1598,6 +1645,7 @@ function showAbout(on){
 function goHome(){
   showAbout(false);
   $('result').classList.remove('on');
+  renderChart(null);
   scanStop();
   clearError();
   $('mint').value = '';

@@ -269,6 +269,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             "liquidity_usd": market.liquidity_usd,
             "volume_24h": market.volume_24h,
             "dex": market.dex,
+            "pair_address": market.pair_address,
             "age_hours": round(age_hours, 1) if age_hours else None,
             "socials": market.socials,
             "image": market.image_url,
