@@ -78,6 +78,11 @@ FLAGGED_WALLETS: dict[str, str] = {
 # Admin panelinden çalışma anında eklenen işaretli cüzdanlar (DB'den yüklenir).
 RUNTIME_FLAGGED: dict[str, str] = {}
 
+# Sonradan sert YÜKSELEN tokenlarda tekrar eden erken cüzdan / fonlayıcı /
+# deployer. address -> {"kind","hits","note"}. DB'den yüklenir (bkz. gainers).
+# Karara (bundled/organic) etki ETMEZ — yalnızca sonuç ekranında bilgi notu.
+RUNTIME_GAINERS: dict[str, dict] = {}
+
 KOL_WALLETS: dict[str, str] = {
     # "adres": "takma ad / bilinen influencer"
 }
@@ -87,6 +92,19 @@ def set_runtime_flagged(rows: dict[str, str]) -> None:
     """Admin/DB kaynaklı işaretli cüzdan listesini değiştirir (canlı)."""
     RUNTIME_FLAGGED.clear()
     RUNTIME_FLAGGED.update(rows)
+
+
+def set_runtime_gainers(rows: dict[str, dict]) -> None:
+    """DB kaynaklı 'yükseliş sinyali' cüzdan kaydını değiştirir (canlı)."""
+    RUNTIME_GAINERS.clear()
+    RUNTIME_GAINERS.update(rows)
+
+
+def gainer_info(address: str | None) -> dict | None:
+    """Adres daha önce yükselen tokenlarda görüldüyse {kind,hits,note} döndürür."""
+    if not address:
+        return None
+    return RUNTIME_GAINERS.get(address)
 
 
 def flagged_name(address: str) -> str | None:

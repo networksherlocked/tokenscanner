@@ -40,9 +40,30 @@ CREATE TABLE IF NOT EXISTS track (
     mint TEXT PRIMARY KEY, symbol TEXT, verdict TEXT, score INTEGER,
     scored_at INTEGER NOT NULL, mcap_at_scan REAL, mcap_latest REAL,
     mcap_min REAL, latest_at INTEGER, outcome TEXT,
-    settled INTEGER NOT NULL DEFAULT 0, image TEXT
+    settled INTEGER NOT NULL DEFAULT 0, image TEXT,
+    mcap_max REAL, gain_outcome TEXT, gain_settled INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
+
+-- Yükseliş öğrenmesi: "organic/cabaled/inconclusive" denip sonradan sert
+-- YÜKSELEN tokenlarda tekrar eden erken cüzdan / fonlayıcı / deployer.
+CREATE TABLE IF NOT EXISTS gainers (
+    address TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'wallet', note TEXT,
+    hits INTEGER NOT NULL DEFAULT 1, first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL, via TEXT
+);
+CREATE TABLE IF NOT EXISTS gain_lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, symbol TEXT,
+    verdict_was TEXT, rise_pct REAL, mcap_at_scan REAL, mcap_peak REAL,
+    scored_at INTEGER, learned_at INTEGER NOT NULL,
+    markers INTEGER NOT NULL DEFAULT 0, deployer TEXT, detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_gain_lessons_learned ON gain_lessons(learned_at DESC);
+CREATE TABLE IF NOT EXISTS gain_hits (
+    mint TEXT PRIMARY KEY, symbol TEXT, verdict TEXT, score INTEGER,
+    detail TEXT, scanned_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_gain_hits_at ON gain_hits(scanned_at DESC);
 
 CREATE TABLE IF NOT EXISTS appeals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, verdict TEXT,
@@ -100,9 +121,29 @@ CREATE TABLE IF NOT EXISTS track (
     scored_at BIGINT NOT NULL, mcap_at_scan DOUBLE PRECISION,
     mcap_latest DOUBLE PRECISION, mcap_min DOUBLE PRECISION,
     latest_at BIGINT, outcome TEXT, settled INTEGER NOT NULL DEFAULT 0,
-    image TEXT
+    image TEXT, mcap_max DOUBLE PRECISION, gain_outcome TEXT,
+    gain_settled INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
+
+CREATE TABLE IF NOT EXISTS gainers (
+    address TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'wallet', note TEXT,
+    hits INTEGER NOT NULL DEFAULT 1, first_seen BIGINT NOT NULL,
+    last_seen BIGINT NOT NULL, via TEXT
+);
+CREATE TABLE IF NOT EXISTS gain_lessons (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
+    symbol TEXT, verdict_was TEXT, rise_pct DOUBLE PRECISION,
+    mcap_at_scan DOUBLE PRECISION, mcap_peak DOUBLE PRECISION,
+    scored_at BIGINT, learned_at BIGINT NOT NULL,
+    markers INTEGER NOT NULL DEFAULT 0, deployer TEXT, detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_gain_lessons_learned ON gain_lessons(learned_at DESC);
+CREATE TABLE IF NOT EXISTS gain_hits (
+    mint TEXT PRIMARY KEY, symbol TEXT, verdict TEXT, score INTEGER,
+    detail TEXT, scanned_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_gain_hits_at ON gain_hits(scanned_at DESC);
 
 CREATE TABLE IF NOT EXISTS appeals (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
@@ -194,6 +235,9 @@ class ScanCache:
             "ALTER TABLE flagged ADD COLUMN via TEXT",
             "ALTER TABLE flagged ADD COLUMN kind TEXT NOT NULL DEFAULT 'wallet'",
             "ALTER TABLE track ADD COLUMN image TEXT",
+            "ALTER TABLE track ADD COLUMN mcap_max REAL",
+            "ALTER TABLE track ADD COLUMN gain_outcome TEXT",
+            "ALTER TABLE track ADD COLUMN gain_settled INTEGER NOT NULL DEFAULT 0",
         ):
             try:
                 self._write(stmt)
@@ -292,22 +336,25 @@ class ScanCache:
         self._write(
             "INSERT INTO track "
             "(mint, symbol, verdict, score, scored_at, mcap_at_scan, "
-            " mcap_latest, mcap_min, latest_at, outcome, settled, image) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?) "
+            " mcap_latest, mcap_min, mcap_max, latest_at, outcome, settled, "
+            " gain_outcome, gain_settled, image) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, 0, ?) "
             "ON CONFLICT(mint) DO UPDATE SET symbol=excluded.symbol, "
             "verdict=excluded.verdict, score=excluded.score, "
             "scored_at=excluded.scored_at, mcap_at_scan=excluded.mcap_at_scan, "
             "mcap_latest=excluded.mcap_latest, mcap_min=excluded.mcap_min, "
-            "latest_at=excluded.latest_at, outcome=NULL, settled=0, "
+            "mcap_max=excluded.mcap_max, latest_at=excluded.latest_at, "
+            "outcome=NULL, settled=0, gain_outcome=NULL, gain_settled=0, "
             "image=COALESCE(excluded.image, track.image)",
-            (mint, symbol, verdict, score, now, mcap, mcap, mcap, now, image),
+            (mint, symbol, verdict, score, now, mcap, mcap, mcap, mcap, now, image),
         )
 
     def track_pending(self, max_age: int) -> list[dict]:
+        """Karne (24s çöküş) VEYA yükseliş penceresi hâlâ açık olan kayıtlar."""
         cutoff = int(time.time()) - max_age
         return self._rows(
-            "SELECT * FROM track WHERE settled = 0 AND scored_at >= ? "
-            "ORDER BY scored_at ASC",
+            "SELECT * FROM track WHERE (settled = 0 OR gain_settled = 0) "
+            "AND scored_at >= ? ORDER BY scored_at ASC",
             (cutoff,),
         )
 
@@ -317,20 +364,28 @@ class ScanCache:
         mcap_latest: float,
         mcap_min: float,
         at: int,
+        mcap_max: float | None = None,
         symbol: str | None = None,
         image: str | None = None,
     ) -> None:
         # symbol/image yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
         self._write(
             "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ?, "
+            "mcap_max = ?, "
             "symbol = COALESCE(NULLIF(symbol, ''), ?), "
             "image = COALESCE(NULLIF(image, ''), ?) WHERE mint = ?",
-            (mcap_latest, mcap_min, at, symbol, image, mint),
+            (mcap_latest, mcap_min, at, mcap_max, symbol, image, mint),
         )
 
     def track_settle(self, mint: str, outcome: str) -> None:
         self._write(
             "UPDATE track SET outcome = ?, settled = 1 WHERE mint = ?",
+            (outcome, mint),
+        )
+
+    def track_settle_gain(self, mint: str, outcome: str) -> None:
+        self._write(
+            "UPDATE track SET gain_outcome = ?, gain_settled = 1 WHERE mint = ?",
             (outcome, mint),
         )
 
@@ -375,6 +430,10 @@ class ScanCache:
             )
             d["drop_pct"] = (
                 max(0.0, (base - low) / base) if base and low is not None else None
+            )
+            high = d.get("mcap_max")
+            d["rise_pct"] = (
+                max(0.0, (high - base) / base) if base and high is not None else None
             )
             d["age_sec"] = now - d["scored_at"]
             # Sembolü/logosu olmayan (eski) kayıtlar için kayıtlı taramadan doldur.
@@ -623,6 +682,85 @@ class ScanCache:
         self._write("DELETE FROM lessons WHERE mint = ?", (mint,))
         return len(rows)
 
+    # ---- yükseliş öğrenmesi ------------------------------------------
+
+    def gainer_add(
+        self, address: str, kind: str = "wallet", note: str | None = None,
+        via: str = "auto", bump: bool = True,
+    ) -> None:
+        now = int(time.time())
+        set_clause = (
+            "hits = gainers.hits + 1, last_seen = excluded.last_seen, "
+            "note = excluded.note, via = excluded.via"
+            if bump else "note = COALESCE(gainers.note, excluded.note)"
+        )
+        self._write(
+            "INSERT INTO gainers (address, kind, note, hits, first_seen, "
+            "last_seen, via) VALUES (?, ?, ?, 1, ?, ?, ?) "
+            f"ON CONFLICT(address) DO UPDATE SET {set_clause}",
+            (address, kind, (note or "")[:500] or None, now, now, via),
+        )
+
+    def gainers_list(self) -> list[dict]:
+        return self._rows(
+            "SELECT address, kind, note, hits, first_seen, last_seen, via "
+            "FROM gainers ORDER BY hits DESC, last_seen DESC"
+        )
+
+    def gainer_remove(self, address: str) -> None:
+        self._write("DELETE FROM gainers WHERE address = ?", (address,))
+
+    def add_gain_lesson(self, **kw) -> int:
+        cols = (
+            "mint", "symbol", "verdict_was", "rise_pct", "mcap_at_scan",
+            "mcap_peak", "scored_at", "learned_at", "markers", "deployer", "detail",
+        )
+        vals = tuple(kw.get(c) for c in cols[:-1]) + ((kw.get("detail") or "")[:2000],)
+        ph = ", ".join("?" for _ in cols)
+        if self.pg:
+            with self.pool.connection() as c, c.cursor() as cur:
+                cur.execute(
+                    f"INSERT INTO gain_lessons ({', '.join(cols)}) VALUES ({ph}) "
+                    "RETURNING id".replace("?", "%s"),
+                    vals,
+                )
+                r = cur.fetchone()
+                return int(r["id"]) if r else 0
+        with self.conn:
+            cur = self.conn.execute(
+                f"INSERT INTO gain_lessons ({', '.join(cols)}) VALUES ({ph})", vals
+            )
+            return int(cur.lastrowid)
+
+    def gain_lessons_list(self, limit: int = 200) -> list[dict]:
+        return self._rows(
+            "SELECT * FROM gain_lessons ORDER BY learned_at DESC LIMIT ?", (limit,)
+        )
+
+    def gain_lesson_undo(self, mint: str) -> int:
+        rows = self._rows("SELECT address FROM gainers WHERE via = ?", (mint,))
+        self._write("DELETE FROM gainers WHERE via = ?", (mint,))
+        self._write("DELETE FROM gain_lessons WHERE mint = ?", (mint,))
+        return len(rows)
+
+    def add_gain_hit(
+        self, mint: str, symbol: str | None, verdict: str | None,
+        score: int, detail: str | None,
+    ) -> None:
+        self._write(
+            "INSERT INTO gain_hits (mint, symbol, verdict, score, detail, scanned_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(mint) DO UPDATE SET "
+            "symbol=excluded.symbol, verdict=excluded.verdict, score=excluded.score, "
+            "detail=excluded.detail, scanned_at=excluded.scanned_at",
+            (mint, symbol, verdict, int(score), (detail or "")[:1000] or None,
+             int(time.time())),
+        )
+
+    def gain_hits_list(self, limit: int = 100) -> list[dict]:
+        return self._rows(
+            "SELECT * FROM gain_hits ORDER BY scanned_at DESC LIMIT ?", (limit,)
+        )
+
     def stats(self) -> dict:
         def n(sql, params=()):
             r = self._one(sql, params)
@@ -652,6 +790,8 @@ class ScanCache:
             "appeals_total": n("SELECT COUNT(*) FROM appeals"),
             "flagged": n("SELECT COUNT(*) FROM flagged"),
             "lessons": n("SELECT COUNT(*) FROM lessons"),
+            "gainers": n("SELECT COUNT(*) FROM gainers WHERE hits >= 2"),
+            "gain_lessons": n("SELECT COUNT(*) FROM gain_lessons"),
             "backend": "postgres" if self.pg else "sqlite",
             "organic_perf": {
                 "settled": len(org_seq),

@@ -231,6 +231,21 @@ td.addr{color:var(--text)}
 .caveats li{margin-bottom:4px}
 .caveats ul{margin:0;padding-left:18px}
 
+/* yükseliş sinyali — karara etki etmez, bilgi notu */
+.momentum{margin-top:26px;border-left:2px solid var(--organic);background:rgba(92,143,214,.08);
+  padding:14px 16px;font-size:12px;color:var(--muted)}
+.momentum b{color:var(--organic);font-weight:600;display:block;margin-bottom:6px;letter-spacing:.1em;
+  text-transform:uppercase;font-size:10px}
+.momentum p{margin:0 0 10px;color:var(--text)}
+.momentum .mm-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.momentum .mm-list li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:11px}
+.momentum .mm-addr{color:var(--text)}
+.momentum .mm-role{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+.momentum .mm-hits{margin-left:auto;color:var(--dim);font-size:10px}
+.momentum .mm-hits.conf{color:var(--organic)}
+.momentum .mm-note{margin-top:10px;font-size:10px;color:var(--dim);font-style:italic}
+
 /* fiyat grafiği (GeckoTerminal embed) */
 .chartbox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
   background:var(--panel);border-radius:2px;overflow:hidden}
@@ -593,6 +608,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
           </div>
           <div class="siglegend" id="sigLegend"></div>
           <div class="grid" id="grid"></div>
+          <div id="momentum"></div>
           <div id="caveats"></div>
           <div class="chartbox" id="chartBox" hidden>
             <div class="head" data-i18n="chartHead">Price chart</div>
@@ -795,6 +811,12 @@ const STR = {
     determination:'Determination',
     lgFired:'fired', lgClean:'clean', lgNoData:'no data',
     whatLimits:'What limits this reading',
+    mmHead:'Rise signal',
+    mmIntro: (n, c) => `${n} address${n>1?'es':''} from this launch also appeared early in tokens that later ran up hard${c?` — ${c} of them across two or more separate run-ups`:''}:`,
+    mmRoleBuyer:'early buyer', mmRoleFunder:'funder', mmRoleDeployer:'deployer',
+    mmSeen: n => `seen in ${n} run-ups`,
+    mmSeenOnce:'seen once so far',
+    mmDisc:'This is a historical pattern among early wallets — not causation, and not a price prediction. It does not change the verdict above.',
     noSignalData:'No data to compute this signal.',
     thWallet:'Wallet', thShare:'Share', thBalance:'Balance', thTxns:'Txns', thFunder:'Funded by', thTag:'Tag',
     thEntry:'Entry slot', thAge:'Wallet age', launchBuyersLabel:'Launch first buyers',
@@ -882,6 +904,12 @@ const STR = {
     determination:'Karar',
     lgFired:'tetiklendi', lgClean:'temiz', lgNoData:'veri yok',
     whatLimits:'Bu okumayı sınırlayanlar',
+    mmHead:'Yükseliş sinyali',
+    mmIntro: (n, c) => `Bu lansmandaki ${n} adres, daha önce sert yükselen tokenlarda da erkenden yer almıştı${c?` — ${c} tanesi iki ya da daha fazla ayrı yükselişte`:''}:`,
+    mmRoleBuyer:'erken alıcı', mmRoleFunder:'fonlayıcı', mmRoleDeployer:'deployer',
+    mmSeen: n => `${n} yükselişte görüldü`,
+    mmSeenOnce:'şimdilik bir kez görüldü',
+    mmDisc:'Bu, erken cüzdanlar arasında geçmişe dayalı bir örüntüdür — nedensellik ya da fiyat tahmini değildir. Yukarıdaki kararı değiştirmez.',
     noSignalData:'Bu sinyali hesaplayacak veri bulunamadı.',
     thWallet:'Cüzdan', thShare:'Pay', thBalance:'Bakiye', thTxns:'İşlem', thFunder:'Fonlayan', thTag:'Etiket',
     thEntry:'Giriş slotu', thAge:'Cüzdan yaşı', launchBuyersLabel:'Lansman ilk alıcıları',
@@ -1468,6 +1496,29 @@ async function loadOrganic(){
 }
 
 /* ---------------- sonuç ---------------- */
+const MM_ROLE = () => ({
+  early_buyer: L('mmRoleBuyer'), funder: L('mmRoleFunder'), deployer: L('mmRoleDeployer'),
+});
+function renderMomentum(m){
+  const box = $('momentum');
+  if(!m || !m.hit || !(m.matches||[]).length){ box.innerHTML = ''; return; }
+  const role = MM_ROLE();
+  const items = m.matches.map(x=>{
+    const conf = (x.hits || 0) >= 2;
+    return `<li>
+      <span class="mm-addr">${short(x.address)}</span>
+      <span class="mm-role">${esc(role[x.role] || x.role)}</span>
+      <span class="mm-hits ${conf ? 'conf' : ''}">${conf ? L('mmSeen', x.hits) : L('mmSeenOnce')}</span>
+    </li>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="momentum">
+      <b>${L('mmHead')}</b>
+      <p>${L('mmIntro', m.matches.length, m.confirmed || 0)}</p>
+      <ul class="mm-list">${items}</ul>
+      <div class="mm-note">${L('mmDisc')}</div>
+    </div>`;
+}
 function render(d){
   lastResult = d;
   const v = d.verdict, c = COLORS[v.kind] || COLORS.cabaled;
@@ -1569,6 +1620,8 @@ function render(d){
   $('caveats').innerHTML = v.caveats?.length ? `
     <div class="caveats"><b>${L('whatLimits')}</b>
       <ul>${v.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
+
+  renderMomentum(d.momentum);
 
   renderChart(t.pair_address);
 

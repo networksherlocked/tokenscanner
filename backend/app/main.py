@@ -70,6 +70,16 @@ LEARN_ENABLED = os.getenv("LEARN_ENABLED", "1") != "0"
 LEARN_MIN_DROP = float(os.getenv("LEARN_MIN_DROP", "0.55"))   # sadece sert çöküşler
 LEARN_MAX_WALLETS = int(os.getenv("LEARN_MAX_WALLETS", "12"))
 
+# --- Yükseliş öğrenmesi: organic/cabaled/inconclusive denip sonradan sert
+#     YÜKSELEN tokenlardan tekrar eden erken cüzdan/fonlayıcı/deployer çıkar --
+GAIN_ENABLED = os.getenv("GAIN_ENABLED", "1") != "0"
+GAIN_WINDOW = int(os.getenv("GAIN_WINDOW_SEC", str(7 * 86400)))   # 7 gün izle
+GAIN_MIN_RISE = float(os.getenv("GAIN_MIN_RISE", "2.0"))          # ≥ +%200 (3×)
+GAIN_MAX_MARKERS = int(os.getenv("GAIN_MAX_MARKERS", "14"))
+GAIN_VERDICTS = {"organic", "cabaled", "inconclusive"}
+# Yükseliş penceresinde (24s'den sonra) piyasa verisi bu aralıkta bir yenilenir.
+GAIN_POLL_MIN = int(os.getenv("GAIN_POLL_MIN_SEC", "3600"))
+
 
 async def refresh_track() -> None:
     """İzlenen tokenların market cap'ini günceller, süresi dolanları sonuçlandırır."""
@@ -77,10 +87,16 @@ async def refresh_track() -> None:
     if cache is None:
         return
     now = int(time.time())
-    pending = cache.track_pending(max_age=TRACK_WINDOW + 3600)
+    pending = cache.track_pending(max_age=max(TRACK_WINDOW, GAIN_WINDOW) + 3600)
     for row in pending:
         mint = row["mint"]
         mcap_min = row.get("mcap_min")
+        mcap_max = row.get("mcap_max")
+        age = now - row["scored_at"]
+        crash_done = bool(row.get("settled"))
+        # 24s çöküş penceresi bittiyse yükseliş takibi seyrek yenilenir.
+        if crash_done and row.get("latest_at") and now - row["latest_at"] < GAIN_POLL_MIN:
+            continue
         sym = None
         img = None
         try:
@@ -92,10 +108,14 @@ async def refresh_track() -> None:
             mcap = None
         if mcap:
             mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
-            cache.track_update(mint, mcap, mcap_min, now, symbol=sym, image=img)
+            mcap_max = mcap if mcap_max is None else max(mcap_max, mcap)
+            cache.track_update(
+                mint, mcap, mcap_min, now, mcap_max=mcap_max, symbol=sym, image=img
+            )
 
-        if now - row["scored_at"] >= TRACK_WINDOW:
-            base = row.get("mcap_at_scan")
+        base = row.get("mcap_at_scan")
+
+        if not crash_done and age >= TRACK_WINDOW:
             drop = (
                 max(0.0, (base - mcap_min) / base)
                 if base and mcap_min is not None
@@ -118,6 +138,26 @@ async def refresh_track() -> None:
                     learn_from_miss(cache, row, drop)
                 except Exception:  # noqa: BLE001
                     log.exception("Ders çıkarılamadı: %s", mint)
+
+        # --- Yükseliş penceresi (organic/cabaled/inconclusive, daha uzun) -----
+        if not row.get("gain_settled") and age >= GAIN_WINDOW:
+            verdict_now = row.get("verdict") or ""
+            rise = (
+                max(0.0, (mcap_max - base) / base)
+                if base and mcap_max is not None
+                else 0.0
+            )
+            if verdict_now not in GAIN_VERDICTS:
+                cache.track_settle_gain(mint, "n/a")
+            elif rise >= GAIN_MIN_RISE:
+                cache.track_settle_gain(mint, "runup")
+                if GAIN_ENABLED:
+                    try:
+                        learn_from_gain(cache, {**row, "mcap_max": mcap_max}, rise)
+                    except Exception:  # noqa: BLE001
+                        log.exception("Yükseliş dersi çıkarılamadı: %s", mint)
+            else:
+                cache.track_settle_gain(mint, "flat")
 
     # Sembolü eksik eski kayıtları (settled dahil) tazeden doldur.
     try:
@@ -297,6 +337,102 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
     )
 
 
+def _momentum_candidates(scan: dict) -> tuple[list[tuple[str, str]], str | None]:
+    """Kayıtlı taramadan yükseliş kaydına eklenecek (adres, kind) adayları +
+    deployer adresi. Altyapı/borsa adresleri elenir."""
+    launch = scan.get("launch") or {}
+    buyers = launch.get("buyers") or []
+    deployer = (launch.get("deployer") or {}).get("address")
+
+    owners = [b.get("owner") for b in buyers if b.get("owner")]
+    funders: dict[str, int] = {}
+    for b in buyers:
+        f = b.get("funder")
+        if f:
+            funders[f] = funders.get(f, 0) + 1
+
+    out: list[tuple[str, str]] = []
+    for o in owners:
+        if not registry.is_infrastructure(o):
+            out.append((o, "wallet"))
+    # Fonlayıcı yalnızca ≥2 alıcıyı beslediyse anlamlı (tek besleme = borsa/rastgele)
+    for f, n in funders.items():
+        if n >= 2 and not registry.is_infrastructure(f):
+            out.append((f, "funder"))
+    if deployer and not registry.is_infrastructure(deployer):
+        out.append((deployer, "deployer"))
+    return out, deployer
+
+
+def learn_from_gain(cache: ScanCache, row: dict, rise: float) -> None:
+    """organic/cabaled/inconclusive denip sonradan sert yükselen bir token —
+    erken cüzdanlarını/fonlayıcılarını/deployer'ını yükseliş kaydına ekle."""
+    mint = row["mint"]
+    sym = row.get("symbol") or mint[:6]
+    verdict_was = row.get("verdict") or "?"
+    pct = f"%{rise * 100:.0f}"
+    mult = f"{rise + 1:.1f}×"
+    win_d = max(1, round(GAIN_WINDOW / 86400))
+    base = row.get("mcap_at_scan")
+    peak = row.get("mcap_max")
+
+    scan = cache.scan_payload(mint)
+    if not scan:
+        cache.add_gain_lesson(
+            mint=mint, symbol=row.get("symbol"), verdict_was=verdict_was,
+            rise_pct=round(rise, 3), mcap_at_scan=base, mcap_peak=peak,
+            scored_at=row.get("scored_at"), learned_at=int(time.time()),
+            markers=0, deployer=None,
+            detail=(
+                f"{sym}: ilk taramada '{verdict_was}' dendi, sonraki {win_d} günde "
+                f"piyasa değeri {pct} arttı ({mult}). O taramanın ham verisi artık "
+                f"saklı değil — geriye dönük cüzdan analizi yapılamadı."
+            ),
+        )
+        return
+
+    cands, deployer = _momentum_candidates(scan)
+    note = f"{sym}: '{verdict_was}' → {win_d}g içinde {mult} yükseldi (mint {mint[:6]}…)"
+    recorded = 0
+    for addr, kind in cands[:GAIN_MAX_MARKERS]:
+        cache.gainer_add(addr, kind=kind, note=note, via=mint, bump=True)
+        recorded += 1
+    if recorded:
+        _reload_gainers()
+
+    n_wallet = sum(1 for _, k in cands if k == "wallet")
+    n_funder = sum(1 for _, k in cands if k == "funder")
+    has_dep = any(k == "deployer" for _, k in cands)
+    who = []
+    if n_wallet:
+        who.append(f"{n_wallet} erken alıcı cüzdanı")
+    if n_funder:
+        who.append(f"{n_funder} ortak fonlayıcı")
+    if has_dep:
+        who.append("deployer")
+    who_txt = ", ".join(who) if who else "kayıtlı cüzdan yok"
+
+    detail = (
+        f"{sym}: ilk taramada '{verdict_was}' kararı verildi; sonraki {win_d} günde "
+        f"piyasa değeri {pct} arttı ({mult}, {_short_addr(mint)}). "
+        f"O taramanın erken katılımcıları yükseliş kaydına eklendi: {who_txt}. "
+        f"Bir adres ≥2 ayrı yükselişte görülünce 'doğrulanmış' sayılır; bundan "
+        f"sonra bu adreslerin geçtiği taramalarda sonuç ekranında 'Yükseliş "
+        f"sinyali' notu çıkar. Not: bu bir korelasyondur, nedensellik ya da "
+        f"fiyat tahmini değildir."
+    )
+    cache.add_gain_lesson(
+        mint=mint, symbol=row.get("symbol"), verdict_was=verdict_was,
+        rise_pct=round(rise, 3), mcap_at_scan=base, mcap_peak=peak,
+        scored_at=row.get("scored_at"), learned_at=int(time.time()),
+        markers=recorded, deployer=deployer, detail=detail,
+    )
+    log.info(
+        "YÜKSELİŞ DERSİ: %s (%s, +%s) · %s adres kaydedildi",
+        mint, verdict_was, pct, recorded,
+    )
+
+
 async def _track_loop() -> None:
     while True:
         try:
@@ -327,6 +463,13 @@ async def lifespan(app: FastAPI):
             log.info("İşaretli cüzdan yüklendi: %s", len(rows))
     except Exception:  # noqa: BLE001
         log.exception("İşaretli cüzdan listesi yüklenemedi")
+    try:
+        _reload_gainers()
+        n = len(registry.RUNTIME_GAINERS)
+        if n:
+            log.info("Yükseliş sinyali cüzdanı yüklendi: %s", n)
+    except Exception:  # noqa: BLE001
+        log.exception("Yükseliş sinyali listesi yüklenemedi")
     try:
         bkey = state["cache"].config_get("birdeye_api_key")
         rpc_trades.set_runtime_config(birdeye_api_key=bkey)
@@ -831,6 +974,34 @@ async def admin_lesson_undo(mint: str):
     return {"ok": True, "removed": removed}
 
 
+@app.get("/api/admin/momentum", dependencies=[Depends(_admin)])
+async def admin_momentum():
+    """Yükseliş öğrenmesi: dersler + izlenen cüzdanlar + sinyal yakalanan taramalar."""
+    c = state["cache"]
+    return {
+        "lessons": c.gain_lessons_list(200),
+        "gainers": c.gainers_list(),
+        "hits": c.gain_hits_list(100),
+        "window_d": round(GAIN_WINDOW / 86400, 1),
+        "min_rise_pct": GAIN_MIN_RISE,
+        "enabled": GAIN_ENABLED,
+    }
+
+
+@app.post("/api/admin/momentum/{mint}/undo", dependencies=[Depends(_admin)])
+async def admin_momentum_undo(mint: str):
+    removed = state["cache"].gain_lesson_undo(_validate(mint))
+    _reload_gainers()
+    return {"ok": True, "removed": removed}
+
+
+@app.delete("/api/admin/gainers/{address}", dependencies=[Depends(_admin)])
+async def admin_gainer_remove(address: str):
+    state["cache"].gainer_remove(address)
+    _reload_gainers()
+    return {"ok": True}
+
+
 def _mask_key(key: str) -> str:
     if not key:
         return ""
@@ -1012,6 +1183,18 @@ def _reload_flagged() -> None:
         for r in state["cache"].flagged_list()
     }
     registry.set_runtime_flagged(rows)
+
+
+def _reload_gainers() -> None:
+    rows = {
+        r["address"]: {
+            "kind": r.get("kind") or "wallet",
+            "hits": int(r.get("hits") or 1),
+            "note": r.get("note"),
+        }
+        for r in state["cache"].gainers_list()
+    }
+    registry.set_runtime_gainers(rows)
 
 
 def _reconfigure_x() -> None:

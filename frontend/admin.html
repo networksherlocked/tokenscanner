@@ -314,7 +314,8 @@ function renderPanel(d){
     ['scans_cached','önbellekte'],['scans_total','toplam tarama'],
     ['track_open','izlenen'],['track_settled','sonuçlanan'],
     ['track_correct','doğru'],['track_miss','kaçırılan'],
-    ['appeals_open','açık itiraz'],['flagged','işaretli cüzdan'],['lessons','AI tespit'],
+    ['appeals_open','açık itiraz'],['flagged','işaretli cüzdan'],['lessons','çöküş dersi'],
+    ['gainers','yükseliş adresi'],['gain_lessons','yükseliş dersi'],
   ].map(([k,l])=>`<div class="stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
 
   $('#view').innerHTML = `
@@ -770,7 +771,8 @@ function renderLessons(d){
   _aiFirst = d;
   $('#view').innerHTML = `
     <div class="subtabs" id="aiSub">
-      <button data-s="lessons">Dersler</button>
+      <button data-s="lessons">Çöküş dersleri</button>
+      <button data-s="momentum">Yükseliş sinyalleri</button>
       <button data-s="flagged">İşaretli cüzdanlar</button>
     </div>
     <div id="aiView"><p class="muted">yükleniyor…</p></div>`;
@@ -778,7 +780,7 @@ function renderLessons(d){
   paintAiSub();
 }
 async function paintAiSub(){
-  if(_aiSub!=='lessons' && _aiSub!=='flagged') _aiSub = 'lessons';
+  if(!['lessons','momentum','flagged'].includes(_aiSub)) _aiSub = 'lessons';
   document.querySelectorAll('#aiSub button').forEach(x=>x.classList.toggle('on', x.dataset.s===_aiSub));
   const av = $('#aiView'); av.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
@@ -790,12 +792,83 @@ async function paintAiSub(){
         const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
         flash((j.removed||0)+' cüzdan geri alındı'); paintAiSub();
       });
+    }else if(_aiSub==='momentum'){
+      _aiFirst = null;
+      const d = await api('/momentum');
+      av.innerHTML = momentumView(d);
+      av.querySelectorAll('[data-mu]').forEach(b=> b.onclick = async ()=>{
+        if(!confirm('Bu yükseliş dersinin kaydettiği adresler geri alınsın mı?')) return;
+        const j = await api('/momentum/'+b.dataset.mu+'/undo', {method:'POST'});
+        flash((j.removed||0)+' adres geri alındı'); paintAiSub();
+      });
+      av.querySelectorAll('[data-gx]').forEach(b=> b.onclick = async ()=>{
+        if(!confirm('Bu adres yükseliş kaydından çıkarılsın mı?')) return;
+        await api('/gainers/'+encodeURIComponent(b.dataset.gx), {method:'DELETE'});
+        flash('çıkarıldı'); paintAiSub();
+      });
     }else{
       _aiFirst = null;
       av.innerHTML = modFlagged(await api('/flagged'));
       wireFlagged(av);
     }
   }catch(e){ if(e.message!=='auth') av.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
+}
+const GN_KIND = { wallet:'erken alıcı', funder:'fonlayıcı', deployer:'deployer' };
+function momentumView(d){
+  const lessons = d.lessons || [], gainers = d.gainers || [], hits = d.hits || [];
+  const win = Math.round(d.window_d || 7);
+  const mult = ((d.min_rise_pct || 2) + 1).toFixed(1);
+
+  const lrows = lessons.map(l=>`<tr>
+    <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
+    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
+    <td><b class="ok">+%${Math.round((l.rise_pct||0)*100)}</b><div class="muted">${money(l.mcap_at_scan)} → ${money(l.mcap_peak)}</div></td>
+    <td style="min-width:340px;max-width:560px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
+    <td style="white-space:nowrap">${(l.markers||0)>0?`<b>${l.markers}</b> adres kaydedildi`:'kayıt yok'}
+      ${l.markers?`<button class="ghost sm" data-mu="${esc(l.mint)}">geri al</button>`:''}</td>
+  </tr>`).join('');
+
+  const grows = gainers.map(g=>`<tr>
+    <td class="mono">${esc(g.address)}</td>
+    <td>${GN_KIND[g.kind]||g.kind}</td>
+    <td><span class="badge ${g.hits>=2?'b-hit':'b-open'}">×${g.hits}</span> ${g.hits>=2?'doğrulanmış':'ihtiyatlı'}</td>
+    <td class="muted">${esc(g.note||'')}<div>${ago(g.last_seen)} önce</div></td>
+    <td><button class="danger sm" data-gx="${esc(g.address)}">çıkar</button></td>
+  </tr>`).join('');
+
+  const hrows = hits.map(h=>`<tr>
+    <td class="mono">${esc(h.symbol||short(h.mint))}<div class="muted">${short(h.mint)}</div></td>
+    <td>${vb(h.verdict)}</td>
+    <td><b>${h.score}</b></td>
+    <td style="white-space:normal;line-height:1.5">${esc(h.detail||'')}</td>
+    <td class="muted">${ago(h.scanned_at)} önce</td>
+  </tr>`).join('');
+
+  return `
+    <div class="card"><p class="desc"><b>Yükseliş öğrenmesi (çöküş dersinin pozitif aynası).</b>
+      "organic", "cabaled" ya da "inconclusive" denen tokenlar ${win} gün boyunca izlenir.
+      Piyasa değeri en az ${mult}× artan (≥%${Math.round((d.min_rise_pct||2)*100)}) tokenların
+      kayıtlı tarama verisi geriye dönük incelenir; erken alıcı cüzdanları, birden çok alıcıyı
+      besleyen ortak fonlayıcılar ve deployer <b>yükseliş kaydına</b> eklenir. Bir adres ≥2 ayrı
+      yükselişte görülünce "doğrulanmış" sayılır. Sonraki taramalarda bu adresler bir tokenın
+      erken katılımcıları arasında görülürse <b>sonuç ekranında "Yükseliş sinyali" notu</b> çıkar —
+      bu karara (bundled/organic) etki ETMEZ, yalnızca bilgilendirmedir. Bu bir korelasyondur;
+      nedensellik ya da fiyat tahmini değildir.</p></div>
+
+    <div class="section-title">Yükselen tokenlardan çıkarılan dersler</div>
+    <div class="tbl-card"><table>
+      <thead><tr><th>ilk karar</th><th>token</th><th>yükseliş</th><th>ne öğrenildi?</th><th>kayıt</th></tr></thead>
+      <tbody>${lrows||'<tr><td colspan="5" class="muted">henüz ders yok — izlenen bir token '+mult+'× yükselene kadar boş kalır</td></tr>'}</tbody></table></div>
+
+    <div class="section-title">İzlenen "yükseliş sinyali" adresleri</div>
+    <div class="tbl-card"><table>
+      <thead><tr><th>adres</th><th>rol</th><th>durum</th><th>not</th><th></th></tr></thead>
+      <tbody>${grows||'<tr><td colspan="5" class="muted">liste boş</td></tr>'}</tbody></table></div>
+
+    <div class="section-title">Yükseliş sinyali yakalanan taramalar</div>
+    <div class="tbl-card"><table>
+      <thead><tr><th>token</th><th>karar</th><th>skor</th><th>sebep</th><th>ne zaman</th></tr></thead>
+      <tbody>${hrows||'<tr><td colspan="5" class="muted">henüz eşleşen tarama yok</td></tr>'}</tbody></table></div>`;
 }
 function lessonsTable(d){
   const rows = (d.lessons||[]).map(l=>`<tr>

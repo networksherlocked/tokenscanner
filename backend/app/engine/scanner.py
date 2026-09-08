@@ -49,6 +49,70 @@ class TokenTooSmall(Exception):
     """Market cap eşiğin altında; tarama yapılmadı."""
 
 
+def _match_momentum(buyers: list[dict], deployer: str | None) -> dict:
+    """Bu tokenın erken cüzdanları / fonlayıcıları / deployer'ı, daha önce sert
+    YÜKSELEN tokenlarda görülmüş adreslerle örtüşüyor mu?
+
+    Karara etki etmez — sonuç ekranında bilgilendirme notu için. `hits >= 2`
+    olan adresler "doğrulanmış" (birden fazla yükselişte görülmüş) sayılır.
+    """
+    seen: dict[str, dict] = {}
+
+    def note(addr: str | None, role: str) -> None:
+        if not addr or addr in seen or registry.is_infrastructure(addr):
+            return
+        info = registry.gainer_info(addr)
+        if not info:
+            return
+        seen[addr] = {
+            "address": addr,
+            "role": role,                       # early_buyer | funder | deployer
+            "kind": info.get("kind") or "wallet",
+            "hits": int(info.get("hits") or 1),
+            "note": info.get("note"),
+        }
+
+    for b in buyers:
+        note(b.get("owner"), "early_buyer")
+        note(b.get("funder"), "funder")
+    note(deployer, "deployer")
+
+    matches = sorted(seen.values(), key=lambda m: (-m["hits"], m["role"]))
+    confirmed = [m for m in matches if m["hits"] >= 2]
+    tentative = [m for m in matches if m["hits"] < 2]
+    # Skor: doğrulanmış eşleşmeler tam, ihtiyatlı olanlar yarım puan.
+    score = len(confirmed) * 2 + len(tentative)
+    hit = bool(confirmed) or len(matches) >= 2
+
+    summary = ""
+    if hit:
+        roles = {"early_buyer": 0, "funder": 0, "deployer": 0}
+        for m in matches:
+            roles[m["role"]] = roles.get(m["role"], 0) + 1
+        parts = []
+        if roles["early_buyer"]:
+            parts.append(f"{roles['early_buyer']} erken alıcı cüzdanı")
+        if roles["funder"]:
+            parts.append(f"{roles['funder']} fonlayıcı")
+        if roles["deployer"]:
+            parts.append("deployer")
+        who = ", ".join(parts) if parts else f"{len(matches)} adres"
+        cf = f" ({len(confirmed)} tanesi birden fazla yükselişte görülmüş)" if confirmed else ""
+        summary = (
+            f"Bu tokenda erkenden yer alan {who}, daha önce sert yükselen "
+            f"tokenlarda da erkenden vardı{cf}. Bu geçmiş bir örüntüdür, "
+            f"fiyat tahmini değildir."
+        )
+
+    return {
+        "hit": hit,
+        "score": score,
+        "confirmed": len(confirmed),
+        "matches": matches,
+        "summary": summary,
+    }
+
+
 async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     started = time.monotonic()
 
@@ -255,6 +319,17 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             for b in launch.buyers
         ]
 
+    deployer_addr = deployer.address if deployer else None
+    momentum = _match_momentum(launch_buyers_out, deployer_addr)
+    if momentum.get("hit") and cache is not None:
+        try:
+            cache.add_gain_hit(
+                mint, market.symbol, verdict.kind,
+                momentum["score"], momentum["summary"],
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("gain_hit yazma düştü %s: %s", mint, exc)
+
     return {
         "mint": mint,
         "scanned_at": int(time.time()),
@@ -311,6 +386,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             },
             "funding_tree": (launch.funding_tree if launch_ok else {}),
         },
+        "momentum": momentum,
         "liquidity": lp_lock.to_dict(),
         "data_quality": {
             "chain_coverage": chain.coverage,
