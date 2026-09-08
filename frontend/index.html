@@ -1571,8 +1571,9 @@ function renderChart(pool){
   if(pool === _chartPool && !box.hidden) return;   // aynı token — yeniden yükleme
   _chartPool = pool;
   const p = encodeURIComponent(pool);
+  // bg_color = --ink (#0b1424) → grafik zemini site zeminiyle aynı
   fr.src = `https://www.geckoterminal.com/solana/pools/${p}`
-    + '?embed=1&info=0&swaps=0&grayscale=0&light_chart=0';
+    + '?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&bg_color=0b1424';
   $('chartLink').href = `https://www.geckoterminal.com/solana/pools/${p}`;
   box.hidden = false;
 }
