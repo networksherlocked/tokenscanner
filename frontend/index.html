@@ -155,7 +155,10 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .tokhead .sym{font-family:var(--display);font-weight:700;font-size:clamp(30px,4.4vw,48px);
   line-height:1;text-transform:uppercase;letter-spacing:.02em;color:var(--text)}
 .tokhead .nm{font-size:15px;color:var(--muted)}
-.tokhead .mnt{margin-left:auto;font-size:11px;color:var(--dim);word-break:break-all;max-width:44ch;text-align:right}
+.tokhead .mnt{margin-left:auto;font-size:11px;color:var(--dim);word-break:break-all;max-width:44ch;
+  text-align:right;cursor:pointer;transition:color .15s;background:none;border:0;font-family:var(--mono)}
+.tokhead .mnt:hover{color:var(--gold)}
+.tokhead .mnt::after{content:" ⧉";opacity:.6}
 .tokhead .vpill{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.1em;
   text-transform:uppercase;padding:5px 12px;border:1px solid currentColor;border-radius:2px}
 
@@ -246,8 +249,8 @@ td.addr{color:var(--text)}
 .momentum .mm-hits.conf{color:var(--organic)}
 .momentum .mm-note{margin-top:10px;font-size:10px;color:var(--dim);font-style:italic}
 
-/* risk bayrakları — karara girmez, ayrı ve belirgin */
-.riskflags{margin:16px 0 4px;display:flex;flex-direction:column;gap:8px}
+/* risk bayrakları — karara girmez, sinyal ızgarasının üstünde ayrı çerçeveler */
+.riskflags{margin:0 0 18px;display:flex;flex-direction:column;gap:8px}
 .riskflags .rf{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:2px;
   border:1px solid var(--rule);border-left:3px solid var(--bundled);background:rgba(213,67,63,.07)}
 .riskflags .rf.medium{border-left-color:var(--cabaled);background:rgba(213,147,47,.07)}
@@ -610,10 +613,10 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <span id="scanMetaText"></span>
         <button type="button" id="refreshBtn" data-i18n="refreshBtn">Refresh</button>
       </div>
-      <div class="riskflags" id="riskFlags" hidden></div>
       <div class="split">
         <aside class="verdict" id="verdict"></aside>
         <div>
+          <div class="riskflags" id="riskFlags" hidden></div>
           <div class="section-label">
             <span data-i18n="sigGrid">Signal grid</span>
             <span id="firedCount"></span>
@@ -766,7 +769,7 @@ const STR = {
     riskFlagsHead:'Risk flags — separate from the distribution verdict',
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
-    copied:'Copied',
+    copied:'Copied', copyMint:'Click to copy mint address',
     shareTweet: (label, score) => `america.sx read this Solana token as ${label} (score ${score}).`,
     appealIntro:'Think this verdict is wrong? Tell us why — reviewed manually.',
     appealContact:'Contact (optional — email or @handle)',
@@ -861,7 +864,7 @@ const STR = {
     riskFlagsHead:'Risk bayrakları — dağıtım kararından ayrıdır',
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
-    copied:'Kopyalandı',
+    copied:'Kopyalandı', copyMint:'Kopyalamak için tıkla',
     shareTweet: (label, score) => `america.sx bu Solana tokenını ${label} okudu (skor ${score}).`,
     appealIntro:'Bu kararın yanlış olduğunu mu düşünüyorsun? Nedenini yaz — elle inceleniyor.',
     appealContact:'İletişim (opsiyonel — e-posta veya @kullanıcı)',
@@ -1550,13 +1553,20 @@ function render(d){
     <span class="sym" style="color:${c}">${t.symbol ? esc(t.symbol) : L('noName')}</span>
     ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ''}
     <span class="vpill" style="color:${c}">${v.label}</span>
-    <span class="mnt">${d.mint}</span>`;
+    <button type="button" class="mnt" id="mntCopy" title="${L('copyMint')}">${d.mint}</button>`;
+  $('mntCopy').onclick = async ()=>{
+    const b = $('mntCopy'), o = b.textContent;
+    try{ await navigator.clipboard.writeText(d.mint); }
+    catch(e){ prompt(L('shareCopy'), d.mint); return; }
+    b.textContent = L('copied');
+    setTimeout(()=>{ b.textContent = o; }, 1200);
+  };
 
   // --- risk bayrakları (karara girmez) ---
   const rf = v.risk_flags || [];
   const rfBox = $('riskFlags');
   if(rf.length){
-    rfBox.innerHTML = `<div class="section-label">${L('riskFlagsHead')}</div>` + rf.map(f=>`
+    rfBox.innerHTML = rf.map(f=>`
       <div class="rf ${f.severity === 'medium' ? 'medium' : ''}">
         <span class="ic">${f.severity === 'medium' ? '⚠' : '⛔'}</span>
         <span class="tx"><b>${esc(f.label || '')}</b><span>${esc(f.detail || '')}</span></span>
