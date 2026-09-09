@@ -252,6 +252,24 @@ Tek sinyal asla karar vermez. `classifier.py`:
 - **Inconclusive** — coverage < 0.4 ya da 3+ sert sinyal veri yokluğundan kör.
 - **Organic** — hiçbiri.
 
+**Risk bayrakları karara girmez.** `ADVISORY_SIGNALS` (şu an `lp_lock`) —
+"dağıtım nasıl yapıldı" değil "rug/güvenlik" bağlamı olan sinyaller — ağırlık
+matematiğine katılmaz. Sonuç `verdict.risk_flags[]` içinde ayrı listelenir
+(LP çekilebilir, mint/freeze açık, ince likidite, deployer rug geçmişi, kara
+listedeki cüzdanlar) ve arayüzde ayrı bir "Risk bayrakları" bölümünde
+gösterilir. Bir token %100 organik dağıtımlı olup yine de kilitsiz LP'ye
+sahip olabilir — bu onu "cabaled" yapmaz, ayrı bir tehlike bayrağıdır.
+
+**Bot yarışı ≠ paket.** `same_slot_entry`: TEK işlemde ≥2 alım tartışmasız
+pakettir; saf eşzamanlılık slot-sıkılığına göre ölçeklenir; giriş ≥2 slota
+yayılmış + her cüzdan ayrı işlem/fonlayıcı kullanıyorsa (Photon/BonkBot/Trojan
+yarışı) güçlü iskonto uygulanır — ancak fonlama ağacı tek gizli kaynağa
+çıkıyorsa "ayrı fonlayıcı" bir kamuflajdır, iskonto yok.
+
+**wallet_meta önbelleği** (`cache.py`): cüzdan yaşı + ilk fonlayıcı değişmez;
+bir kez çözülünce saklanır, tekrar taramada RPC harcanmaz. Böylece taze
+cüzdanlı paketler kadar aktif/köklü cüzdanlı organik lansmanlar da çözülebilir.
+
 > **Karar kararlılığı:** Bir tokenı tekrar taradığında zincir verisi toplanamayıp
 > sonuç *Inconclusive* çıkarsa ve daha önce **gerçek** bir karar (bundled/
 > cabaled/organic) verilmişse, o önceki karar korunur (`scanner.py`, "restored
