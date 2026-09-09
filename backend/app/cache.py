@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS track (
     scored_at INTEGER NOT NULL, mcap_at_scan REAL, mcap_latest REAL,
     mcap_min REAL, latest_at INTEGER, outcome TEXT,
     settled INTEGER NOT NULL DEFAULT 0, image TEXT,
-    mcap_max REAL, gain_outcome TEXT, gain_settled INTEGER NOT NULL DEFAULT 0
+    mcap_max REAL, gain_outcome TEXT, gain_settled INTEGER NOT NULL DEFAULT 0,
+    liq_at_scan REAL, liq_min REAL, creator TEXT,
+    rug_flagged INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 
@@ -122,7 +124,9 @@ CREATE TABLE IF NOT EXISTS track (
     mcap_latest DOUBLE PRECISION, mcap_min DOUBLE PRECISION,
     latest_at BIGINT, outcome TEXT, settled INTEGER NOT NULL DEFAULT 0,
     image TEXT, mcap_max DOUBLE PRECISION, gain_outcome TEXT,
-    gain_settled INTEGER NOT NULL DEFAULT 0
+    gain_settled INTEGER NOT NULL DEFAULT 0,
+    liq_at_scan DOUBLE PRECISION, liq_min DOUBLE PRECISION, creator TEXT,
+    rug_flagged INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_track_scored ON track(scored_at DESC);
 
@@ -238,6 +242,10 @@ class ScanCache:
             "ALTER TABLE track ADD COLUMN mcap_max REAL",
             "ALTER TABLE track ADD COLUMN gain_outcome TEXT",
             "ALTER TABLE track ADD COLUMN gain_settled INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE track ADD COLUMN liq_at_scan REAL",
+            "ALTER TABLE track ADD COLUMN liq_min REAL",
+            "ALTER TABLE track ADD COLUMN creator TEXT",
+            "ALTER TABLE track ADD COLUMN rug_flagged INTEGER NOT NULL DEFAULT 0",
         ):
             try:
                 self._write(stmt)
@@ -331,22 +339,27 @@ class ScanCache:
     def track_start(
         self, mint: str, symbol: str | None, verdict: str | None,
         score: int | None, mcap: float | None, image: str | None = None,
+        liquidity: float | None = None, creator: str | None = None,
     ) -> None:
         now = int(time.time())
         self._write(
             "INSERT INTO track "
             "(mint, symbol, verdict, score, scored_at, mcap_at_scan, "
             " mcap_latest, mcap_min, mcap_max, latest_at, outcome, settled, "
-            " gain_outcome, gain_settled, image) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, 0, ?) "
+            " gain_outcome, gain_settled, image, liq_at_scan, liq_min, "
+            " creator, rug_flagged) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, 0, ?, ?, ?, ?, 0) "
             "ON CONFLICT(mint) DO UPDATE SET symbol=excluded.symbol, "
             "verdict=excluded.verdict, score=excluded.score, "
             "scored_at=excluded.scored_at, mcap_at_scan=excluded.mcap_at_scan, "
             "mcap_latest=excluded.mcap_latest, mcap_min=excluded.mcap_min, "
             "mcap_max=excluded.mcap_max, latest_at=excluded.latest_at, "
             "outcome=NULL, settled=0, gain_outcome=NULL, gain_settled=0, "
-            "image=COALESCE(excluded.image, track.image)",
-            (mint, symbol, verdict, score, now, mcap, mcap, mcap, mcap, now, image),
+            "image=COALESCE(excluded.image, track.image), "
+            "liq_at_scan=excluded.liq_at_scan, liq_min=excluded.liq_min, "
+            "creator=COALESCE(excluded.creator, track.creator), rug_flagged=0",
+            (mint, symbol, verdict, score, now, mcap, mcap, mcap, mcap, now,
+             image, liquidity, liquidity, creator),
         )
 
     def track_pending(self, max_age: int) -> list[dict]:
@@ -367,14 +380,30 @@ class ScanCache:
         mcap_max: float | None = None,
         symbol: str | None = None,
         image: str | None = None,
+        liq: float | None = None,
     ) -> None:
         # symbol/image yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
+        # liq_min = gördüğümüz en düşük likidite; liq verilmezse dokunma.
         self._write(
             "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ?, "
             "mcap_max = ?, "
+            "liq_min = CASE WHEN ? IS NULL THEN liq_min "
+            "               WHEN liq_min IS NULL THEN ? "
+            "               WHEN ? < liq_min THEN ? "
+            "               ELSE liq_min END, "
             "symbol = COALESCE(NULLIF(symbol, ''), ?), "
             "image = COALESCE(NULLIF(image, ''), ?) WHERE mint = ?",
-            (mcap_latest, mcap_min, at, mcap_max, symbol, image, mint),
+            (mcap_latest, mcap_min, at, mcap_max, liq, liq, liq, liq,
+             symbol, image, mint),
+        )
+
+    def track_mark_rug(self, mint: str, outcome: str = "rug") -> None:
+        """Likidite çekildi — kaydı sonuçlandır + tekrar işaretlenmesin."""
+        self._write(
+            "UPDATE track SET rug_flagged = 1, outcome = ?, settled = 1, "
+            "gain_outcome = COALESCE(gain_outcome, 'n/a'), gain_settled = 1 "
+            "WHERE mint = ?",
+            (outcome, mint),
         )
 
     def track_settle(self, mint: str, outcome: str) -> None:

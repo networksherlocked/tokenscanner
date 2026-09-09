@@ -794,8 +794,15 @@ def sig_lp_lock(ctx: SignalContext) -> Signal:
     elif st == "unlocked":
         s.direction = "cabaled"
         s.fired = True
-        s.strength = _ramp(max(dev, top), 0.4, 0.9)
+        s.strength = max(0.5, _ramp(max(dev, top), 0.4, 0.9))
         s.detail = detail or "LP kilitli değil — likidite çekilebilir."
+    elif st == "unverified":
+        # Doğrulanamayan LP bir risktir — "güvenli" sayma. Hafif bir cabaled
+        # dürtüsü + sonuç ekranında belirgin uyarı (classifier caveat'ı).
+        s.direction = "cabaled"
+        s.fired = True
+        s.strength = 0.3
+        s.detail = detail or "LP kilit durumu doğrulanamadı — çekilebilir olabilir."
     elif st == "partial":
         s.detail = detail or "LP kısmen yakılmış/kilitli."
     else:

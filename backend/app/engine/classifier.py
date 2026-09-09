@@ -235,10 +235,20 @@ def classify(
         None,
     )
     if lp:
-        caveats.append(
-            "Likidite kilitli/yakılmış değil — bu bir dağıtım kararı değil ama "
-            "geliştirici likiditeyi çekerse token dağıtımından bağımsız olarak çöker."
-        )
+        lp_status = (lp.evidence or {}).get("status")
+        if lp_status == "unverified":
+            caveats.append(
+                "⚠ LP KİLİT DURUMU DOĞRULANAMADI — bu havuz tipinde otomatik "
+                "kontrol yapılamıyor. Likiditenin çekilebilir olduğunu (rug "
+                "riski) varsayın. Token çekilme için izlemeye alındı; likidite "
+                "çekilirse yaratıcısı kara listeye eklenir."
+            )
+        else:
+            caveats.append(
+                "⚠ Likidite kilitli/yakılmış DEĞİL — geliştirici likiditeyi "
+                "istediği an çekebilir (rug riski); bu, token dağıtımından "
+                "bağımsız bir tehlikedir."
+            )
     if not market_available:
         caveats.append("Piyasa verisi alınamadı; likidite sinyalleri hesaplanmadı.")
     missing = [s.label for s in signals if not s.data_ok]

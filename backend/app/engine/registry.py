@@ -66,8 +66,26 @@ LP_LOCKER_PROGRAMS: dict[str, str] = {
     # Streamflow, UNCX, Team Finance, Bunkr...). Boş olsa da tespit çalışır.
 }
 
-# pump.fun / PumpSwap: migration'da LP protokolce kilitlenir; geliştirici çekemez.
+# pump.fun / PumpSwap AMM. DİKKAT: PumpSwap İZİNSİZ bir AMM — herkes her token
+# için havuz açabilir ve LP'yi kendi cüzdanında tutabilir. "dexId pumpswap" TEK
+# BAŞINA "LP kilitli" anlamına GELMEZ. Protokol kilidi yalnızca gerçekten
+# pump.fun bonding curve'ünde doğup mezun olan tokenlarda (pump.complete) vardır.
 PUMP_AMM_DEXES = {"pumpfun", "pumpswap", "pump.fun", "pump"}
+PUMPSWAP_PROGRAM = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"
+
+
+_B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def b58encode(raw: bytes) -> str:
+    """32-byte Solana pubkey → base58 string. Harici kütüphane yok."""
+    n = int.from_bytes(raw, "big")
+    out = ""
+    while n > 0:
+        n, rem = divmod(n, 58)
+        out = _B58_ALPHABET[rem] + out
+    pad = len(raw) - len(raw.lstrip(b"\x00"))
+    return "1" * pad + out
 
 # --- Kendi bulgularından büyüyecek listeler ---------------------------------
 

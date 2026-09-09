@@ -38,14 +38,15 @@ class LpLockInfo:
     checked: bool = False
     status: str = "unknown"
     # "burned" | "locked" | "protocol_locked" | "bonding_curve"
-    # | "unlocked" | "partial" | "unknown"
+    # | "unlocked" | "partial" | "unverified" | "unknown"
     burned_pct: float = 0.0        # LP arzının yakılmış oranı (0..1)
     locked_pct: float = 0.0        # bir program PDA'sında tutulan oran
     dev_held_pct: float = 0.0      # deployer/tek düz cüzdanda tutulan oran
     top_holder_pct: float = 0.0    # en büyük tekil LP sahibinin payı
     lp_mint: str | None = None
     holder_program: str | None = None  # LP'yi tutan PDA'nın sahibi program
-    source: str = ""              # "pumpfun" | "raydium_api" | "lp_mint_analysis"
+    pool_creator: str | None = None    # havuzu açan cüzdan (PumpSwap parse'ından)
+    source: str = ""              # pumpfun | raydium_api | pumpswap_pool | lp_mint_analysis
     detail: str = ""
 
     @property
@@ -62,6 +63,7 @@ class LpLockInfo:
             "top_holder_pct": round(self.top_holder_pct, 4),
             "lp_mint": self.lp_mint,
             "holder_program": self.holder_program,
+            "pool_creator": self.pool_creator,
             "source": self.source,
             "detail": self.detail,
         }
@@ -109,7 +111,10 @@ def _classify(info: LpLockInfo) -> None:
         )
     else:
         info.status = "unlocked"
-        info.detail = "LP'nin yakıldığına/kilitlendiğine dair kanıt yok."
+        info.detail = (
+            "LP'nin yakıldığına/kilitlendiğine dair kanıt yok — likidite "
+            "çekilebilir (rug riski)."
+        )
 
 
 async def _raydium_pool(pair: str, timeout: float = 8.0) -> dict | None:
@@ -198,12 +203,46 @@ async def _lp_mint_analysis(
     _classify(info)
 
 
+async def _pumpswap_pool(pool: RpcPool, info: LpLockInfo, pair: str, mint: str) -> None:
+    """PumpSwap havuz hesabını parse eder: creator + lp_mint.
+
+    Anchor `Pool` layout: 8 disc · 1 pool_bump · 2 index · 32 creator ·
+    32 base_mint · 32 quote_mint · 32 lp_mint · …
+    """
+    acc = await pool.call("getAccountInfo", [pair, {"encoding": "base64"}])
+    val = (acc or {}).get("value") or {}
+    if (val.get("owner") or "") != registry.PUMPSWAP_PROGRAM:
+        return
+    data = val.get("data")
+    raw = data[0] if isinstance(data, list) else data
+    if not raw:
+        return
+    import base64
+    try:
+        b = base64.b64decode(raw)
+    except Exception:  # noqa: BLE001
+        return
+    if len(b) < 139:
+        return
+    base_mint = registry.b58encode(b[43:75])
+    quote_mint = registry.b58encode(b[75:107])
+    # layout doğrulama: taranan mint havuzun bir tarafı olmalı
+    if mint not in (base_mint, quote_mint):
+        log.info("PumpSwap layout eşleşmedi %s (base=%s quote=%s)", pair, base_mint, quote_mint)
+        return
+    info.pool_creator = registry.b58encode(b[11:43])
+    info.lp_mint = registry.b58encode(b[107:139])
+    info.source = "pumpswap_pool"
+
+
 async def analyze_lp_lock(
-    pool: RpcPool, market, pump, creator: str | None = None
+    pool: RpcPool, mint: str, market, pump, creator: str | None = None
 ) -> LpLockInfo:
     info = LpLockInfo()
+    dex = (getattr(market, "dex", None) or "").lower()
+    pair = getattr(market, "pair_address", None)
 
-    # 1) pump.fun bonding curve — likidite eğride
+    # 1) pump.fun bonding curve — likidite eğride (henüz mezun değil)
     if pump and getattr(pump, "bonding_curve", None) and not getattr(
         pump, "complete", False
     ):
@@ -216,24 +255,28 @@ async def analyze_lp_lock(
         )
         return info
 
-    dex = (getattr(market, "dex", None) or "").lower()
-
-    # 2) pump.fun / PumpSwap AMM — migration'da LP protokolce kilitlenir
-    if dex in registry.PUMP_AMM_DEXES or (pump and getattr(pump, "complete", False)):
+    # 2) GERÇEK pump.fun mezunu — LP protokolce yakılır. Yalnızca pump.fun
+    #    API'si onayladığında (pump.complete). DEX adının "pumpswap" olması
+    #    TEK BAŞINA yetmez: PumpSwap izinsiz bir AMM, herkes havuz açabilir.
+    if pump and getattr(pump, "complete", False):
         info.checked = True
         info.status = "protocol_locked"
         info.source = "pumpfun"
         info.detail = (
-            "pump.fun / PumpSwap havuzu — LP migration'da protokol tarafından "
-            "kilitlenir; geliştirici likiditeyi çekemez."
+            "Token pump.fun'da mezun oldu — likidite PumpSwap'e taşınırken LP "
+            "protokol tarafından yakıldı; geliştirici likiditeyi çekemez."
         )
         return info
 
-    pair = getattr(market, "pair_address", None)
     if not pair:
+        info.status = "unverified"
+        info.detail = (
+            "LP havuzu adresi bulunamadı — likidite kilit durumu doğrulanamadı. "
+            "Kilitli olduğunu VARSAYMAYIN."
+        )
         return info
 
-    # 3) Raydium API — burnPercent doğrudan
+    # 3) LP mint'i çöz: (a) Raydium API  (b) PumpSwap havuz hesabı
     row = await _raydium_pool(pair)
     if row:
         info.lp_mint = _addr(row.get("lpMint"))
@@ -242,26 +285,33 @@ async def analyze_lp_lock(
         if bp is not None:
             info.checked = True
             info.burned_pct = max(0.0, min(1.0, float(bp) / 100.0))
-            # Yüksek yakım → bitti. Değilse LP mint analizine düş (locker/dev).
             if info.burned_pct >= LOCK_SAFE_PCT:
                 _classify(info)
                 return info
 
-    # 4) LP mint analizi (RPC)
+    if not info.lp_mint and dex in registry.PUMP_AMM_DEXES:
+        try:
+            await _pumpswap_pool(pool, info, pair, mint)
+        except Exception as exc:  # noqa: BLE001
+            log.info("PumpSwap havuz parse düştü %s: %s", pair, exc)
+
+    # 4) LP mint holder analizi — herhangi bir fungible LP mint için çalışır
     if info.lp_mint:
         try:
-            await _lp_mint_analysis(pool, info, creator)
+            await _lp_mint_analysis(pool, info, creator or info.pool_creator)
         except Exception as exc:  # noqa: BLE001
             log.info("LP mint analizi düştü %s: %s", info.lp_mint, exc)
-            if info.checked:
-                _classify(info)
-        return info
+        if info.checked:
+            return info
 
-    # Fungible LP mint yok — concentrated liquidity (Orca Whirlpool, Raydium
-    # CLMM/CPMM) ya da desteklenmeyen DEX. Pozisyonlar NFT; "yakıldı/kilitlendi"
-    # aynı biçimde uygulanmaz.
+    # 5) Doğrulanamadı — bu bir RİSKTİR. "Güvenli / kilitli" DEME.
+    info.status = "unverified"
+    info.source = info.source or dex
     info.detail = (
-        f"LP kilit durumu belirlenemedi — {dex or 'bu DEX'} concentrated "
-        "liquidity kullanıyor olabilir (LP token yerine pozisyon NFT'leri)."
+        f"LP kilit durumu otomatik doğrulanamadı ({dex or 'bu havuz tipi'} — "
+        "ör. Meteora / Orca yoğunlaşmış likidite, pozisyonlar NFT). Likiditenin "
+        "çekilebilir olduğunu varsayın; token yaratıcısı likiditeyi çekerse "
+        "token dağıtımından bağımsız olarak çöker. Sistem bu tokenı çekilme için "
+        "izlemeye alır — çekilirse yaratıcısı kara listeye eklenir."
     )
     return info

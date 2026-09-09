@@ -71,6 +71,14 @@ LEARN_ENABLED = os.getenv("LEARN_ENABLED", "1") != "0"
 LEARN_MIN_DROP = float(os.getenv("LEARN_MIN_DROP", "0.55"))   # sadece sert çöküşler
 LEARN_MAX_WALLETS = int(os.getenv("LEARN_MAX_WALLETS", "12"))
 
+# --- Likidite çekilme (rug) tespiti: izlenen bir tokenın likiditesi sert
+#     düşerse yaratıcısını kara listeye ekle. Kilit durumundan bağımsız — asıl
+#     doğrulama budur (havuz zincirde izlenir). ---
+RUG_ENABLED = os.getenv("RUG_ENABLED", "1") != "0"
+RUG_MIN_LIQ_AT_SCAN = float(os.getenv("RUG_MIN_LIQ_AT_SCAN", "2000"))  # $ — altı gürültü
+RUG_DROP_FRAC = float(os.getenv("RUG_DROP_FRAC", "0.85"))   # likidite bu oranda düştüyse
+RUG_FLOOR_USD = float(os.getenv("RUG_FLOOR_USD", "800"))    # ya da mutlak bu eşiğin altı
+
 # --- Yükseliş öğrenmesi: organic/cabaled/inconclusive denip sonradan sert
 #     YÜKSELEN tokenlardan tekrar eden erken cüzdan/fonlayıcı/deployer çıkar --
 GAIN_ENABLED = os.getenv("GAIN_ENABLED", "1") != "0"
@@ -100,19 +108,37 @@ async def refresh_track() -> None:
             continue
         sym = None
         img = None
+        liq = None
         try:
             snap = await fetch_market(mint)
             mcap = snap.market_cap
             sym = snap.symbol
             img = snap.image_url
+            liq = snap.liquidity_usd
         except Exception:  # noqa: BLE001
             mcap = None
         if mcap:
             mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
             mcap_max = mcap if mcap_max is None else max(mcap_max, mcap)
             cache.track_update(
-                mint, mcap, mcap_min, now, mcap_max=mcap_max, symbol=sym, image=img
+                mint, mcap, mcap_min, now,
+                mcap_max=mcap_max, symbol=sym, image=img, liq=liq,
             )
+
+        # --- Likidite çekilme (rug) tespiti — kilit durumundan bağımsız ------
+        if (
+            RUG_ENABLED
+            and not row.get("rug_flagged")
+            and liq is not None
+            and (row.get("liq_at_scan") or 0) >= RUG_MIN_LIQ_AT_SCAN
+        ):
+            liq0 = float(row["liq_at_scan"])
+            if liq <= RUG_FLOOR_USD or liq <= liq0 * (1.0 - RUG_DROP_FRAC):
+                try:
+                    learn_from_rug(cache, {**row, "symbol": sym or row.get("symbol")},
+                                   liq0, liq)
+                except Exception:  # noqa: BLE001
+                    log.exception("Rug dersi çıkarılamadı: %s", mint)
 
         base = row.get("mcap_at_scan")
 
@@ -335,6 +361,70 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
     log.info(
         "DERS: %s (%s, -%s) · %s işaretlendi · %s",
         mint, verdict_was, pct, flagged_n, (why or "iz yok")[:120],
+    )
+
+
+def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> None:
+    """İzlenen bir tokenın likiditesi sert düştü → likidite çekilmiş.
+
+    Kilit durumu ne dersse desin, ZİNCİRDE gözlenen budur. Tokenın yaratıcısını
+    (varsa) kara listeye ekler; sonraki taramalarda o adresin bastığı her token
+    'deployer geçmişi' / 'işaretli cüzdan' sinyalini tetikler.
+    """
+    mint = row["mint"]
+    sym = row.get("symbol") or mint[:6]
+    verdict_was = row.get("verdict") or "?"
+    drop = 1.0 - (liq_now / liq0) if liq0 else 1.0
+    pct = f"%{drop * 100:.0f}"
+    age_h = max(1, round((int(time.time()) - row["scored_at"]) / 3600))
+
+    creator = row.get("creator")
+    scan = cache.scan_payload(mint)
+    if not creator and scan:
+        liq_blk = scan.get("liquidity") or {}
+        creator = (
+            liq_blk.get("pool_creator")
+            or ((scan.get("launch") or {}).get("deployer") or {}).get("address")
+        )
+
+    note = (
+        f"{sym}: taramadan {age_h} saat sonra likidite {pct} çekildi "
+        f"(${liq0:,.0f} → ${liq_now:,.0f}) — rug. mint {mint[:6]}…"
+    )
+    flagged_creator = False
+    if creator and not registry.is_infrastructure(creator):
+        cache.flagged_add(creator, note + " · yaratıcı", via=mint, kind="deployer", bump=True)
+        flagged_creator = True
+        _reload_flagged()
+
+    cache.track_mark_rug(mint, "rug")
+
+    if flagged_creator:
+        detail = (
+            f"{sym}: ilk taramada '{verdict_was}' kararı verildi. Taramadan {age_h} "
+            f"saat sonra havuz likiditesi ${liq0:,.0f}'dan ${liq_now:,.0f}'a düştü "
+            f"({pct} çekilme) — token yaratıcısı likiditeyi çekti (rug). Yaratıcı "
+            f"({_short_addr(creator)}) kalıcı kara listeye eklendi; bundan sonra "
+            f"bu adresin bastığı her token 'Deployer geçmişi' ve 'Daha önce "
+            f"işaretlenmiş cüzdanlar' sinyallerini anında tetikleyecek."
+        )
+    else:
+        detail = (
+            f"{sym}: taramadan {age_h} saat sonra havuz likiditesi {pct} çekildi "
+            f"(${liq0:,.0f} → ${liq_now:,.0f}) — rug. Ancak havuzu açan cüzdan "
+            f"çözülemedi (ör. desteklenmeyen AMM), bu yüzden kimse işaretlenemedi."
+        )
+
+    cache.add_lesson(
+        mint=mint, symbol=row.get("symbol"), verdict_was=verdict_was,
+        outcome="rug", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
+        learned_at=int(time.time()),
+        wallets_flagged=1 if flagged_creator else 0,
+        deployer=creator, detail=detail,
+    )
+    log.info(
+        "RUG: %s (%s) · likidite %s çekildi · yaratıcı %s",
+        mint, verdict_was, pct, creator if flagged_creator else "çözülemedi",
     )
 
 
@@ -581,16 +671,22 @@ async def _run_scan(mint: str) -> dict:
             state["cache"].put(mint, result)
             token = result.get("token") or {}
             verdict = result.get("verdict") or {}
-            # "inconclusive" bir tahmin değil — karneye alma.
-            if verdict.get("kind") != "inconclusive":
-                state["cache"].track_start(
-                    mint,
-                    token.get("symbol"),
-                    verdict.get("kind"),
-                    verdict.get("score"),
-                    token.get("market_cap"),
-                    image=token.get("image"),
-                )
+            liq = result.get("liquidity") or {}
+            creator = (
+                liq.get("pool_creator")
+                or ((result.get("launch") or {}).get("deployer") or {}).get("address")
+            )
+            # Tüm kararlar izlenir (organik dahil — likidite çekilme takibi için).
+            state["cache"].track_start(
+                mint,
+                token.get("symbol"),
+                verdict.get("kind"),
+                verdict.get("score"),
+                token.get("market_cap"),
+                image=token.get("image"),
+                liquidity=token.get("liquidity_usd"),
+                creator=creator,
+            )
             # X otomatik paylaşım — bloklamaz, hata taramayı etkilemez.
             asyncio.create_task(xpost.maybe_autopost(result, state["cache"]))
             return result

@@ -172,7 +172,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     chain, lp_lock = await asyncio.gather(
         collect_chain_snapshot(pool, mint, deep=False),
         analyze_lp_lock(
-            pool, market, pump, creator=pump.creator if pump else None
+            pool, mint, market, pump, creator=pump.creator if pump else None
         ),
     )
 
