@@ -427,12 +427,8 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   animation:sweepx 1.15s linear infinite}
 @keyframes sweepx{0%{left:-90px}100%{left:100%}}
 
-.scan-body{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:stretch}
-@media(max-width:720px){.scan-body{grid-template-columns:1fr}}
-
 /* ---------- kartal ---------- */
 @keyframes eaglehover{from{transform:translateY(-5px) rotate(-.5deg)}to{transform:translateY(5px) rotate(.5deg)}}
-@keyframes eyepulse{0%,100%{opacity:.4}50%{opacity:.85}}
 
 /* hero: kartal SOLDA, metin/arama SAĞDA (tarama öncesi) */
 .hero .wrap{display:grid;grid-template-columns:300px 1fr;gap:34px;align-items:center}
@@ -454,41 +450,32 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
 .hero-eagle.no-img{display:none}
 
-/* tarama arenası: kartal ORTADA + BÜYÜK, kutucuklar etrafında; dalgalı bağ + sinyal */
-.eagle-arena{position:relative;margin:0 0 16px;height:clamp(180px,23vw,260px);
+/* tarama şeridi: 17 sinyal izi + soldan sağa kayan kartal */
+.scan-strip{position:relative;margin:0 0 16px;height:clamp(180px,23vw,260px);
   border:1px solid var(--gold-dim);border-radius:3px;overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 100px rgba(0,0,0,.55);
-  background:radial-gradient(130% 110% at 50% 44%,#172c4e,#080f1c 76%)}
-.eagle-arena::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
-  background:
-    repeating-linear-gradient(0deg,rgba(200,164,92,.05) 0 1px,transparent 1px 44px),
-    repeating-linear-gradient(90deg,rgba(200,164,92,.05) 0 1px,transparent 1px 44px)}
-/* kartalı ortalayan sarmalayıcı — animasyon transform'u merkezlemeyi bozmasın */
-.ea-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
-  width:min(38%,220px);pointer-events:none}
-.ea-center img{width:100%;height:auto;display:block;
-  filter:drop-shadow(0 0 34px rgba(34,211,238,.3)) drop-shadow(0 0 54px rgba(232,121,249,.2));
-  animation:eaglehover 5s ease-in-out infinite alternate}
-.eagle-arena.firing .ea-center img{filter:drop-shadow(0 0 44px rgba(34,211,238,.5)) drop-shadow(0 0 72px rgba(232,121,249,.34))}
-.eagle-arena.no-img .ea-center img{display:none}
-.ea-center .crest{width:110px;height:110px;color:var(--gold);display:none;margin:0 auto}
-.eagle-arena.no-img .ea-center .crest{display:block}
-
-/* tarama hedefleri: yavaş yanıp sönen, çerçevede yavaşça gezinen noktalar
-   (yalnızca arena içindeki noktalar — başlıktaki .scan-dot'a dokunma) */
-.eagle-arena .scan-dot{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);
-  z-index:2;background:var(--dim);
-  transition:background .4s,box-shadow .4s,width .3s,height .3s;
-  animation:dotpulse 3.4s ease-in-out infinite}
-.eagle-arena .scan-dot.scanning{background:var(--live);box-shadow:0 0 16px 4px var(--live);width:12px;height:12px}
-.eagle-arena .scan-dot.scanned{background:var(--live);box-shadow:0 0 8px 1px var(--live)}
-@keyframes dotpulse{0%,100%{opacity:.3}50%{opacity:.95}}
-
-.ea-links{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:visible}
-.ea-link{fill:none;stroke-width:1.3;opacity:.2;stroke-linecap:round;transition:opacity .4s,stroke-width .4s}
-.ea-link.done{opacity:.45;stroke-width:1.7}
-.ea-link-pulse{fill:none;stroke-width:3.5;stroke-linecap:round;opacity:.95;
-  filter:drop-shadow(0 0 7px currentColor) drop-shadow(0 0 16px currentColor)}
+  box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 90px rgba(0,0,0,.55);
+  background:radial-gradient(140% 180% at 50% 40%,#172c4e,#080f1c 80%)}
+.scan-strip canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* kartal — tarama çizgisinin üzerinde, soldan sağa ilerler */
+.ss-eagle{position:absolute;top:50%;left:0;transform:translate(-50%,-50%);
+  width:clamp(64px,10vw,104px);pointer-events:none;z-index:4;
+  filter:drop-shadow(0 0 10px rgba(34,211,238,.45)) drop-shadow(0 0 20px rgba(224,179,82,.3))}
+.ss-eagle img{display:block;width:100%;height:auto}
+.ss-eagle .crest{width:64px;height:64px;color:var(--gold);display:none;margin:0 auto}
+.scan-strip.no-img .ss-eagle img{display:none}
+.scan-strip.no-img .ss-eagle .crest{display:block}
+/* ateşlenen sinyal etiketi — kartalın hemen üstünde */
+.ss-cap{position:absolute;top:50%;left:0;transform:translate(-50%,-50%);z-index:5;
+  margin-top:-42px;font-family:var(--mono);font-size:11px;white-space:nowrap;
+  color:#f0b6b2;background:rgba(8,15,28,.8);border:1px solid rgba(213,67,63,.5);
+  border-radius:2px;padding:3px 8px;opacity:0;transition:opacity .18s;pointer-events:none}
+.ss-cap.on{opacity:1}
+/* ateşlenen sinyaller lejantı */
+.ss-legend{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;min-height:0}
+.ss-legend .chip{font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;border:1px solid var(--bundled);color:var(--bundled);border-radius:2px;
+  padding:3px 8px;opacity:0;transform:translateY(4px);transition:.25s}
+.ss-legend .chip.on{opacity:1;transform:none}
 
 /* terminal: kartal kutusunun ALT ORTASINDA, tek satır */
 .ea-term{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:6;
@@ -601,14 +588,16 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 
       <div class="scan-bar"><div class="scan-bar-fill" id="scanBarFill"></div></div>
 
-      <div class="eagle-arena" id="eagleArena">
-        <div class="ea-center">
+      <div class="scan-strip" id="scanStrip">
+        <canvas id="scanCanvas" aria-hidden="true"></canvas>
+        <div class="ss-cap" id="scanSigCap"></div>
+        <div class="ss-eagle" id="scanEagle">
           <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
           <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
         </div>
-        <svg class="ea-links" id="eaLinks" aria-hidden="true"></svg>
         <div class="ea-term" id="scanConsole"></div>
       </div>
+      <div class="ss-legend" id="scanSigLegend"></div>
 
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
@@ -770,7 +759,7 @@ const tokImg = (url, cls='tok-img') => url
   ? `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
   : '';
 // /eagle.png yoksa: kartal görselini gizle, kutuya .no-img ver (SVG arma devreye girer)
-function eagleImgFail(img){ img.style.display='none'; const p=img.closest('.hero-eagle,.eagle-arena'); if(p) p.classList.add('no-img'); }
+function eagleImgFail(img){ img.style.display='none'; const p=img.closest('.hero-eagle,.scan-strip'); if(p) p.classList.add('no-img'); }
 
 /* ---------------- i18n ---------------- */
 let lang = 'en';
@@ -1147,116 +1136,156 @@ function scanLine(text){
   el.appendChild(document.createTextNode(text));
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
-/* --- kartal arenası: yavaş gezinen noktalar + merkeze kilitli tarama sinyalleri --- */
-// nokta üs konumları (arena yüzdesi) — kartalın ortasını boş bırakır
-const EA_SLOTS = [
-  [10,14],[30,9],[50,8],[70,9],[90,14],
-  [6,33],[94,33],
-  [6,50],[94,50],
-  [6,67],[94,67],
-  [10,86],[30,91],[50,92],[70,91],[90,86],
-  [20,25],[80,25],[20,75],[80,75],
+/* --- tarama şeridi: 17 sinyal izi + soldan sağa kayan kartal --- */
+// [engine key, TR kısa ad, EN kısa ad] — yalnızca ateşleme etiketi için
+const SS_SIGS = [
+  ['wallet_age_cluster','yaş kümesi','birth cluster'],
+  ['wallet_age_batch','hazır cüzdan partisi','prepared batch'],
+  ['common_funder','ortak fonlayıcı','common funder'],
+  ['funding_tree','fonlama ağacı','funding tree'],
+  ['same_slot_entry','eş-slot giriş','same-slot entry'],
+  ['identical_balances','eşit bakiye','uniform balance'],
+  ['fee_fingerprint','ücret parmak izi','fee fingerprint'],
+  ['fresh_wallets','taze cüzdan','fresh wallets'],
+  ['deployer_history','deployer geçmişi','deployer history'],
+  ['flagged_wallets','işaretli cüzdan','flagged wallet'],
+  ['supply_whale','arz balinası','supply whale'],
+  ['top10_concentration','top-10 yoğunluğu','top-10 concentration'],
+  ['funding_profile','fonlama kaynağı','funding source'],
+  ['mint_authority','mint yetkisi','mint authority'],
+  ['lp_lock','LP kilidi','LP lock'],
+  ['liquidity_health','likidite derinliği','liquidity depth'],
+  ['wallet_age_diversity','yaş çeşitliliği','age diversity'],
 ];
-const EA = { dots:[], order:[], idx:0, spawn:null, raf:null, w:0, h:0 };
-const EA_SVGNS = 'http://www.w3.org/2000/svg';
 
-function eaPath(x0,y0,x1,y1,amp){
-  const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy)||1;
-  const px=-dy/len, py=dx/len;
-  const c1x=x0+dx*0.33+px*amp, c1y=y0+dy*0.33+py*amp;
-  const c2x=x0+dx*0.66-px*amp, c2y=y0+dy*0.66-py*amp;
-  return `M${x0.toFixed(1)} ${y0.toFixed(1)} C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-}
-// çıkış noktası = kartal görselinin GERÇEK merkezi (mobilde de kaymaz)
-function eaOrigin(){
-  const a = $('eagleArena').getBoundingClientRect();
-  const c = $('eagleArena').querySelector('.ea-center').getBoundingClientRect();
-  return [ (c.left + c.width/2 - a.left), (c.top + c.height/2 - a.top) ];
-}
-function eaMeasure(){
-  const r = $('eaLinks').getBoundingClientRect();
-  EA.w = r.width || 900; EA.h = r.height || 460;
-  $('eaLinks').setAttribute('viewBox', `0 0 ${EA.w} ${EA.h}`);
-}
-function eaBuild(){
-  const arena = $('eagleArena');
-  arena.querySelectorAll('.scan-dot').forEach(n=>n.remove());
-  $('eaLinks').innerHTML = '';
-  eaMeasure();
-  EA.dots = EA_SLOTS.map(([bx,by],i)=>{
-    const col = (i % 2) ? '#e879f9' : '#22d3ee';
-    const el = document.createElement('div');
-    el.className = 'scan-dot';
-    el.style.animationDelay = (-Math.random()*3.4) + 's';
-    arena.appendChild(el);
-    const line = document.createElementNS(EA_SVGNS,'path');
-    line.setAttribute('class','ea-link'); line.setAttribute('stroke',col);
-    const pulse = document.createElementNS(EA_SVGNS,'path');
-    pulse.setAttribute('class','ea-link-pulse'); pulse.setAttribute('stroke',col);
-    pulse.style.opacity = '0'; pulse.style.color = col;
-    const g = document.createElementNS(EA_SVGNS,'g');
-    g.appendChild(line); g.appendChild(pulse); $('eaLinks').appendChild(g);
-    return {
-      el, line, pulse, col, bx, by, x:bx, y:by,
-      // çok yavaş, rastgele gezinme
-      ax:2+Math.random()*3, ay:2+Math.random()*3,
-      wx:0.00012+Math.random()*0.00022, wy:0.00012+Math.random()*0.00022,
-      phx:Math.random()*6.28, phy:Math.random()*6.28,
-      pulseT:0,
-    };
-  });
-  EA.order = [...EA.dots.keys()].sort(()=>Math.random()-0.5);
-  EA.idx = 0;
-  cancelAnimationFrame(EA.raf);
-  EA.raf = requestAnimationFrame(eaFrame);
-}
-function eaFrame(now){
-  if(!SCAN.on){ return; }
-  const [ox,oy] = eaOrigin();
-  for(const d of EA.dots){
-    d.x = d.bx + d.ax*Math.sin(now*d.wx + d.phx);
-    d.y = d.by + d.ay*Math.sin(now*d.wy + d.phy);
-    const px = d.x/100*EA.w, py = d.y/100*EA.h;
-    d.el.style.left = d.x + '%'; d.el.style.top = d.y + '%';
-    const amp = Math.min(Math.hypot(px-ox, py-oy)*0.13, 26);
-    const path = eaPath(ox, oy, px, py, amp);
-    d.line.setAttribute('d', path);
-    if(now < d.pulseT) d.pulse.setAttribute('d', path);   // sinyal aktifken yolu takip et
-  }
-  EA.raf = requestAnimationFrame(eaFrame);
-}
-function eaPing(){
-  if(!SCAN.on || !EA.dots.length) return;
-  if(EA.idx >= EA.order.length){                 // hepsi tarandı → yeniden karıştır, bağlar kalır
-    EA.order = [...EA.dots.keys()].sort(()=>Math.random()-0.5);
-    EA.idx = 0;
-  }
-  const d = EA.dots[EA.order[EA.idx++]];
-  d.pulseT = performance.now() + 800;
-  let Lp = 200; try{ Lp = d.line.getTotalLength(); }catch(e){}
-  const seg = Math.max(22, Lp * 0.13);
-  d.pulse.style.transition = 'none';
-  d.pulse.setAttribute('d', d.line.getAttribute('d'));
-  d.pulse.style.strokeDasharray = `${seg} ${Lp + seg}`;
-  d.pulse.style.strokeDashoffset = Lp + seg;
-  d.pulse.style.opacity = '1';
-  requestAnimationFrame(()=> requestAnimationFrame(()=>{
-    d.pulse.style.transition = 'stroke-dashoffset .62s linear';
-    d.pulse.style.strokeDashoffset = '0';
-  }));
-  setTimeout(()=>{ d.pulse.style.opacity = '0'; }, 720);
-  setTimeout(()=> d.el.classList.add('scanning'), 560);
-  setTimeout(()=>{
-    d.el.classList.remove('scanning'); d.el.classList.add('scanned');
-    d.line.classList.add('done');
-  }, 1000);
-}
+const SS = { cv:null, ctx:null, raf:null, model:null, forceEnd:false, endUntil:0 };
 
-function eaClear(){
-  clearInterval(EA.spawn); cancelAnimationFrame(EA.raf);
-  $('eagleArena').querySelectorAll('.scan-dot').forEach(n=>n.remove());
-  $('eaLinks').innerHTML = '';
-  EA.dots = []; EA.order = []; EA.idx = 0;
+function ssBuild(){
+  SS.cv = $('scanCanvas'); if(!SS.cv) return;
+  SS.ctx = SS.cv.getContext('2d');
+  const N = SIGNALS_N;
+  const fireCount = 4 + Math.floor(Math.random()*3);        // 4–6 sinyal ateşlensin
+  const fireSet = new Set([...Array(N).keys()].sort(()=>Math.random()-0.5).slice(0, fireCount));
+  SS.model = {
+    seed: Array.from({length:N}, ()=> Math.random()*1000),
+    fire: Array.from({length:N}, (_,i)=> fireSet.has(i)
+      ? { at: 0.14 + Math.random()*0.56, hit:false } : null),
+    lasers: [], pings: [],
+  };
+  SS.forceEnd = false;
+  $('scanSigLegend').innerHTML = '';
+  $('scanSigCap').classList.remove('on');
+  cancelAnimationFrame(SS.raf);
+  SS.raf = requestAnimationFrame(ssFrame);
+}
+function ssFrame(now){
+  if(!SS.model) return;
+  if(!SCAN.on && !SS.forceEnd) return;
+  const p = SS.forceEnd ? 1 : Math.min(1, SCAN.pct / 100);
+  ssDraw(p, now);
+  if(SCAN.on || (SS.forceEnd && now < SS.endUntil)) SS.raf = requestAnimationFrame(ssFrame);
+}
+function ssDraw(p, now){
+  const cv = SS.cv, ctx = SS.ctx, m = SS.model;
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if(cv.width !== Math.round(w*DPR)){ cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR); }
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  ctx.strokeStyle = 'rgba(200,164,92,.06)'; ctx.lineWidth = 1;
+  for(let x=0;x<w;x+=44){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+
+  const n = SIGNALS_N, x1 = 8, x2 = w-8, lh = (h-10)/n;
+  const sweepX = x1 + p*(x2-x1);
+  const eagleY = h/2 + Math.sin(now/420) * Math.min(7, h*0.03);
+
+  for(let i=0;i<n;i++){
+    const cy = 5 + lh*(i+0.5);
+    const f = m.fire[i];
+
+    if(f && !f.hit && p >= f.at){
+      f.hit = true;
+      const fx = x1 + f.at*(x2-x1);
+      m.lasers.push({ x:fx, y:cy, born: now });
+      m.pings.push({ x:fx, y:cy });
+      const sig = SS_SIGS[i] || [null, 'sinyal', 'signal'];
+      const cap = $('scanSigCap');
+      cap.textContent = '⚡ ' + (lang === 'en' ? sig[2] : sig[1]);
+      cap.classList.add('on');
+      clearTimeout(cap._t); cap._t = setTimeout(()=>cap.classList.remove('on'), 1100);
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = lang === 'en' ? sig[2] : sig[1];
+      $('scanSigLegend').appendChild(chip);
+      requestAnimationFrame(()=>chip.classList.add('on'));
+    }
+
+    ctx.strokeStyle = 'rgba(200,164,92,.10)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x1,cy); ctx.lineTo(x2,cy); ctx.stroke();
+
+    const fired = f && f.hit;
+    ctx.strokeStyle = fired ? 'rgba(213,67,63,.95)' : 'rgba(92,143,214,.7)';
+    ctx.lineWidth = fired ? 1.5 : 1;
+    ctx.beginPath();
+    const capA = lh*0.44;
+    for(let x=x1; x<=sweepX; x+=2){
+      const tx = (x-x1)/(x2-x1);
+      let amp = Math.sin(tx*26 + m.seed[i])*1.4 + Math.sin(tx*70 + m.seed[i]*1.7)*0.7;
+      if(f){
+        const d = tx - f.at;
+        amp += Math.exp(-d*d*260) * (lh*1.7) * Math.sin(tx*120 + m.seed[i]);
+      }
+      const y = cy + Math.max(-capA, Math.min(capA, amp));
+      x===x1 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  for(const pg of m.pings){
+    if(pg.x > sweepX+1) continue;
+    ctx.fillStyle = 'rgba(213,67,63,.95)';
+    ctx.beginPath(); ctx.arc(pg.x, pg.y, 2.6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(213,67,63,.4)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(pg.x, pg.y, 6, 0, Math.PI*2); ctx.stroke();
+  }
+
+  for(let k=m.lasers.length-1;k>=0;k--){
+    const Lz = m.lasers[k];
+    const age = (now - Lz.born)/380;
+    if(age > 1){ m.lasers.splice(k,1); continue; }
+    ctx.strokeStyle = `rgba(34,211,238,${0.9*(1-age)})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sweepX, eagleY); ctx.lineTo(Lz.x, Lz.y); ctx.stroke();
+    ctx.strokeStyle = `rgba(240,180,178,${0.5*(1-age)})`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(sweepX, eagleY); ctx.lineTo(Lz.x, Lz.y); ctx.stroke();
+  }
+
+  const grad = ctx.createLinearGradient(sweepX-6,0,sweepX+6,0);
+  grad.addColorStop(0,'rgba(224,179,82,0)');
+  grad.addColorStop(.5,'rgba(224,179,82,.5)');
+  grad.addColorStop(1,'rgba(224,179,82,0)');
+  ctx.fillStyle = grad; ctx.fillRect(sweepX-6, 0, 12, h);
+  ctx.strokeStyle = 'rgba(224,179,82,.95)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(sweepX,0); ctx.lineTo(sweepX,h); ctx.stroke();
+
+  const ex = Math.max(14, Math.min(w-14, sweepX));
+  const eEl = $('scanEagle'), cEl = $('scanSigCap');
+  eEl.style.left = ex + 'px'; eEl.style.top = eagleY + 'px';
+  cEl.style.left = Math.max(78, Math.min(w-78, sweepX)) + 'px'; cEl.style.top = eagleY + 'px';
+}
+function ssFinish(){
+  if(!SS.model) return;
+  SS.forceEnd = true; SS.endUntil = performance.now() + 600;
+  cancelAnimationFrame(SS.raf);
+  SS.raf = requestAnimationFrame(ssFrame);
+}
+function ssClear(){
+  cancelAnimationFrame(SS.raf);
+  SS.model = null; SS.forceEnd = false;
+  if(SS.ctx && SS.cv) SS.ctx.clearRect(0,0,SS.cv.width,SS.cv.height);
+  const c = $('scanSigCap'); if(c) c.classList.remove('on');
+  const l = $('scanSigLegend'); if(l) l.innerHTML = '';
+  const e = $('scanEagle'); if(e){ e.style.left = '0px'; }
 }
 function scanReset(){
   SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
@@ -1269,15 +1298,12 @@ function scanReset(){
   $('statRpc').textContent = '0';
   $('statSignals').textContent = '0/'+SIGNALS_N;
   $('scanConsole').classList.remove('flash');
-  $('eagleArena').classList.remove('firing');
-  eaClear();
+  ssClear();
 }
 function scanStart(){
   scanReset();
   SCAN.on = true; SCAN.t0 = Date.now();
-  eaBuild();
-  $('eagleArena').classList.add('firing');
-  EA.spawn = setInterval(eaPing, 430 + Math.random()*160);
+  ssBuild();
   SCAN.reveal = setTimeout(()=>{
     $('scanPanel').classList.add('on');
     $('scanPanel').scrollIntoView({behavior:'smooth', block:'start'});
@@ -1299,20 +1325,19 @@ function scanStart(){
   }, 120);
 }
 function scanFinish(){
-  SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal); clearInterval(EA.spawn);
-  $('eagleArena').classList.remove('firing');
-  if(!$('scanPanel').classList.contains('on')){ SCAN.on = false; return; }
+  SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
+  if(!$('scanPanel').classList.contains('on')){ SCAN.on = false; ssClear(); return; }
+  SCAN.pct = 100;
   $('scanBarFill').style.width = '100%';
   $('scanPct').textContent = '100%';
-  EA.dots.forEach(d=>{ d.el.classList.add('scanned'); d.line.classList.add('done'); });
+  ssFinish();
   scanLine(L('scanDone'));
   setTimeout(()=>{ $('scanPanel').classList.remove('on'); SCAN.on = false; }, 420);
 }
 function scanStop(){
   SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
-  $('eagleArena').classList.remove('firing');
   $('scanPanel').classList.remove('on'); SCAN.on = false;
-  eaClear();
+  ssClear();
 }
 
 let scanAbort = null;
@@ -1856,10 +1881,6 @@ $('scanCancel').onclick = ()=>{ if(scanAbort) scanAbort.abort(); else scanStop()
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && SCAN.on){ if(scanAbort) scanAbort.abort(); else scanStop(); }
 });
-let _eaRz;
-window.addEventListener('resize', ()=>{ clearTimeout(_eaRz);
-  _eaRz = setTimeout(()=>{ if(SCAN.on && EA.dots.length) eaMeasure(); }, 200); });
-
 $('navAbout').onclick = ()=> showAbout(true);
 $('navHome').onclick = goHome;
 $('aboutBack').onclick = ()=> showAbout(false);
