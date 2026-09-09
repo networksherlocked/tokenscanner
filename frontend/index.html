@@ -155,10 +155,13 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .tokhead .sym{font-family:var(--display);font-weight:700;font-size:clamp(30px,4.4vw,48px);
   line-height:1;text-transform:uppercase;letter-spacing:.02em;color:var(--text)}
 .tokhead .nm{font-size:15px;color:var(--muted)}
-.tokhead .mnt{margin-left:auto;font-size:11px;color:var(--dim);word-break:break-all;max-width:44ch;
-  text-align:right;cursor:pointer;transition:color .15s;background:none;border:0;font-family:var(--mono)}
+.tokhead .mnt{margin-left:auto;display:inline-flex;align-items:center;gap:5px;max-width:min(46ch,42vw);
+  font-size:11px;color:var(--dim);cursor:pointer;transition:color .15s;background:none;border:0;
+  font-family:var(--mono);padding:0}
+.tokhead .mnt .mtxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tokhead .mnt .mico{flex:none;opacity:.6}
 .tokhead .mnt:hover{color:var(--gold)}
-.tokhead .mnt::after{content:" ⧉";opacity:.6}
+@media(max-width:720px){.tokhead .mnt{max-width:100%}}
 .tokhead .vpill{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.1em;
   text-transform:uppercase;padding:5px 12px;border:1px solid currentColor;border-radius:2px}
 
@@ -248,6 +251,16 @@ td.addr{color:var(--text)}
 .momentum .mm-hits{margin-left:auto;color:var(--dim);font-size:10px}
 .momentum .mm-hits.conf{color:var(--organic)}
 .momentum .mm-note{margin-top:10px;font-size:10px;color:var(--dim);font-style:italic}
+
+/* yukarı git */
+#toTop{position:fixed;right:20px;bottom:20px;z-index:60;width:42px;height:42px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;
+  background:var(--panel);color:var(--gold);border:1px solid var(--gold-dim);border-radius:3px;
+  cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);
+  pointer-events:none;transition:opacity .2s,transform .2s,background .15s}
+#toTop.on{opacity:1;transform:none;pointer-events:auto}
+#toTop:hover{background:var(--panel-2)}
+@media(max-width:560px){#toTop{right:14px;bottom:14px;width:38px;height:38px}}
 
 /* risk bayrakları — karara girmez, sinyal ızgarasının üstünde ayrı çerçeveler */
 .riskflags{margin:0 0 18px;display:flex;flex-direction:column;gap:8px}
@@ -737,6 +750,8 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   </div>
 </footer>
 
+<button type="button" id="toTop" aria-label="Scroll to top" hidden>↑</button>
+
 <script>
 // Served from the same origin as the backend, so API stays relative ('').
 // If you host the frontend separately, define window.SOLSCOPE_API in a
@@ -979,6 +994,19 @@ const SUMMARY_EN = {
   cabaled:'Distribution is insider-heavy or unusual; without the hard signatures of a bundle.',
   organic:'No coordinated distribution pattern found. This does not mean "safe".',
   inconclusive:'Not enough on-chain data was collected to make a call — result is inconclusive.',
+};
+// Risk bayrakları — karara girmez. EN metinleri (belirli sayılar sinyal ızgarasında).
+const RF_EN = {
+  lp:{ label:'Liquidity can be pulled',
+    detail:'The LP is not burned/locked, or its lock status could not be verified on this pool type. Assume the developer can withdraw liquidity — a rug that is independent of how supply was distributed.' },
+  authority:{ label:'Mint / freeze authority live',
+    detail:'Mint and/or freeze authority has not been revoked — supply can be inflated later, or wallets frozen to block selling.' },
+  liquidity:{ label:'Thin liquidity',
+    detail:'Liquidity is a small fraction of market cap — large sells would crater the price and exiting is hard.' },
+  deployer:{ label:'Deployer rug / serial-launch history',
+    detail:'The wallet that created this token has a history of prior tokens that died or had liquidity pulled.' },
+  flagged:{ label:'Blacklisted wallets',
+    detail:'Addresses in this token appear on our own blacklist from a previous token that crashed or rugged.' },
 };
 const SCAN_LOG = {
   en: [
@@ -1553,24 +1581,29 @@ function render(d){
     <span class="sym" style="color:${c}">${t.symbol ? esc(t.symbol) : L('noName')}</span>
     ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ''}
     <span class="vpill" style="color:${c}">${v.label}</span>
-    <button type="button" class="mnt" id="mntCopy" title="${L('copyMint')}">${d.mint}</button>`;
+    <button type="button" class="mnt" id="mntCopy" title="${L('copyMint')}">
+      <span class="mtxt">${d.mint}</span><span class="mico">⧉</span></button>`;
   $('mntCopy').onclick = async ()=>{
-    const b = $('mntCopy'), o = b.textContent;
+    const b = $('mntCopy'), t = b.querySelector('.mtxt'), o = t.textContent;
     try{ await navigator.clipboard.writeText(d.mint); }
     catch(e){ prompt(L('shareCopy'), d.mint); return; }
-    b.textContent = L('copied');
-    setTimeout(()=>{ b.textContent = o; }, 1200);
+    t.textContent = L('copied');
+    setTimeout(()=>{ t.textContent = o; }, 1200);
   };
 
   // --- risk bayrakları (karara girmez) ---
   const rf = v.risk_flags || [];
   const rfBox = $('riskFlags');
   if(rf.length){
-    rfBox.innerHTML = rf.map(f=>`
-      <div class="rf ${f.severity === 'medium' ? 'medium' : ''}">
+    rfBox.innerHTML = rf.map(f=>{
+      const en = (lang === 'en') && RF_EN[f.key];
+      const lbl = en ? en.label : (f.label || '');
+      const det = en ? en.detail : (f.detail || '');
+      return `<div class="rf ${f.severity === 'medium' ? 'medium' : ''}">
         <span class="ic">${f.severity === 'medium' ? '⚠' : '⛔'}</span>
-        <span class="tx"><b>${esc(f.label || '')}</b><span>${esc(f.detail || '')}</span></span>
-      </div>`).join('');
+        <span class="tx"><b>${esc(lbl)}</b><span>${esc(det)}</span></span>
+      </div>`;
+    }).join('');
     rfBox.hidden = false;
   } else {
     rfBox.hidden = true;
@@ -1835,6 +1868,16 @@ $('walletToggle').onclick = ()=>{
   $('walletToggle').setAttribute('aria-expanded', show ? 'true' : 'false');
   $('walletHint').textContent = show ? L('wtHide') : L('wtShow');
 };
+
+const _toTop = $('toTop');
+_toTop.onclick = ()=> window.scrollTo({ top: 0, behavior: 'smooth' });
+const _toTopSync = ()=>{
+  const on = window.scrollY > 400;
+  _toTop.hidden = false;
+  _toTop.classList.toggle('on', on);
+};
+window.addEventListener('scroll', _toTopSync, { passive: true });
+_toTopSync();
 
 applyI18n();
 loadRecent();
