@@ -584,7 +584,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <div class="scan-stat"><b id="statSignals">0/16</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="statSignals">0/17</b><span data-i18n="statSignalsLbl">signals</span></div>
         <div class="scan-stat"><b id="scanElapsed">0.0s</b><span data-i18n="statElapsedLbl">elapsed</span></div>
         <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
       </div>
@@ -727,7 +727,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 // separate <script> before this one.
 const API = window.SOLSCOPE_API ?? '';
 const COLORS = {bundled:'#d5433f', cabaled:'#d5932f', organic:'#5c8fd6', inconclusive:'#8b9bb4'};
-const SIGNALS_N = 16;  // ızgara/iskelet için sabit; sonuçta d.signals.length kullanılır
+const SIGNALS_N = 17;  // ızgara/iskelet için sabit; sonuçta d.signals.length kullanılır
 const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic', inconclusive:'Inconclusive' };
 
 const $ = id => document.getElementById(id);
