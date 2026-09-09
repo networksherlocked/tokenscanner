@@ -21,8 +21,8 @@ a{color:var(--gold)}
 
 header{border-bottom:1px solid var(--rule);box-shadow:0 1px 0 rgba(200,164,92,.14)}
 header .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px}
-.brand{font-family:var(--disp);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:18px}
-.brand i{font-style:normal;color:var(--gold);font-weight:400}
+.brand{font-family:var(--disp);font-weight:700;letter-spacing:.1em;font-size:18px}
+.brand i{font-style:normal;color:var(--gold);font-weight:700}
 .brand em{font-style:normal;color:var(--dim);font-size:11px;margin-left:8px;letter-spacing:.24em}
 .hbtns{display:flex;gap:8px}
 
@@ -184,7 +184,7 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
 </div>
 
 <header><div class="wrap">
-  <div class="brand">america<i>.sx</i><em>admin</em></div>
+  <div class="brand">AMERICA<i>.SX</i><em>admin</em></div>
   <div class="hbtns">
     <a class="hbtn" href="/">Ana sayfa</a>
     <button class="hbtn hidden" id="chpw">Şifre değiştir</button>
@@ -243,6 +243,9 @@ async function api(path, opts={}){
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const vb = v => `<span class="badge b-${(v||'open')}">${esc(v||'—')}</span>`;
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
+// tokenın kendi tarama sonucu ekranı (public site + otomatik tarama)
+const tokLink = (mint, label) =>
+  `<a href="/t/${esc(mint)}" target="_blank" rel="noopener" title="tarama sonucunu aç">${esc(label)}</a>`;
 const ago = ts => { const s=Math.floor(Date.now()/1000-ts); if(s<3600)return Math.floor(s/60)+' dk'; if(s<86400)return Math.floor(s/3600)+' sa'; return Math.floor(s/86400)+' g'; };
 const money = n => n==null?'—':(n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+Math.round(n/1e3)+'k':'$'+Math.round(n));
 function flash(m){ $('#msg').textContent = m; setTimeout(()=>{ if($('#msg').textContent===m) $('#msg').textContent=''; }, 2600); }
@@ -842,7 +845,7 @@ function momentumView(d){
 
   const lrows = lessons.map(l=>`<tr>
     <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
-    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
+    <td class="mono">${tokLink(l.mint, l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
     <td><b class="ok">+%${Math.round((l.rise_pct||0)*100)}</b><div class="muted">${money(l.mcap_at_scan)} → ${money(l.mcap_peak)}</div></td>
     <td style="min-width:340px;max-width:560px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
     <td style="white-space:nowrap">${(l.markers||0)>0?`<b>${l.markers}</b> adres kaydedildi`:'kayıt yok'}
@@ -858,7 +861,7 @@ function momentumView(d){
   </tr>`).join('');
 
   const hrows = hits.map(h=>`<tr>
-    <td class="mono">${esc(h.symbol||short(h.mint))}<div class="muted">${short(h.mint)}</div></td>
+    <td class="mono">${tokLink(h.mint, h.symbol||short(h.mint))}<div class="muted">${short(h.mint)}</div></td>
     <td>${vb(h.verdict)}</td>
     <td><b>${h.score}</b></td>
     <td style="white-space:normal;line-height:1.5">${esc(h.detail||'')}</td>
@@ -894,7 +897,7 @@ function momentumView(d){
 function lessonsTable(d){
   const rows = (d.lessons||[]).map(l=>`<tr>
     <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
-    <td class="mono">${esc(l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
+    <td class="mono">${tokLink(l.mint, l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
     <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
     <td style="min-width:340px;max-width:560px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
     <td style="white-space:nowrap">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}
@@ -951,7 +954,7 @@ function paintTrkSub(){
     const dl = chg == null ? '—' : ((chg > 0 ? '+' : '') + Math.round(chg * 100) + '%');
     return `<tr>
       <td>${vb(t.verdict)}</td>
-      <td class="mono">${esc(t.symbol || short(t.mint))}<div class="muted">${short(t.mint)}</div></td>
+      <td class="mono">${tokLink(t.mint, t.symbol || short(t.mint))}<div class="muted">${short(t.mint)}</div></td>
       <td>${money(t.mcap_at_scan)} → ${money(t.mcap_latest)} <b class="${chg < 0 ? 'bad' : 'ok'}">${dl}</b></td>
       <td>${t.settled ? vb(t.outcome) : ('izleniyor ' + ago(t.scored_at))}</td>
       <td><button class="danger sm" data-tm="${esc(t.mint)}">sil</button></td>

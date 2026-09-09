@@ -54,8 +54,8 @@ header{border-bottom:1px solid var(--rule);position:sticky;top:0;
   backdrop-filter:blur(8px);z-index:20;box-shadow:0 1px 0 rgba(200,164,92,.14)}
 .bar{display:flex;align-items:center;justify-content:space-between;height:60px;gap:16px}
 .brand{display:flex;align-items:baseline;font-family:var(--display);font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;font-size:24px;color:var(--text);line-height:1}
-.brand i{font-style:normal;color:var(--gold);font-weight:400}
+  letter-spacing:.1em;font-size:24px;color:var(--text);line-height:1}
+.brand i{font-style:normal;color:var(--gold);font-weight:700}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 .bar nav{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted)}
 .navbtn{background:transparent;border:0;color:var(--muted);font-family:var(--display);
@@ -551,7 +551,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 
 <header>
   <div class="wrap bar">
-    <div class="brand"><span>america<i>.sx</i></span></div>
+    <div class="brand"><span>AMERICA<i>.SX</i></span></div>
     <nav>
       <button class="navbtn" id="navHome" data-i18n="navHome">Home</button>
       <button class="navbtn" id="navAbout" data-i18n="navAbout">About</button>
@@ -1467,7 +1467,7 @@ function renderTrack(rec){
     box.appendChild(b);
   });
 
-  $('trackScore').textContent = settled ? L('trackScore', correct, settled) : L('trackWatching', watching);
+  $('trackScore').textContent = L('trackWatching', watching);
 }
 async function loadTrack(){
   try{
