@@ -488,14 +488,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .ea-term.flash{animation:termflash .4s ease-out}
 @keyframes termflash{from{background:rgba(224,179,82,.18)}to{background:rgba(8,15,28,.72)}}
 
-.scan-stats{display:flex;gap:22px;flex-wrap:wrap;margin:6px 0;font-family:var(--mono);align-items:center}
-.scan-stat{display:flex;flex-direction:column;gap:2px}
+.scan-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:6px 0;font-family:var(--mono)}
+.scan-stat{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
 .scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
 .scan-stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+@media(max-width:520px){.scan-stats{grid-template-columns:repeat(2,1fr);gap:14px}}
 
-.scan-cancel{margin-left:auto;background:transparent;border:1px solid var(--rule);color:var(--muted);
+.scan-cancel{display:block;margin:12px 0 0 auto;background:transparent;border:1px solid var(--rule);color:var(--muted);
   font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-  font-size:11px;padding:8px 18px;border-radius:2px;cursor:pointer;align-self:center}
+  font-size:11px;padding:8px 18px;border-radius:2px;cursor:pointer}
 .scan-cancel:hover{color:var(--bundled);border-color:var(--bundled)}
 
 /* ---------- hakkında ---------- */
@@ -604,8 +605,8 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
         <div class="scan-stat"><b id="statSignals">0/17</b><span data-i18n="statSignalsLbl">signals</span></div>
         <div class="scan-stat"><b id="scanElapsed">0.0s</b><span data-i18n="statElapsedLbl">elapsed</span></div>
-        <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
       </div>
+      <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
     </div>
   </section>
 
