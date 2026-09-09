@@ -30,7 +30,7 @@ from ..rpc.liquidity import analyze_lp_lock
 from ..rpc.market import fetch_market
 from ..rpc.pool import RpcPool
 from ..rpc.pumpfun import fetch_pumpfun, meta_from_dict, meta_to_dict
-from ..rpc.solana import collect_chain_snapshot
+from ..rpc.solana import collect_chain_snapshot, resolve_mint_creator
 from ..rpc.trades import (
     available as early_trades_available,
     fetch_early_trades,
@@ -168,12 +168,20 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     launch_ts = (pump.created_ts if pump and pump.created_ts else None) or \
         market.pair_created_at
 
+    # Yaratıcı: pump.fun meta veriyorsa oradan; değilse (Meteora / Raydium-native /
+    # Moonshot …) mint'in genesis işleminden platformdan bağımsız çöz. Deployer
+    # geçmişi + rug öğrenmesi + gainer eşleştirmesi bu adrese bağlı.
+    creator = pump.creator if pump else None
+    if not creator:
+        try:
+            creator = await resolve_mint_creator(pool, mint)
+        except Exception as exc:  # noqa: BLE001
+            log.info("yaratıcı çözülemedi %s: %s", mint, exc)
+
     # 2) Mevcut yapı (hafif) + LP kilit durumu — paralel.
     chain, lp_lock = await asyncio.gather(
         collect_chain_snapshot(pool, mint, deep=False),
-        analyze_lp_lock(
-            pool, mint, market, pump, creator=pump.creator if pump else None
-        ),
+        analyze_lp_lock(pool, mint, market, pump, creator=creator),
     )
 
     # 3) Lansman anlık görüntüsü.
@@ -230,9 +238,8 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             log.warning("launch_cache geri yükleme düştü %s: %s", mint, exc)
             launch = None
 
-    # 4) Deployer geçmişi.
+    # 4) Deployer geçmişi (yaratıcı yukarıda platformdan bağımsız çözüldü).
     deployer = None
-    creator = pump.creator if pump else None
     if creator:
         deployer = await analyze_deployer(pool, creator, mint)
 

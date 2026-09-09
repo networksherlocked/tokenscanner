@@ -30,6 +30,13 @@ HARD_SIGNALS = {
     "funding_tree",
 }
 
+# Danışma sinyalleri: karara (bundled/cabaled/organic) AĞIRLIK KATMAZLAR — çünkü
+# "dağıtım nasıl yapıldı" sorusuyla ilgili değiller, rug/güvenlik bağlamıdırlar.
+# Sonuç ekranında ayrı bir "Risk bayrakları" bölümünde gösterilirler.
+# (LP kilit durumu %100 organik dağıtımlı bir tokende de kötü olabilir — bu onu
+#  "cabaled" yapmaz.)
+ADVISORY_SIGNALS = {"lp_lock"}
+
 # Kütle eşzamanlı giriş: lansman alıcılarının ezici çoğunluğu tek-iki slotta
 # girdiyse bu tek başına bir paket imzasıdır — bir sniper sürüsü zamana yayılır.
 MASS_SLOT_MIN_WALLETS = 10
@@ -89,6 +96,7 @@ class Verdict:
     fired: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
+    risk_flags: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -102,6 +110,7 @@ class Verdict:
             "fired_signals": self.fired,
             "reasons": self.reasons,
             "caveats": self.caveats,
+            "risk_flags": self.risk_flags,
         }
 
 
@@ -124,10 +133,12 @@ def classify(
 ) -> Verdict:
     fired = [s for s in signals if s.fired]
     hard_fired = [s for s in fired if s.key in HARD_SIGNALS]
+    # Danışma sinyalleri ağırlık matematiğine girmez.
+    weighed = [s for s in fired if s.key not in ADVISORY_SIGNALS]
 
-    bundled_weight = sum(s.contribution for s in fired if s.direction == "bundled")
-    cabaled_weight = sum(s.contribution for s in fired if s.direction == "cabaled")
-    organic_weight = sum(s.contribution for s in fired if s.direction == "organic")
+    bundled_weight = sum(s.contribution for s in weighed if s.direction == "bundled")
+    cabaled_weight = sum(s.contribution for s in weighed if s.direction == "cabaled")
+    organic_weight = sum(s.contribution for s in weighed if s.direction == "organic")
     combo = bundled_weight + 0.6 * cabaled_weight
 
     blind_hard = sum(
@@ -168,34 +179,36 @@ def classify(
     # --- Karar kuralı --------------------------------------------------
     if strong_bundle or alt_bundle or mass_slot_bundle:
         kind = "bundled"
-        # Tetiklenen bundled ağırlığı / veri BULUNAN bundled sinyallerin tavanı
-        # (kör sinyaller skoru boşuna düşürmesin). Yoğunlaşma ağırlığını da bir
-        # miktar kredi olarak ekle.
-        avail_ceiling = sum(
-            s.weight for s in signals if s.direction == "bundled" and s.data_ok
-        ) or 1.0
-        score_frac = min(1.0, bundled_weight / avail_ceiling + 0.15 * cabaled_weight)
-        # Kütle eşzamanlı giriş yüksek güvenli bir imzadır — parmak izinin geri
-        # kalanı gizlenmiş olsa bile skor taban 60'ın altına düşmesin.
+        # Skor = "ne kadar eminiz". Kaç sert sinyal (4 → tam) × ortalama güçleri,
+        # + yoğunlaşma/insider desteği. Kör sinyaller paydayı şişirmez.
+        avg_hard = (
+            sum(s.strength for s in hard_fired) / len(hard_fired)
+            if hard_fired else 0.0
+        )
+        score_frac = min(1.0, len(hard_fired) / 4.0) * (0.45 + 0.55 * avg_hard)
+        score_frac += 0.12 * min(1.0, cabaled_weight)
         if mass_same_slot:
-            score_frac = max(score_frac, 0.60)
+            score_frac = max(score_frac, 0.62)
+        if len(hard_fired) >= 5:
+            score_frac = max(score_frac, 0.80)
+        score_frac = min(1.0, score_frac)
     elif combo >= CABALED_MIN_WEIGHT:
         kind = "cabaled"
-        ceiling = sum(
-            s.weight for s in signals if s.direction in ("bundled", "cabaled")
-        )
-        score_frac = (bundled_weight + cabaled_weight) / ceiling if ceiling else 0.0
+        # combo 0.9 (eşik) → ~42 ; combo 2.4+ → ~78
+        score_frac = min(1.0, 0.42 + 0.30 * (combo - CABALED_MIN_WEIGHT) / 1.5)
     elif blind_hard >= INCONCLUSIVE_BLIND_HARD or coverage < INCONCLUSIVE_COVERAGE:
         kind = "inconclusive"
         score_frac = 0.0
     else:
         kind = "organic"
-        ceiling = sum(s.weight for s in signals if s.direction == "organic") + 0.5
+        ceiling = sum(s.weight for s in weighed if s.direction == "organic") + 0.5
         score_frac = (organic_weight + 0.5) / ceiling if ceiling else 0.0
 
     score = int(round(min(1.0, score_frac) * 100))
-    if kind in ("bundled", "cabaled"):
-        score = max(score, 40)
+    if kind == "bundled":
+        score = max(score, 45)
+    elif kind == "cabaled":
+        score = max(score, 38)
     elif kind == "organic":
         score = max(score, 35)
 
@@ -230,30 +243,55 @@ def classify(
             "Baskın cüzdan bir borsa soğuk cüzdanı, hazine ya da kilitli vesting "
             "kontratı da olabilir — etiketleyemedik."
         )
-    lp = next(
-        (s for s in signals if s.key == "lp_lock" and s.fired and s.direction == "cabaled"),
-        None,
-    )
-    if lp:
-        lp_status = (lp.evidence or {}).get("status")
-        if lp_status == "unverified":
-            caveats.append(
-                "⚠ LP KİLİT DURUMU DOĞRULANAMADI — bu havuz tipinde otomatik "
-                "kontrol yapılamıyor. Likiditenin çekilebilir olduğunu (rug "
-                "riski) varsayın. Token çekilme için izlemeye alındı; likidite "
-                "çekilirse yaratıcısı kara listeye eklenir."
-            )
-        else:
-            caveats.append(
-                "⚠ Likidite kilitli/yakılmış DEĞİL — geliştirici likiditeyi "
-                "istediği an çekebilir (rug riski); bu, token dağıtımından "
-                "bağımsız bir tehlikedir."
-            )
     if not market_available:
         caveats.append("Piyasa verisi alınamadı; likidite sinyalleri hesaplanmadı.")
     missing = [s.label for s in signals if not s.data_ok]
     if missing:
         caveats.append(f"Veri yetersizliği nedeniyle hesaplanamayan sinyaller: {', '.join(missing)}.")
+
+    # --- Risk bayrakları (karara girmez, ayrı gösterilir) --------------
+    risk_flags: list[dict] = []
+    lp = next((s for s in signals if s.key == "lp_lock" and s.fired), None)
+    if lp:
+        st = (lp.evidence or {}).get("status")
+        if st in ("unlocked", "unverified"):
+            msg = lp.detail or (
+                "LP kilit durumu doğrulanamadı — çekilebilir varsayın."
+                if st == "unverified"
+                else "LP kilitli/yakılmış değil — geliştirici çekebilir."
+            )
+            risk_flags.append({
+                "key": "lp", "severity": "high",
+                "label": "Likidite çekilebilir", "detail": msg,
+            })
+            caveats.append("⚠ " + msg)
+    ma = next((s for s in signals if s.key == "mint_authority" and s.fired
+               and s.direction != "organic"), None)
+    if ma:
+        risk_flags.append({
+            "key": "authority", "severity": "high",
+            "label": "Mint/freeze yetkisi açık", "detail": ma.detail,
+        })
+    lh = next((s for s in signals if s.key == "liquidity_health" and s.fired
+               and s.direction == "cabaled"), None)
+    if lh:
+        risk_flags.append({
+            "key": "liquidity", "severity": "medium",
+            "label": "İnce likidite", "detail": lh.detail,
+        })
+    dh = next((s for s in signals if s.key == "deployer_history" and s.fired
+               and s.direction == "bundled"), None)
+    if dh:
+        risk_flags.append({
+            "key": "deployer", "severity": "high",
+            "label": "Deployer rug/seri lansman geçmişi", "detail": dh.detail,
+        })
+    fw = next((s for s in signals if s.key == "flagged_wallets" and s.fired), None)
+    if fw:
+        risk_flags.append({
+            "key": "flagged", "severity": "high",
+            "label": "Kara listedeki cüzdanlar", "detail": fw.detail,
+        })
 
     confidence = int(round(max(0.0, min(1.0, conf)) * 100))
 
@@ -269,4 +307,5 @@ def classify(
         fired=[s.key for s in fired],
         reasons=[s.detail for s in fired if s.detail],
         caveats=caveats,
+        risk_flags=risk_flags,
     )

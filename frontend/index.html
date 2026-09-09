@@ -246,6 +246,18 @@ td.addr{color:var(--text)}
 .momentum .mm-hits.conf{color:var(--organic)}
 .momentum .mm-note{margin-top:10px;font-size:10px;color:var(--dim);font-style:italic}
 
+/* risk bayrakları — karara girmez, ayrı ve belirgin */
+.riskflags{margin:16px 0 4px;display:flex;flex-direction:column;gap:8px}
+.riskflags .rf{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:2px;
+  border:1px solid var(--rule);border-left:3px solid var(--bundled);background:rgba(213,67,63,.07)}
+.riskflags .rf.medium{border-left-color:var(--cabaled);background:rgba(213,147,47,.07)}
+.riskflags .rf .ic{font-size:14px;line-height:1.3;flex:none}
+.riskflags .rf .tx{font-size:12px;line-height:1.5;color:var(--text)}
+.riskflags .rf .tx b{font-family:var(--display);font-weight:700;letter-spacing:.03em;
+  text-transform:uppercase;font-size:11px;display:block;margin-bottom:2px;color:var(--bundled)}
+.riskflags .rf.medium .tx b{color:var(--cabaled)}
+.riskflags .rf .tx span{color:var(--muted)}
+
 /* fiyat grafiği (GeckoTerminal embed) */
 .chartbox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
   background:var(--panel);border-radius:2px;overflow:hidden}
@@ -598,6 +610,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <span id="scanMetaText"></span>
         <button type="button" id="refreshBtn" data-i18n="refreshBtn">Refresh</button>
       </div>
+      <div class="riskflags" id="riskFlags" hidden></div>
       <div class="split">
         <aside class="verdict" id="verdict"></aside>
         <div>
@@ -750,6 +763,7 @@ const STR = {
     navAbout:'About',
     chartHead:'Price chart',
     chartSrc:'Open full chart on GeckoTerminal ↗',
+    riskFlagsHead:'Risk flags — separate from the distribution verdict',
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
     copied:'Copied',
@@ -844,6 +858,7 @@ const STR = {
     navAbout:'Hakkında',
     chartHead:'Fiyat grafiği',
     chartSrc:"GeckoTerminal'de tam grafiği aç ↗",
+    riskFlagsHead:'Risk bayrakları — dağıtım kararından ayrıdır',
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
     copied:'Kopyalandı',
@@ -942,7 +957,7 @@ const SIG_EN = {
   common_funder:'Common funder',
   funding_tree:'Funding tree (multi-hop)',
   same_slot_entry:'Simultaneous entry',
-  identical_balances:'Identical balances',
+  identical_balances:'Uniform balance spread',
   fee_fingerprint:'Fee fingerprint',
   fresh_wallets:'Fresh-wallet ratio',
   deployer_history:'Deployer history',
@@ -1029,11 +1044,11 @@ const SIG_CATALOG = [
     'Different direct funders that trace back to one source, 2–3 hops up.',
     '2-3 hop geriden tek üst kaynağa çıkan farklı direkt fonlayıcılar.'],
   ['same_slot_entry','bundled',
-    'Buyers that entered within a few slots — one bundled transaction.',
-    'Birkaç slot içinde giren alıcılar — tek işlem paketi.'],
+    'Launch buyers packed into one or two slots (a Jito bundle) — strongest when many buyers share a transaction. Discounted for spread-out bot/sniper races.',
+    'Lansman alıcılarının tek-iki slota sıkışması (Jito paketi) — birden çok alıcı aynı işlemi paylaştığında en güçlü. Zamana yayılmış bot/sniper yarışlarında iskonto edilir.'],
   ['identical_balances','bundled',
-    'Cohorts holding near-identical amounts.',
-    'Neredeyse birebir aynı miktarı tutan gruplar.'],
+    'Buy amounts sitting in an unnaturally narrow band (low coefficient of variation) — a hand-split allocation, not organic buys.',
+    'Alım miktarlarının olağandışı biçimde dar bir banda oturması (düşük varyasyon katsayısı) — elle bölünmüş allocation, organik alım değil.'],
   ['fee_fingerprint','bundled',
     'Entries paying the exact same priority fee — same bot.',
     'Birebir aynı öncelik ücretini ödeyen girişler — aynı bot.'],
@@ -1537,6 +1552,20 @@ function render(d){
     <span class="vpill" style="color:${c}">${v.label}</span>
     <span class="mnt">${d.mint}</span>`;
 
+  // --- risk bayrakları (karara girmez) ---
+  const rf = v.risk_flags || [];
+  const rfBox = $('riskFlags');
+  if(rf.length){
+    rfBox.innerHTML = `<div class="section-label">${L('riskFlagsHead')}</div>` + rf.map(f=>`
+      <div class="rf ${f.severity === 'medium' ? 'medium' : ''}">
+        <span class="ic">${f.severity === 'medium' ? '⚠' : '⛔'}</span>
+        <span class="tx"><b>${esc(f.label || '')}</b><span>${esc(f.detail || '')}</span></span>
+      </div>`).join('');
+    rfBox.hidden = false;
+  } else {
+    rfBox.hidden = true;
+  }
+
   // --- tarama zamanı + yenile ---
   const scannedRel = d.scanned_at ? relTime(d.scanned_at) : L('freshNow');
   const src = d.cached ? L('fromCache') : L('ms', d.duration_ms);
@@ -1751,6 +1780,7 @@ function showAbout(on){
 function goHome(){
   showAbout(false);
   $('result').classList.remove('on');
+  $('riskFlags').hidden = true;
   renderChart(null);
   scanStop();
   clearError();

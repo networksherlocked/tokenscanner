@@ -42,6 +42,7 @@ class HolderRecord:
     funder: str | None = None  # ilk SOL'u kimden aldı
 
     tag: str = "unknown"  # registry sınıflandırması
+    is_contract: bool = False  # sahip hesabı System Program dışı (PDA/havuz/vesting)
 
 
 @dataclass
@@ -116,6 +117,36 @@ async def resolve_owners(pool: RpcPool, holders: list[HolderRecord]) -> None:
                 continue
             info = acc.get("data", {}).get("parsed", {}).get("info", {})
             holder.owner = info.get("owner")
+
+
+async def classify_owner_accounts(pool: RpcPool, holders: list[HolderRecord]) -> None:
+    """Sahip hesapların tipi: normal cüzdan (System Program) mı, yoksa bir
+    program/PDA (AMM havuz kasası, vesting kontratı, çok-imza hazine) mi?
+
+    Amaç: bir LP havuzu ya da vesting kilidi, "tek cüzdan baskınlığı" veya
+    "top-10 yoğunlaşması" sinyallerini SAHTE tetiklemesin. Tek getMultipleAccounts.
+    """
+    owners = list({h.owner for h in holders if h.owner})
+    if not owners:
+        return
+    prog_of: dict[str, str | None] = {}
+    for i in range(0, len(owners), 100):
+        chunk = owners[i : i + 100]
+        try:
+            res = await pool.call(
+                "getMultipleAccounts", [chunk, {"encoding": "base64"}]
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.debug("sahip hesap tipi çözülemedi: %s", exc)
+            return
+        for addr, acc in zip(chunk, (res or {}).get("value", [])):
+            prog_of[addr] = (acc or {}).get("owner") if acc else None
+    from ..engine import registry
+
+    for h in holders:
+        prog = prog_of.get(h.owner)
+        # prog None: hesap yok / çözülemedi → cüzdan varsay (yanlış dışlama yapma).
+        h.is_contract = bool(prog and prog != registry.SYSTEM_PROGRAM)
 
 
 async def _oldest_signature(
@@ -220,7 +251,7 @@ async def _find_funder(pool: RpcPool, signature: str, owner: str) -> str | None:
         if parsed.get("type") in ("transfer", "createAccount", "transferChecked"):
             info = parsed.get("info", {})
             dest = info.get("destination") or info.get("newAccount")
-            src = info.get("source") or info.get("lamports") and info.get("source")
+            src = info.get("source")
             if dest == owner and src and src != owner:
                 return src
 
@@ -241,6 +272,34 @@ async def _find_funder(pool: RpcPool, signature: str, owner: str) -> str | None:
     if not candidates:
         return None
     return min(candidates)[1]
+
+
+async def resolve_mint_creator(pool: RpcPool, mint: str) -> str | None:
+    """Tokeni basan cüzdanı platformdan bağımsız çözer: mint hesabının en eski
+    (genesis) işleminin ücret ödeyeni = yaratıcı.
+
+    pump.fun / Meteora / Raydium-native / Moonshot fark etmez. ~2 RPC çağrısı.
+    """
+    oldest, _, reached = await _oldest_signature(pool, mint, max_pages=2)
+    if not oldest or not oldest.get("signature"):
+        return None
+    tx = await pool.call(
+        "getTransaction",
+        [
+            oldest["signature"],
+            {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0},
+        ],
+    )
+    if not tx:
+        return None
+    keys = tx.get("transaction", {}).get("message", {}).get("accountKeys", [])
+    if not keys:
+        return None
+    # accountKeys[0] = ücret ödeyen/imzalayan = pratikte yaratıcı.
+    k0 = keys[0]
+    if isinstance(k0, dict):
+        return k0.get("pubkey")
+    return k0 if isinstance(k0, str) else None
 
 
 async def fetch_entry_fees(
@@ -286,6 +345,7 @@ async def collect_chain_snapshot(
         return snapshot
 
     await resolve_owners(pool, holders)
+    await classify_owner_accounts(pool, holders)
 
     if deep:
         await asyncio.gather(

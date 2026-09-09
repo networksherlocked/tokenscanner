@@ -124,9 +124,10 @@ def organic_case() -> tuple[ChainSnapshot, MarketSnapshot]:
 
 
 def unlocked_lp_case():
-    """Bundle imzası yok, yaşlar dağınık — ama LP'nin %92'si geliştiricinin düz
-    cüzdanında + orta düzey yoğunlaşma. LP kilitsizliği tek başına Bundled
-    demez ama cabaled ağırlığına katkı verir → Cabaled beklenir."""
+    """Bundle imzası yok, yaşlar dağınık, borsadan fonlanma — DAĞITIM organik.
+    Ama LP'nin %92'si geliştiricinin düz cüzdanında. LP kilit durumu bir
+    DANIŞMA sinyalidir (karara girmez): karar 'organic', ayrıca yüksek-önem
+    bir 'Likidite çekilebilir' risk bayrağı bekleniyor."""
     holders = []
     for i in range(10):
         holders.append(
@@ -250,6 +251,48 @@ def launch_bundle_case():
         b.share = b.amount_raw / total * 100
     launch = LaunchSnapshot(available=True, source="bonding_curve", buyers=buyers)
     return chain, _market(liq=18_000.0, mcap=400_000.0), launch, True
+
+
+def bot_race_case():
+    """Hype'lı organik lansman: 12 alıcı ilk 5 slota YAYILMIŞ (bot yarışı, tek
+    Jito paketi değil), her biri AYRI borsadan/cüzdandan fonlanmış, alım
+    miktarları doğal biçimde farklı, cüzdanlar 1 ay–2 yıl yaşında gerçek
+    trader'lar. 'Eşzamanlı giriş' iskonto edilmeli → Organic beklenir."""
+    holders = []
+    for i in range(14):
+        holders.append(
+            HolderRecord(
+                token_account=f"HA{i:040d}",
+                owner=f"HOLD{i:039d}",
+                amount_raw=int(SUPPLY * (0.02 - i * 0.0006)),
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    chain = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=1.0)
+
+    ages = [40, 180, 95, 620, 33, 300, 150, 900, 55, 210, 400, 70]
+    sizes = [0.9, 3.1, 0.4, 5.0, 1.7, 0.6, 2.2, 8.0, 1.1, 0.3, 4.4, 1.5]
+    buyers = []
+    for i in range(12):
+        buyers.append(
+            LaunchBuyer(
+                owner=f"RBUY{i:039d}",
+                amount_raw=int(SUPPLY * 0.004 * sizes[i]),
+                first_slot=312_000_000 + (i % 5),        # 5 slota yayılmış
+                first_block_time=LAUNCH + 3 + i,
+                entry_fee=5_000 + i * 2_137,              # farklı ücretler
+                first_signature=f"race{i}",              # ayrı işlemler
+                owner_created_at=LAUNCH - ages[i] * 86_400,
+                owner_tx_count=80 + i * 40,
+                funder=f"RACEFUND{i:035d}",               # her biri ayrı cüzdandan
+            )
+        )
+    total = sum(b.amount_raw for b in buyers)
+    for b in buyers:
+        b.share = b.amount_raw / total * 100
+    launch = LaunchSnapshot(available=True, source="bonding_curve", buyers=buyers)
+    return chain, _market(liq=45_000.0, mcap=900_000.0), launch, True
 
 
 def obfuscated_funding_case():
@@ -421,7 +464,9 @@ def run(name: str, builder, age_hours: float = 8.0) -> str:
         print(f"    {mark} {s.label:32s} {s.detail}")
     for c in verdict.caveats:
         print(f"  ! {c}")
-    return verdict.kind
+    for rf in verdict.risk_flags:
+        print(f"  ⚑ [{rf['severity']}] {rf['label']}: {rf['detail'][:80]}")
+    return verdict
 
 
 if __name__ == "__main__":
@@ -437,6 +482,7 @@ if __name__ == "__main__":
             "GİZLİ FONLAMA (3-hop)", obfuscated_funding_case, age_hours=1000.0
         ),
         "KAMUFLE PAKET": run("KAMUFLE PAKET", disguised_bundle_case, age_hours=19.0),
+        "BOT YARIŞI": run("BOT YARIŞI", bot_race_case, age_hours=5.0),
         "KİLİTSİZ LP": run("KİLİTSİZ LP", unlocked_lp_case, age_hours=400.0),
         "İNDEKSLEYİCİ LANSMANI": run(
             "İNDEKSLEYİCİ LANSMANI", indexer_launch_case, age_hours=2400.0
@@ -450,14 +496,24 @@ if __name__ == "__main__":
         "LANSMAN PAKETİ": "bundled",
         "GİZLİ FONLAMA (3-hop)": "bundled",
         "KAMUFLE PAKET": "bundled",
-        "KİLİTSİZ LP": "cabaled",
+        "BOT YARIŞI": "organic",
+        "KİLİTSİZ LP": "organic",
         "İNDEKSLEYİCİ LANSMANI": "bundled",
     }
     print(f"\n{'=' * 66}")
     ok = True
-    for k, got in results.items():
+    for k, v in results.items():
         want = expected[k]
+        got = v.kind
         status = "GEÇTİ" if got == want else f"KALDI (beklenen {want}, çıkan {got})"
         ok &= got == want
         print(f"  {k:20s} → {got:9s} {status}")
+
+    # KİLİTSİZ LP: karar organic ama LP risk bayrağı olmalı (karara girmez).
+    lp_flags = [f for f in results["KİLİTSİZ LP"].risk_flags if f["key"] == "lp"]
+    lp_ok = bool(lp_flags) and lp_flags[0]["severity"] == "high"
+    ok &= lp_ok
+    print(f"  {'KİLİTSİZ LP risk bayrağı':20s} → {'VAR' if lp_ok else 'YOK':9s} "
+          f"{'GEÇTİ' if lp_ok else 'KALDI'}")
+
     sys.exit(0 if ok else 1)

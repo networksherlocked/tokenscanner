@@ -90,12 +90,14 @@ class SignalContext:
 
     @property
     def real_holders(self) -> list[HolderRecord]:
-        """Altyapı adreslerini (LP, CEX, burn) dışlanmış MEVCUT holder listesi."""
+        """Altyapı (CEX, burn, protokol) + program/PDA hesapları (AMM havuz kasası,
+        vesting kilidi, çok-imza hazine) dışlanmış MEVCUT holder listesi."""
         return [
             h
             for h in self.chain.holders
             if not (h.owner and registry.is_infrastructure(h.owner))
             and not registry.is_infrastructure(h.token_account)
+            and not getattr(h, "is_contract", False)
         ]
 
     @property
@@ -123,6 +125,15 @@ def _ramp(value: float, low: float, high: float) -> float:
     if high <= low:
         return 1.0 if value >= high else 0.0
     return max(0.0, min(1.0, (value - low) / (high - low)))
+
+
+def _obscured_funding(ctx: SignalContext) -> bool:
+    """Fonlama ağacı 2+ alıcıyı tek bir gizli ataya bağlıyor mu? Öyleyse
+    'her cüzdan ayrı fonlayıcı' bir kamuflajdır — 'bot yarışı' sayma."""
+    if not (ctx.launch and getattr(ctx.launch, "available", False)):
+        return False
+    conv = (getattr(ctx.launch, "funding_tree", {}) or {}).get("convergence") or {}
+    return conv.get("buyers", 0) >= 2
 
 
 def _count_strength(
@@ -406,72 +417,164 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
 
 
 def sig_same_slot_entry(ctx: SignalContext) -> Signal:
+    """Eşzamanlı giriş. Ama dikkat: hype'lı bir lansmanda birbirinden bağımsız
+    onlarca bot/sniper (Photon, BonkBot, Trojan…) aynı slotta iner. Bu, market
+    yapısıdır — koordinasyon değil. Ayırt eden şeyler:
+      • TEK işlemde birden çok alım → tartışmasız paket (operatör imzası)
+      • slot kümesinin ne kadar sıkı olduğu (1 slot vs 5 slot)
+      • kümedeki cüzdanların ayrı ayrı fonlayıcı/imza kullanması → botsu yarış
+    """
     s = Signal(
         key="same_slot_entry",
         label="Eşzamanlı giriş",
         direction="bundled",
         weight=1.0,
     )
-    slots = sorted(h.first_slot for h in ctx.bundle_wallets if h.first_slot)
-    if len(slots) < 3:
+    wl = sorted(
+        (h for h in ctx.bundle_wallets if h.first_slot),
+        key=lambda h: h.first_slot,
+    )
+    if len(wl) < 3:
         s.data_ok = False
         return s
 
     window = SIGNAL_TUNING["same_slot_window"]
-    best: list[int] = []
-    for i, start in enumerate(slots):
-        group = [x for x in slots[i:] if x - start <= window]
-        if len(group) > len(best):
-            best = group
+    best: list = []
+    for i in range(len(wl)):
+        grp = [h for h in wl[i:] if h.first_slot - wl[i].first_slot <= window]
+        if len(grp) > len(best):
+            best = grp
+    n = len(best)
+    if n < SIGNAL_TUNING["same_slot_min"]:
+        s.evidence = {"cluster_size": n, "total": len(wl)}
+        s.detail = "Girişler zamana yayılmış."
+        return s
+
+    slot_span = best[-1].first_slot - best[0].first_slot
+    sig_groups: dict[str, int] = {}
+    for h in best:
+        sg = getattr(h, "first_signature", None)
+        if sg:
+            sig_groups[sg] = sig_groups.get(sg, 0) + 1
+    same_tx = sum(c for c in sig_groups.values() if c >= 2)
+    distinct_funders = len({h.funder for h in best if h.funder})
+    distinct_sigs = len(sig_groups)
+
     s.evidence = {
-        "cluster_size": len(best),
-        "total": len(slots),
+        "cluster_size": n,
+        "total": len(wl),
         "slot_window": window,
-        "slot_range": [best[0], best[-1]] if best else None,
+        "slot_range": [best[0].first_slot, best[-1].first_slot],
+        "same_tx_buyers": same_tx,
+        "distinct_funders": distinct_funders,
     }
-    if len(best) >= SIGNAL_TUNING["same_slot_min"]:
-        s.fired = True
-        s.strength = _count_strength(len(best), SIGNAL_TUNING["same_slot_min"], span=5)
+    s.fired = True
+
+    # 1) Tek işlemde ≥2 alım — operatörün bir cüzdandan birçok cüzdana alması.
+    if same_tx >= 2:
+        s.strength = min(1.0, 0.72 + 0.06 * (same_tx - 2))
         s.detail = (
-            f"{len(best)} cüzdan tokena {window} slot (~{window * 0.4:.0f} sn) "
-            f"içinde girmiş — tek işlem paketi imzası."
+            f"{same_tx} lansman alıcısı TEK işlemde alım yapmış — operatör bir "
+            "cüzdandan birden çok cüzdana aldı; tartışmasız paket imzası."
+        )
+        return s
+
+    # 2) Saf eşzamanlılık — sıkılığa göre ölçekle, botsu yarışsa iskonto et.
+    base = _count_strength(n, SIGNAL_TUNING["same_slot_min"], span=5)
+    tightness = 1.0 - min(1.0, slot_span / max(1, window))  # 0 slot → 1.0
+    mult = 0.55 + 0.45 * tightness
+    # Yarış: giriş ≥2 slota YAYILMIŞ (tek Jito paketi değil) + her cüzdan ayrı
+    # işlem ve ayrı fonlayıcı. Fonlama ağacı tek kaynağa çıkıyorsa "ayrı
+    # fonlayıcı" bir kamuflajdır — yarış sayma.
+    race = (
+        not _obscured_funding(ctx)
+        and slot_span >= 2
+        and distinct_sigs >= n * 0.9
+        and distinct_funders >= max(3, int(n * 0.7))
+    )
+    if race:
+        mult *= 0.5
+    s.strength = round(base * mult, 3)
+
+    if s.strength < 0.12:
+        s.fired = False
+        s.detail = (
+            f"{n} cüzdan {window} slot içinde girdi ama ayrı işlem ve ayrı "
+            "fonlayıcılarla — koordinasyondan çok sniper/bot yarışı."
+        )
+        return s
+    if race:
+        s.detail = (
+            f"{n} cüzdan {slot_span} slot içinde girmiş ama her biri ayrı "
+            "fonlayıcı/işlem kullanmış — kısmi koordinasyon işareti."
         )
     else:
-        s.detail = "Girişler zamana yayılmış."
+        s.detail = (
+            f"{n} cüzdan tokena {slot_span} slot (~{slot_span * 0.4:.1f} sn) "
+            "içinde girmiş — işlem paketi imzası."
+        )
     return s
 
 
 def sig_identical_balances(ctx: SignalContext) -> Signal:
+    """Tekdüze allocation. Elle alımda insanlar $10, $200, $3000 alır — dağılım
+    geniştir. Bir operatör arzı böldüğünde miktarlar dar bir banda oturur.
+
+    İki test: (a) dar ±%2 küme (tam kopya botları), (b) tüm setin varyasyon
+    katsayısı — jitter'lı paketleri de yakalar (vc.fun / KAMUFLE PAKET).
+    """
     s = Signal(
         key="identical_balances",
-        label="Birebir eşit bakiyeler",
+        label="Tekdüze bakiye dağılımı",
         direction="bundled",
         weight=0.9,
     )
-    holders = [h for h in ctx.bundle_wallets if h.amount_raw > 0]
-    if len(holders) < 4:
+    amounts = sorted(h.amount_raw for h in ctx.bundle_wallets if h.amount_raw > 0)
+    if len(amounts) < 4:
         s.data_ok = False
         return s
 
     tol = SIGNAL_TUNING["identical_balance_tolerance"]
-    amounts = sorted(h.amount_raw for h in holders)
-    best: list[int] = []
+    tight: list[int] = []
     for i, base in enumerate(amounts):
-        group = [a for a in amounts[i:] if abs(a - base) <= base * tol]
-        if len(group) > len(best):
-            best = group
-    s.evidence = {"cluster_size": len(best), "total": len(holders)}
-    if len(best) >= SIGNAL_TUNING["identical_balance_min"]:
-        s.fired = True
-        s.strength = _count_strength(
-            len(best), SIGNAL_TUNING["identical_balance_min"], span=4
-        )
+        grp = [a for a in amounts[i:] if abs(a - base) <= base * tol]
+        if len(grp) > len(tight):
+            tight = grp
+
+    # Varyasyon katsayısı — en büyüğü (çoğu zaman deployer) hariç.
+    body = amounts[:-1] if len(amounts) >= 6 else amounts
+    mean = statistics.mean(body)
+    cv = statistics.pstdev(body) / mean if mean else 1.0
+    s.evidence = {
+        "tight_cluster": len(tight),
+        "total": len(amounts),
+        "cv": round(cv, 3),
+        "cv_n": len(body),
+    }
+
+    tight_hit = len(tight) >= SIGNAL_TUNING["identical_balance_min"]
+    cv_hit = len(body) >= 5 and cv < 0.22
+
+    if not tight_hit and not cv_hit:
+        s.detail = f"Bakiyeler doğal biçimde farklı (varyasyon katsayısı {cv:.2f})."
+        return s
+
+    s.fired = True
+    st_tight = _count_strength(len(tight), SIGNAL_TUNING["identical_balance_min"], span=4) if tight_hit else 0.0
+    st_cv = _ramp(0.22 - cv, 0.0, 0.17) if cv_hit else 0.0   # cv 0.22→0, cv 0.05→1
+    s.strength = round(max(st_tight, 0.4 + 0.6 * st_cv if cv_hit else st_tight), 3)
+    if cv_hit and not tight_hit:
         s.detail = (
-            f"{len(best)} cüzdanın bakiyesi birbirinin %{tol * 100:.0f}'i içinde — "
-            "elle alımda beklenmeyen bir eşitlik."
+            f"{len(body)} lansman cüzdanının alım miktarları dar bir banda oturmuş "
+            f"(varyasyon katsayısı {cv:.2f}) — elle alımda beklenmeyen tekdüzelik, "
+            "tek elden allocation işareti."
         )
     else:
-        s.detail = "Bakiyeler doğal biçimde farklı."
+        s.detail = (
+            f"{len(tight)} cüzdanın bakiyesi birbirinin %{tol * 100:.0f}'i içinde"
+            + (f"; tüm setin varyasyon katsayısı {cv:.2f}" if cv_hit else "")
+            + " — elle alımda beklenmeyen eşitlik."
+        )
     return s
 
 
@@ -482,22 +585,41 @@ def sig_fee_fingerprint(ctx: SignalContext) -> Signal:
         direction="bundled",
         weight=0.7,
     )
-    fees = [h.entry_fee for h in ctx.bundle_wallets if h.entry_fee]
-    if len(fees) < 4:
+    wl = [h for h in ctx.bundle_wallets if h.entry_fee]
+    if len(wl) < 4:
         s.data_ok = False
         return s
-    counts = Counter(fees)
+    counts = Counter(h.entry_fee for h in wl)
     fee, n = counts.most_common(1)[0]
-    s.evidence = {"fee_lamports": fee, "wallets": n, "total": len(fees)}
-    if n >= SIGNAL_TUNING["fee_fingerprint_min"]:
-        s.fired = True
-        s.strength = _count_strength(n, SIGNAL_TUNING["fee_fingerprint_min"], span=4)
+    matching = [h for h in wl if h.entry_fee == fee]
+    distinct_funders = len({h.funder for h in matching if h.funder})
+    s.evidence = {
+        "fee_lamports": fee,
+        "wallets": n,
+        "total": len(wl),
+        "distinct_funders": distinct_funders,
+    }
+    if n < SIGNAL_TUNING["fee_fingerprint_min"]:
+        s.detail = "Giriş ücretleri farklı — tek bir otomasyon izi yok."
+        return s
+
+    s.fired = True
+    s.strength = _count_strength(n, SIGNAL_TUNING["fee_fingerprint_min"], span=4)
+    # Aynı ücreti ödeyen cüzdanlar ayrı ayrı fonlanmışsa bu bir operatör imzası
+    # değil, ortak bir bot/router'ın varsayılan öncelik ücreti olabilir.
+    if distinct_funders >= max(3, int(n * 0.7)) and not _obscured_funding(ctx):
+        s.strength = round(s.strength * 0.45, 3)
+        s.detail = (
+            f"{n} işlem aynı öncelik ücretini ({fee} lamports) ödemiş ama ayrı "
+            "fonlayıcılarla — muhtemelen ortak bir botun/router'ın varsayılanı."
+        )
+        if s.strength < 0.12:
+            s.fired = False
+    else:
         s.detail = (
             f"{n} giriş işlemi birebir aynı öncelik ücretini ödemiş "
             f"({fee} lamports) — aynı botun imzası."
         )
-    else:
-        s.detail = "Giriş ücretleri farklı — tek bir otomasyon izi yok."
     return s
 
 
@@ -533,14 +655,36 @@ def sig_funding_profile(ctx: SignalContext) -> Signal:
     if named:
         top_ex, top_n = named.most_common(1)[0]
         dominance = top_n / len(funders)
+        # Büyük borsa mı (Binance/Coinbase — binlerce gerçek kullanıcı buradan
+        # çeker) yoksa bölgesel/düşük-KYC mi?
+        top_tier = None
+        for f in funders:
+            m = registry.classify_address(f)
+            if m["kind"] == "cex" and m["name"] == top_ex:
+                top_tier = m["tier"]
+                break
         if dominance >= SIGNAL_TUNING["cex_dominance_ratio"] and top_n >= 3:
-            s.fired = True
-            s.strength = _ramp(dominance, 0.6, 0.9)
-            s.detail = (
-                f"Cüzdanların %{dominance * 100:.0f}'i tek bir borsadan fonlanmış "
-                f"({top_ex}) — tek elden dağıtım işareti."
-            )
-            return s
+            if top_tier == "major":
+                # Zayıf sinyal — yalnızca neredeyse tümü tek büyük borsadan.
+                if dominance >= 0.85 and top_n >= 5:
+                    s.fired = True
+                    s.strength = round(_ramp(dominance, 0.85, 1.0) * 0.45, 3)
+                    s.detail = (
+                        f"Cüzdanların %{dominance * 100:.0f}'i tek bir büyük "
+                        f"borsadan ({top_ex}) — olağandışı derecede tek kaynak "
+                        "(zayıf işaret)."
+                    )
+                    if s.strength < 0.12:
+                        s.fired = False
+                    return s
+            else:
+                s.fired = True
+                s.strength = _ramp(dominance, 0.6, 0.9)
+                s.detail = (
+                    f"Cüzdanların %{dominance * 100:.0f}'i tek bir borsadan "
+                    f"fonlanmış ({top_ex}) — tek elden dağıtım işareti."
+                )
+                return s
 
     if tiers["low_trust"]:
         s.fired = True
@@ -637,18 +781,18 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
             f"Deployer {n} token basmış; kontrol edilen {checked}'inin "
             f"{dead}'i (%{rate * 100:.0f}) ölmüş/likidite çekilmiş — seri rug profili."
         )
-    elif n >= 10:
+    elif n >= 15:
         s.fired = True
         s.direction = "bundled"
-        s.strength = _ramp(n, 10, 40)
+        s.strength = _ramp(n, 15, 50)
         s.detail = f"Deployer daha önce {n} token basmış — seri lansman cüzdanı."
-    elif n >= 3:
+    elif n >= 5:
         s.fired = True
-        s.strength = _ramp(n, 3, 12)
-        extra = f", {dead}/{checked}'i ölü" if checked else ""
+        s.strength = _ramp(n, 5, 20)
+        extra = f", kontrol edilen {checked}'ten {dead}'i ölü" if checked else ""
         s.detail = f"Deployer daha önce {n} token basmış{extra}."
     else:
-        s.detail = f"Deployer'ın {n} önceki tokeni var — olağan."
+        s.detail = f"Deployer'ın {n} önceki tokeni var — memecoin'de olağan."
     return s
 
 
@@ -904,15 +1048,20 @@ def run_signals(ctx: SignalContext) -> list[Signal]:
     out = []
     for fn in ALL_SIGNALS:
         try:
-            out.append(fn(ctx))
+            s = fn(ctx)
+            # Eşiği kıl payı geçip gücü ~0 kalan sinyal "tetiklendi" görünmesin
+            # (kullanıcı kararın yok saydığı kırmızı noktalar görüyor).
+            if s.fired and s.strength < 0.06:
+                s.fired = False
+            out.append(s)
         except Exception as exc:  # noqa: BLE001
-            broken = Signal(
-                key=fn.__name__,
-                label=fn.__name__,
+            nice = fn.__name__.replace("sig_", "").replace("_", " ").capitalize()
+            out.append(Signal(
+                key=fn.__name__.replace("sig_", ""),
+                label=nice,
                 direction="cabaled",
                 weight=0.0,
                 data_ok=False,
                 detail=f"Sinyal hesaplanamadı: {exc}",
-            )
-            out.append(broken)
+            ))
     return out
