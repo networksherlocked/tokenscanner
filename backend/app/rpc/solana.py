@@ -206,33 +206,67 @@ async def enrich_token_accounts(
     await asyncio.gather(*(one(h) for h in holders))
 
 
-async def enrich_owners(
-    pool: RpcPool, holders: list[HolderRecord], concurrency: int = 6
+async def _resolve_wallet_meta(
+    pool: RpcPool, records: list, cache=None, max_pages: int = 4, concurrency: int = 6
 ) -> None:
-    """Sahip cüzdanların yaşını ve ilk fonlayıcısını bulur."""
-    sem = asyncio.Semaphore(concurrency)
+    """`records` (HolderRecord veya LaunchBuyer) için owner_created_at /
+    owner_tx_count / funder doldurur. Değişmez veriyi `cache` (wallet_meta)
+    üzerinden okur/yazar — tekrar taramada RPC harcanmaz, bu da aktif/köklü
+    cüzdanlı organik lansmanları çözebilmemizi sağlar.
+    """
+    addrs = [getattr(r, "owner", None) for r in records if getattr(r, "owner", None)]
+    hit: dict[str, dict] = {}
+    if cache is not None and addrs:
+        try:
+            hit = cache.wallet_meta_get_many(addrs)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("wallet_meta okuma düştü: %s", exc)
 
-    async def one(h: HolderRecord) -> None:
-        if not h.owner:
+    sem = asyncio.Semaphore(concurrency)
+    fresh: dict[str, dict] = {}
+
+    async def one(r) -> None:
+        owner = getattr(r, "owner", None)
+        if not owner:
+            return
+        c = hit.get(owner)
+        # reached=True → veri kesin, RPC atla. reached=False ama tx_count yüksek
+        # → hâlâ aktif, tekrar denemenin faydası yok.
+        if c and (c["reached"] or c["tx_count"] >= max_pages * 1000):
+            r.owner_tx_count = c["tx_count"]
+            r.owner_created_at = c["created_at"]
+            r.funder = c["funder"]
             return
         async with sem:
-            oldest, count, reached_start = await _oldest_signature(
-                pool, h.owner, max_pages=3
+            oldest, count, reached = await _oldest_signature(
+                pool, owner, max_pages=max_pages
             )
-            h.owner_tx_count = count
-            if not oldest:
-                return
-            if not reached_start:
-                # Bütçe içinde cüzdanın başına ulaşamadık — bu "en eski" imza
-                # yanıltıcı derecede yeni. Yaş ve fonlayıcı çıkarımını atla;
-                # owner_tx_count (>= 3000) tek başına "taze değil" bilgisini verir.
-                return
-            h.owner_created_at = oldest.get("blockTime")
+        r.owner_tx_count = count
+        rec = {"address": owner, "tx_count": count, "reached": reached,
+               "created_at": None, "funder": None}
+        if oldest and reached:
+            r.owner_created_at = oldest.get("blockTime")
+            rec["created_at"] = r.owner_created_at
             sig = oldest.get("signature")
             if sig:
-                h.funder = await _find_funder(pool, sig, h.owner)
+                r.funder = await _find_funder(pool, sig, owner)
+                rec["funder"] = r.funder
+        fresh[owner] = rec
 
-    await asyncio.gather(*(one(h) for h in holders))
+    await asyncio.gather(*(one(r) for r in records))
+
+    if cache is not None and fresh:
+        try:
+            cache.wallet_meta_put_many(list(fresh.values()))
+        except Exception as exc:  # noqa: BLE001
+            log.debug("wallet_meta yazma düştü: %s", exc)
+
+
+async def enrich_owners(
+    pool: RpcPool, holders: list[HolderRecord], concurrency: int = 6, cache=None
+) -> None:
+    """Sahip cüzdanların yaşını ve ilk fonlayıcısını bulur."""
+    await _resolve_wallet_meta(pool, holders, cache=cache, concurrency=concurrency)
 
 
 async def _find_funder(pool: RpcPool, signature: str, owner: str) -> str | None:
@@ -326,7 +360,7 @@ async def fetch_entry_fees(
 
 
 async def collect_chain_snapshot(
-    pool: RpcPool, mint: str, deep: bool = True
+    pool: RpcPool, mint: str, deep: bool = True, cache=None
 ) -> ChainSnapshot:
     """Zincir anlık görüntüsü.
 
@@ -350,7 +384,7 @@ async def collect_chain_snapshot(
     if deep:
         await asyncio.gather(
             enrich_token_accounts(pool, holders),
-            enrich_owners(pool, holders),
+            enrich_owners(pool, holders, cache=cache),
         )
         await fetch_entry_fees(pool, holders)
 

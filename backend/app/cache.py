@@ -103,6 +103,15 @@ CREATE TABLE IF NOT EXISTS x_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_xposts_posted ON x_posts(posted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_xposts_mint ON x_posts(mint, posted_at DESC);
+
+-- Cüzdan yaşı / ilk fonlayıcısı DEĞİŞMEZ. Bir kez çözünce sakla; sonraki
+-- taramalarda RPC harcama. Bu, taze cüzdanlı paketler kadar aktif/köklü
+-- cüzdanlı organik lansmanları da çözebilmemizi sağlar (asıl darboğaz buydu).
+CREATE TABLE IF NOT EXISTS wallet_meta (
+    address TEXT PRIMARY KEY, created_at INTEGER, funder TEXT,
+    tx_count INTEGER NOT NULL DEFAULT 0, reached INTEGER NOT NULL DEFAULT 0,
+    resolved_at INTEGER NOT NULL
+);
 """
 
 _SCHEMA_PG = """
@@ -182,6 +191,12 @@ CREATE TABLE IF NOT EXISTS x_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_xposts_posted ON x_posts(posted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_xposts_mint ON x_posts(mint, posted_at DESC);
+
+CREATE TABLE IF NOT EXISTS wallet_meta (
+    address TEXT PRIMARY KEY, created_at BIGINT, funder TEXT,
+    tx_count INTEGER NOT NULL DEFAULT 0, reached INTEGER NOT NULL DEFAULT 0,
+    resolved_at BIGINT NOT NULL
+);
 """
 
 
@@ -662,6 +677,59 @@ class ScanCache:
                 int(time.time()),
             ),
         )
+
+    # ---- cüzdan meta önbelleği (yaş + ilk fonlayıcı, değişmez) --------
+
+    def wallet_meta_get_many(self, addresses: list[str]) -> dict[str, dict]:
+        if not addresses:
+            return {}
+        out: dict[str, dict] = {}
+        uniq = list(dict.fromkeys(addresses))
+        for i in range(0, len(uniq), 400):
+            chunk = uniq[i : i + 400]
+            ph = ",".join("?" for _ in chunk)
+            rows = self._rows(
+                f"SELECT address, created_at, funder, tx_count, reached "
+                f"FROM wallet_meta WHERE address IN ({ph})",
+                tuple(chunk),
+            )
+            for r in rows:
+                out[r["address"]] = {
+                    "created_at": r["created_at"],
+                    "funder": r["funder"],
+                    "tx_count": r["tx_count"] or 0,
+                    "reached": bool(r["reached"]),
+                }
+        return out
+
+    def wallet_meta_put_many(self, rows: list[dict]) -> None:
+        """rows: [{address, created_at, funder, tx_count, reached}]. reached=True
+        kaydı asla ezilmez (o veri kesin ve değişmez)."""
+        now = int(time.time())
+        for r in rows:
+            addr = r.get("address")
+            if not addr:
+                continue
+            self._write(
+                "INSERT INTO wallet_meta "
+                "(address, created_at, funder, tx_count, reached, resolved_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(address) DO UPDATE SET "
+                "created_at = COALESCE(wallet_meta.created_at, excluded.created_at), "
+                "funder = COALESCE(wallet_meta.funder, excluded.funder), "
+                "tx_count = CASE WHEN excluded.tx_count > wallet_meta.tx_count "
+                "                THEN excluded.tx_count ELSE wallet_meta.tx_count END, "
+                "reached = CASE WHEN excluded.reached > wallet_meta.reached "
+                "               THEN excluded.reached ELSE wallet_meta.reached END, "
+                "resolved_at = excluded.resolved_at",
+                (
+                    addr,
+                    r.get("created_at"),
+                    r.get("funder"),
+                    int(r.get("tx_count") or 0),
+                    1 if r.get("reached") else 0,
+                    now,
+                ),
+            )
 
     # ---- öğrenme / dersler --------------------------------------------
 

@@ -272,27 +272,15 @@ def launch_from_trades(trades: list, source: str = "indexer") -> LaunchSnapshot:
 
 
 async def enrich_launch_buyers(
-    pool: RpcPool, buyers: list[LaunchBuyer], concurrency: int = 6
+    pool: RpcPool, buyers: list[LaunchBuyer], concurrency: int = 6, cache=None
 ) -> None:
-    """Her lansman alıcısının cüzdan yaşı ve ilk fonlayıcısı."""
-    sem = asyncio.Semaphore(concurrency)
-
-    async def one(b: LaunchBuyer) -> None:
-        async with sem:
-            oldest, count, reached = await solana._oldest_signature(
-                pool, b.owner, max_pages=2
-            )
-            b.owner_tx_count = count
-            if not oldest or not reached:
-                return
-            b.owner_created_at = oldest.get("blockTime")
-            sig = oldest.get("signature")
-            if sig:
-                b.funder = await solana._find_funder(pool, sig, b.owner)
-
+    """Her lansman alıcısının cüzdan yaşı ve ilk fonlayıcısı. wallet_meta
+    önbelleği: değişmez veri tekrar taramada RPC harcamaz."""
     # En büyük alıcılardan başla; bütçe LAUNCH_ENRICH_MAX ile sınırlı.
     ordered = sorted(buyers, key=lambda x: x.amount_raw, reverse=True)
-    await asyncio.gather(*(one(b) for b in ordered[:LAUNCH_ENRICH_MAX]))
+    await solana._resolve_wallet_meta(
+        pool, ordered[:LAUNCH_ENRICH_MAX], cache=cache, concurrency=concurrency
+    )
 
 
 async def _funder_of(pool: RpcPool, address: str) -> str | None:

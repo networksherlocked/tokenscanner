@@ -180,7 +180,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
 
     # 2) Mevcut yapı (hafif) + LP kilit durumu — paralel.
     chain, lp_lock = await asyncio.gather(
-        collect_chain_snapshot(pool, mint, deep=False),
+        collect_chain_snapshot(pool, mint, deep=False, cache=cache),
         analyze_lp_lock(pool, mint, market, pump, creator=creator),
     )
 
@@ -214,7 +214,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             )
 
     if launch and launch.available:
-        await enrich_launch_buyers(pool, launch.buyers)
+        await enrich_launch_buyers(pool, launch.buyers, cache=cache)
         launch.funding_tree = await build_funding_tree(pool, launch.buyers)
         if not launch_ts:
             times = [b.first_block_time for b in launch.buyers if b.first_block_time]
@@ -246,7 +246,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     # Lansman da mevcut yapı da holder yaşı vermediyse eski fallback: derin tarama.
     launch_ok = bool(launch and launch.available)
     if not launch_ok:
-        chain = await collect_chain_snapshot(pool, mint, deep=True)
+        chain = await collect_chain_snapshot(pool, mint, deep=True, cache=cache)
 
     ctx = SignalContext(
         chain=chain,
