@@ -489,15 +489,20 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 @keyframes termflash{from{background:rgba(224,179,82,.18)}to{background:rgba(8,15,28,.72)}}
 
 .scan-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:6px 0;font-family:var(--mono)}
-.scan-stat{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.scan-stat{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
 .scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
 .scan-stat span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
-@media(max-width:520px){.scan-stats{grid-template-columns:repeat(2,1fr);gap:14px}}
+@media(max-width:520px){
+  .scan-stats{gap:7px}
+  .scan-stat b{font-size:15px}
+  .scan-stat span{font-size:8px;letter-spacing:.04em}
+}
 
 .scan-cancel{display:block;margin:12px 0 0 auto;background:transparent;border:1px solid var(--rule);color:var(--muted);
   font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   font-size:11px;padding:8px 18px;border-radius:2px;cursor:pointer}
 .scan-cancel:hover{color:var(--bundled);border-color:var(--bundled)}
+@media(max-width:520px){.scan-cancel{width:100%;margin:12px 0 0}}
 
 /* ---------- hakkında ---------- */
 .about{padding:48px 0 72px}
