@@ -395,21 +395,19 @@ class ScanCache:
         mcap_max: float | None = None,
         symbol: str | None = None,
         image: str | None = None,
-        liq: float | None = None,
+        liq_min: float | None = None,
     ) -> None:
         # symbol/image yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
-        # liq_min = gördüğümüz en düşük likidite; liq verilmezse dokunma.
+        # liq_min çağıran tarafından hesaplanır (Python min); None ise dokunma.
+        # NOT: "CASE WHEN ? IS NULL" gibi çıplak parametreler Postgres'te tip
+        # çıkarımı hatası verir (IndeterminateDatatype) — COALESCE kullan.
         self._write(
             "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ?, "
             "mcap_max = ?, "
-            "liq_min = CASE WHEN ? IS NULL THEN liq_min "
-            "               WHEN liq_min IS NULL THEN ? "
-            "               WHEN ? < liq_min THEN ? "
-            "               ELSE liq_min END, "
+            "liq_min = COALESCE(?, liq_min), "
             "symbol = COALESCE(NULLIF(symbol, ''), ?), "
             "image = COALESCE(NULLIF(image, ''), ?) WHERE mint = ?",
-            (mcap_latest, mcap_min, at, mcap_max, liq, liq, liq, liq,
-             symbol, image, mint),
+            (mcap_latest, mcap_min, at, mcap_max, liq_min, symbol, image, mint),
         )
 
     def track_mark_rug(self, mint: str, outcome: str = "rug") -> None:

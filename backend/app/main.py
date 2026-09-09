@@ -98,99 +98,110 @@ async def refresh_track() -> None:
     now = int(time.time())
     pending = cache.track_pending(max_age=max(TRACK_WINDOW, GAIN_WINDOW) + 3600)
     for row in pending:
-        mint = row["mint"]
-        mcap_min = row.get("mcap_min")
-        mcap_max = row.get("mcap_max")
-        age = now - row["scored_at"]
-        crash_done = bool(row.get("settled"))
-        # 24s çöküş penceresi bittiyse yükseliş takibi seyrek yenilenir.
-        if crash_done and row.get("latest_at") and now - row["latest_at"] < GAIN_POLL_MIN:
-            continue
-        sym = None
-        img = None
-        liq = None
         try:
-            snap = await fetch_market(mint)
-            mcap = snap.market_cap
-            sym = snap.symbol
-            img = snap.image_url
-            liq = snap.liquidity_usd
+            await _refresh_track_row(cache, row, now)
         except Exception:  # noqa: BLE001
-            mcap = None
-        if mcap:
-            mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
-            mcap_max = mcap if mcap_max is None else max(mcap_max, mcap)
-            cache.track_update(
-                mint, mcap, mcap_min, now,
-                mcap_max=mcap_max, symbol=sym, image=img, liq=liq,
-            )
-
-        # --- Likidite çekilme (rug) tespiti — kilit durumundan bağımsız ------
-        if (
-            RUG_ENABLED
-            and not row.get("rug_flagged")
-            and liq is not None
-            and (row.get("liq_at_scan") or 0) >= RUG_MIN_LIQ_AT_SCAN
-        ):
-            liq0 = float(row["liq_at_scan"])
-            if liq <= RUG_FLOOR_USD or liq <= liq0 * (1.0 - RUG_DROP_FRAC):
-                try:
-                    learn_from_rug(cache, {**row, "symbol": sym or row.get("symbol")},
-                                   liq0, liq)
-                except Exception:  # noqa: BLE001
-                    log.exception("Rug dersi çıkarılamadı: %s", mint)
-
-        base = row.get("mcap_at_scan")
-
-        if not crash_done and age >= TRACK_WINDOW:
-            drop = (
-                max(0.0, (base - mcap_min) / base)
-                if base and mcap_min is not None
-                else 0.0
-            )
-            flagged = (row.get("verdict") or "") in FLAGGED_VERDICTS
-            crashed = drop >= TRACK_DROP
-            if flagged and crashed:
-                outcome = "hit"
-            elif flagged and not crashed:
-                outcome = "no_dump"
-            elif not flagged and crashed:
-                outcome = "miss"
-            else:
-                outcome = "clear"
-            cache.track_settle(mint, outcome)
-
-            if outcome == "miss" and LEARN_ENABLED and drop >= LEARN_MIN_DROP:
-                try:
-                    learn_from_miss(cache, row, drop)
-                except Exception:  # noqa: BLE001
-                    log.exception("Ders çıkarılamadı: %s", mint)
-
-        # --- Yükseliş penceresi (organic/cabaled/inconclusive, daha uzun) -----
-        if not row.get("gain_settled") and age >= GAIN_WINDOW:
-            verdict_now = row.get("verdict") or ""
-            rise = (
-                max(0.0, (mcap_max - base) / base)
-                if base and mcap_max is not None
-                else 0.0
-            )
-            if verdict_now not in GAIN_VERDICTS:
-                cache.track_settle_gain(mint, "n/a")
-            elif rise >= GAIN_MIN_RISE:
-                cache.track_settle_gain(mint, "runup")
-                if GAIN_ENABLED:
-                    try:
-                        learn_from_gain(cache, {**row, "mcap_max": mcap_max}, rise)
-                    except Exception:  # noqa: BLE001
-                        log.exception("Yükseliş dersi çıkarılamadı: %s", mint)
-            else:
-                cache.track_settle_gain(mint, "flat")
+            # Tek bir kayıttaki hata (ör. DB/piyasa) tüm döngüyü öldürmesin.
+            log.exception("Karne kaydı yenilenemedi: %s", row.get("mint"))
 
     # Sembolü eksik eski kayıtları (settled dahil) tazeden doldur.
     try:
         await _backfill_track_symbols(limit=25)
     except Exception:  # noqa: BLE001
         log.exception("Sembol backfill hatası")
+
+
+async def _refresh_track_row(cache, row: dict, now: int) -> None:
+    mint = row["mint"]
+    mcap_min = row.get("mcap_min")
+    mcap_max = row.get("mcap_max")
+    age = now - row["scored_at"]
+    crash_done = bool(row.get("settled"))
+    # 24s çöküş penceresi bittiyse yükseliş takibi seyrek yenilenir.
+    if crash_done and row.get("latest_at") and now - row["latest_at"] < GAIN_POLL_MIN:
+        return
+    sym = None
+    img = None
+    liq = None
+    try:
+        snap = await fetch_market(mint)
+        mcap = snap.market_cap
+        sym = snap.symbol
+        img = snap.image_url
+        liq = snap.liquidity_usd
+    except Exception:  # noqa: BLE001
+        mcap = None
+    liq_min = row.get("liq_min")
+    if liq is not None:
+        liq_min = liq if liq_min is None else min(liq_min, liq)
+    if mcap:
+        mcap_min = mcap if mcap_min is None else min(mcap_min, mcap)
+        mcap_max = mcap if mcap_max is None else max(mcap_max, mcap)
+        cache.track_update(
+            mint, mcap, mcap_min, now,
+            mcap_max=mcap_max, symbol=sym, image=img, liq_min=liq_min,
+        )
+
+    # --- Likidite çekilme (rug) tespiti — kilit durumundan bağımsız ------
+    if (
+        RUG_ENABLED
+        and not row.get("rug_flagged")
+        and liq is not None
+        and (row.get("liq_at_scan") or 0) >= RUG_MIN_LIQ_AT_SCAN
+    ):
+        liq0 = float(row["liq_at_scan"])
+        if liq <= RUG_FLOOR_USD or liq <= liq0 * (1.0 - RUG_DROP_FRAC):
+            try:
+                learn_from_rug(cache, {**row, "symbol": sym or row.get("symbol")},
+                               liq0, liq)
+            except Exception:  # noqa: BLE001
+                log.exception("Rug dersi çıkarılamadı: %s", mint)
+
+    base = row.get("mcap_at_scan")
+
+    if not crash_done and age >= TRACK_WINDOW:
+        drop = (
+            max(0.0, (base - mcap_min) / base)
+            if base and mcap_min is not None
+            else 0.0
+        )
+        flagged = (row.get("verdict") or "") in FLAGGED_VERDICTS
+        crashed = drop >= TRACK_DROP
+        if flagged and crashed:
+            outcome = "hit"
+        elif flagged and not crashed:
+            outcome = "no_dump"
+        elif not flagged and crashed:
+            outcome = "miss"
+        else:
+            outcome = "clear"
+        cache.track_settle(mint, outcome)
+
+        if outcome == "miss" and LEARN_ENABLED and drop >= LEARN_MIN_DROP:
+            try:
+                learn_from_miss(cache, row, drop)
+            except Exception:  # noqa: BLE001
+                log.exception("Ders çıkarılamadı: %s", mint)
+
+    # --- Yükseliş penceresi (organic/cabaled/inconclusive, daha uzun) -----
+    if not row.get("gain_settled") and age >= GAIN_WINDOW:
+        verdict_now = row.get("verdict") or ""
+        rise = (
+            max(0.0, (mcap_max - base) / base)
+            if base and mcap_max is not None
+            else 0.0
+        )
+        if verdict_now not in GAIN_VERDICTS:
+            cache.track_settle_gain(mint, "n/a")
+        elif rise >= GAIN_MIN_RISE:
+            cache.track_settle_gain(mint, "runup")
+            if GAIN_ENABLED:
+                try:
+                    learn_from_gain(cache, {**row, "mcap_max": mcap_max}, rise)
+                except Exception:  # noqa: BLE001
+                    log.exception("Yükseliş dersi çıkarılamadı: %s", mint)
+        else:
+            cache.track_settle_gain(mint, "flat")
 
 
 def _short_addr(a: str | None) -> str:
