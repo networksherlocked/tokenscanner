@@ -155,15 +155,13 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 .tokhead .sym{font-family:var(--display);font-weight:700;font-size:clamp(30px,4.4vw,48px);
   line-height:1;text-transform:uppercase;letter-spacing:.02em;color:var(--text)}
 .tokhead .nm{font-size:15px;color:var(--muted)}
-.tokhead .mnt{margin-left:auto;display:inline-flex;align-items:center;gap:5px;max-width:min(46ch,42vw);
+.tokhead .mnt{margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex:none;
   font-size:11px;color:var(--dim);cursor:pointer;transition:color .15s;background:none;border:0;
   font-family:var(--mono);padding:0}
-.tokhead .mnt .mtxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tokhead .mnt .mtxt{white-space:nowrap;overflow:visible}
 .tokhead .mnt .mico{flex:none;opacity:.6}
 .tokhead .mnt:hover{color:var(--gold)}
-@media(max-width:720px){.tokhead .mnt{max-width:100%}}
-.tokhead .vpill{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.1em;
-  text-transform:uppercase;padding:5px 12px;border:1px solid currentColor;border-radius:2px}
+@media(max-width:560px){.tokhead .mnt .mtxt{font-size:10px}}
 
 /* sinyal özeti / lejant */
 .siglegend{display:flex;gap:18px;flex-wrap:wrap;margin:-4px 0 14px;font-size:11px;
@@ -1580,7 +1578,6 @@ function render(d){
     ${tokImg(t.image)}
     <span class="sym" style="color:${c}">${t.symbol ? esc(t.symbol) : L('noName')}</span>
     ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ''}
-    <span class="vpill" style="color:${c}">${v.label}</span>
     <button type="button" class="mnt" id="mntCopy" title="${L('copyMint')}">
       <span class="mtxt">${d.mint}</span><span class="mico">⧉</span></button>`;
   $('mntCopy').onclick = async ()=>{
