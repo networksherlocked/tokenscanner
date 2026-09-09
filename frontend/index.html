@@ -457,16 +457,16 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   background:radial-gradient(140% 180% at 50% 40%,#172c4e,#080f1c 80%)}
 .scan-strip canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 /* kartal — tarama çizgisinin üzerinde, soldan sağa ilerler */
-.ss-eagle{position:absolute;top:50%;left:0;transform:translate(-50%,-50%);
-  width:clamp(64px,10vw,104px);pointer-events:none;z-index:4;
+.ss-eagle{position:absolute;top:0;left:0;transform:translate(-50%,-50%);
+  width:clamp(80px,12.5vw,128px);pointer-events:none;z-index:4;will-change:transform;
   filter:drop-shadow(0 0 10px rgba(34,211,238,.45)) drop-shadow(0 0 20px rgba(224,179,82,.3))}
 .ss-eagle img{display:block;width:100%;height:auto}
-.ss-eagle .crest{width:64px;height:64px;color:var(--gold);display:none;margin:0 auto}
+.ss-eagle .crest{width:74px;height:74px;color:var(--gold);display:none;margin:0 auto}
 .scan-strip.no-img .ss-eagle img{display:none}
 .scan-strip.no-img .ss-eagle .crest{display:block}
 /* ateşlenen sinyal etiketi — kartalın hemen üstünde */
-.ss-cap{position:absolute;top:50%;left:0;transform:translate(-50%,-50%);z-index:5;
-  margin-top:-42px;font-family:var(--mono);font-size:11px;white-space:nowrap;
+.ss-cap{position:absolute;top:0;left:0;transform:translate(-50%,-50%);z-index:5;
+  margin-top:-52px;font-family:var(--mono);font-size:11px;white-space:nowrap;
   color:#f0b6b2;background:rgba(8,15,28,.8);border:1px solid rgba(213,67,63,.5);
   border-radius:2px;padding:3px 8px;opacity:0;transition:opacity .18s;pointer-events:none}
 .ss-cap.on{opacity:1}
@@ -1173,6 +1173,7 @@ function ssBuild(){
     lasers: [], pings: [],
   };
   SS.forceEnd = false;
+  SS.dispP = 0;                 // gösterilen ilerleme — SCAN.pct'ye doğru her kare yumuşatılır
   $('scanSigLegend').innerHTML = '';
   $('scanSigCap').classList.remove('on');
   cancelAnimationFrame(SS.raf);
@@ -1181,8 +1182,12 @@ function ssBuild(){
 function ssFrame(now){
   if(!SS.model) return;
   if(!SCAN.on && !SS.forceEnd) return;
-  const p = SS.forceEnd ? 1 : Math.min(1, SCAN.pct / 100);
-  ssDraw(p, now);
+  // SCAN.pct 120ms'de bir güncelleniyor; ondan doğrudan konumlamak kartalı
+  // adım adım oynatır. Her karede hedefe doğru lerp → 60fps'te akıcı kayış.
+  const target = SS.forceEnd ? 1 : Math.min(1, SCAN.pct / 100);
+  SS.dispP += (target - SS.dispP) * 0.16;
+  if(target - SS.dispP < 0.0015) SS.dispP = target;
+  ssDraw(SS.dispP, now);
   if(SCAN.on || (SS.forceEnd && now < SS.endUntil)) SS.raf = requestAnimationFrame(ssFrame);
 }
 function ssDraw(p, now){
@@ -1268,14 +1273,15 @@ function ssDraw(p, now){
   ctx.strokeStyle = 'rgba(224,179,82,.95)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(sweepX,0); ctx.lineTo(sweepX,h); ctx.stroke();
 
+  // transform ile konumla (GPU-composited, layout tetiklemez → takılmasız akış)
   const ex = Math.max(14, Math.min(w-14, sweepX));
-  const eEl = $('scanEagle'), cEl = $('scanSigCap');
-  eEl.style.left = ex + 'px'; eEl.style.top = eagleY + 'px';
-  cEl.style.left = Math.max(78, Math.min(w-78, sweepX)) + 'px'; cEl.style.top = eagleY + 'px';
+  const cx = Math.max(78, Math.min(w-78, sweepX));
+  $('scanEagle').style.transform = `translate(${ex.toFixed(1)}px,${eagleY.toFixed(1)}px) translate(-50%,-50%)`;
+  $('scanSigCap').style.transform = `translate(${cx.toFixed(1)}px,${eagleY.toFixed(1)}px) translate(-50%,-50%)`;
 }
 function ssFinish(){
   if(!SS.model) return;
-  SS.forceEnd = true; SS.endUntil = performance.now() + 600;
+  SS.forceEnd = true; SS.endUntil = performance.now() + 1100;
   cancelAnimationFrame(SS.raf);
   SS.raf = requestAnimationFrame(ssFrame);
 }
@@ -1283,9 +1289,9 @@ function ssClear(){
   cancelAnimationFrame(SS.raf);
   SS.model = null; SS.forceEnd = false;
   if(SS.ctx && SS.cv) SS.ctx.clearRect(0,0,SS.cv.width,SS.cv.height);
-  const c = $('scanSigCap'); if(c) c.classList.remove('on');
+  const c = $('scanSigCap'); if(c){ c.classList.remove('on'); c.style.transform = 'translate(-50%,-50%)'; }
   const l = $('scanSigLegend'); if(l) l.innerHTML = '';
-  const e = $('scanEagle'); if(e){ e.style.left = '0px'; }
+  const e = $('scanEagle'); if(e){ e.style.transform = 'translate(-50%,-50%)'; }
 }
 function scanReset(){
   SCAN.timers.forEach(clearTimeout); clearInterval(SCAN.tick); clearTimeout(SCAN.reveal);
