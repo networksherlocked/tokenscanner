@@ -1295,6 +1295,52 @@ async def admin_x_posts():
     return {"posts": state["cache"].x_posts_recent(30)}
 
 
+@app.get("/api/admin/backup", dependencies=[Depends(_admin)])
+async def admin_backup(full: int = 1):
+    """Tüm veritabanının JSON yedeği (indirilebilir dosya)."""
+    data = state["cache"].export_all(include_scans=bool(full))
+    ts = time.strftime("%Y%m%d-%H%M", time.gmtime())
+    body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="solscope-yedek-{ts}.json"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/admin/restore", dependencies=[Depends(_admin)])
+async def admin_restore(payload: dict = Body(...)):
+    """Yedekten geri yükler — İLGİLİ TABLOLARIN MEVCUT VERİSİNİ SİLER."""
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict) or data.get("format") != "solscope-backup":
+        raise HTTPException(422, "Geçerli bir SolScope yedeği değil.")
+    only = payload.get("only")
+    only = only if isinstance(only, list) and only else None
+    done = state["cache"].import_all(data, only=only)
+    # Canlı listeleri / ayarları tazele.
+    try:
+        _reload_flagged()
+        _reload_gainers()
+        _reconfigure_x()
+        c = state["cache"]
+        scanner.set_min_market_cap(c.config_get("min_market_cap_usd"))
+        ttl = c.config_get("cache_ttl_sec")
+        if ttl and int(ttl) > 0:
+            c.ttl = int(ttl)
+        rpc_raw = c.config_get("rpc_endpoints")
+        if rpc_raw:
+            state["pool"].reconfigure(rpc_raw)
+        rpc_trades.set_runtime_config(birdeye_api_key=c.config_get("birdeye_api_key"))
+    except Exception:  # noqa: BLE001
+        log.exception("Geri yükleme sonrası tazeleme kısmen düştü")
+    log.info("Yedek geri yüklendi: %s", done)
+    return {"ok": True, "restored": done}
+
+
 def _reload_flagged() -> None:
     rows = {
         r["address"]: (r["note"] or "flagged")

@@ -858,6 +858,93 @@ class ScanCache:
             "SELECT * FROM gain_hits ORDER BY scanned_at DESC LIMIT ?", (limit,)
         )
 
+    # ---- tam veritabanı yedeği -------------------------------------------
+
+    _BACKUP_TABLES = [
+        "config", "flagged", "gainers", "lessons", "gain_lessons",
+        "appeals", "track", "launch_cache", "wallet_meta",
+        "gain_hits", "x_posts", "scan_history", "scans",
+    ]
+    # id'si otomatik üretilen (identity/autoincrement) tablolar — geri yüklerken
+    # id sütunu atılır, veritabanı yeniden üretir.
+    _AUTO_ID_TABLES = {"lessons", "gain_lessons", "appeals", "x_posts", "scan_history"}
+
+    def _table_columns(self, table: str) -> set[str]:
+        try:
+            if self.pg:
+                rows = self._rows(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = ?",
+                    (table,),
+                )
+                return {r["column_name"] for r in rows}
+            rows = self._rows(f"PRAGMA table_info({table})")
+            return {r["name"] for r in rows}
+        except Exception:  # noqa: BLE001
+            return set()
+
+    def export_all(self, include_scans: bool = True) -> dict:
+        """Tüm tabloları JSON'a çevrilebilir bir dict'e döker."""
+        tables: dict[str, list[dict]] = {}
+        for t in self._BACKUP_TABLES:
+            try:
+                if t == "scans" and not include_scans:
+                    tables[t] = self._rows(
+                        "SELECT mint, verdict, score, confidence, created_at FROM scans"
+                    )
+                else:
+                    tables[t] = self._rows(f"SELECT * FROM {t}")
+            except Exception:  # noqa: BLE001  (tablo yoksa / eski şema)
+                tables[t] = []
+        return {
+            "format": "solscope-backup",
+            "version": 1,
+            "generated_at": int(time.time()),
+            "backend": "postgres" if self.pg else "sqlite",
+            "scans_full": include_scans,
+            "counts": {t: len(rows) for t, rows in tables.items()},
+            "tables": tables,
+        }
+
+    def import_all(self, data: dict, only: list[str] | None = None) -> dict[str, int]:
+        """Yedeği geri yükler. Her tablo için: mevcut satırları SİL, yedektekileri
+        ekle. Şema drift'ine dayanıklı (bilinmeyen sütunlar atılır). Tablo bazında
+        çalışır — biri düşerse diğerleri devam eder."""
+        tabs = data.get("tables") or {}
+        done: dict[str, int] = {}
+        for t in self._BACKUP_TABLES:
+            if t not in tabs:
+                continue
+            if only and t not in only:
+                continue
+            cols = self._table_columns(t)
+            if not cols:
+                continue
+            rows = tabs[t] or []
+            drop_id = t in self._AUTO_ID_TABLES
+            try:
+                self._write(f"DELETE FROM {t}")
+                inserted = 0
+                for raw in rows:
+                    r = {
+                        k: v for k, v in raw.items()
+                        if k in cols and not (drop_id and k == "id")
+                    }
+                    if not r:
+                        continue
+                    ks = list(r)
+                    ph = ", ".join("?" for _ in ks)
+                    self._write(
+                        f"INSERT INTO {t} ({', '.join(ks)}) VALUES ({ph})",
+                        tuple(r[k] for k in ks),
+                    )
+                    inserted += 1
+                done[t] = inserted
+            except Exception as exc:  # noqa: BLE001
+                log.error("Yedek geri yükleme düştü (%s): %s", t, exc)
+                done[t] = -1
+        return done
+
     def stats(self) -> dict:
         def n(sql, params=()):
             r = self._one(sql, params)

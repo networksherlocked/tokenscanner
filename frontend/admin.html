@@ -982,7 +982,95 @@ function renderTools(){
         <button id="trescan">zorla yeniden tara</button>
       </div></div>
       <pre id="tout" class="muted" style="white-space:pre-wrap;max-height:280px;overflow:auto;margin:0"></pre>
+    </div>
+
+    <div class="card">
+      <h3>Veritabanı yedeği</h3>
+      <p class="desc">Tüm tabloların (öğrenilen kara liste, yükseliş kayıtları, dersler,
+        itirazlar, karne, ayarlar, cüzdan meta önbelleği, tarama geçmişi…) tek bir JSON
+        dosyası olarak yedeği. Render ücretsiz katmanında Postgres yoksa veri yeniden
+        başlatmada sıfırlanır — bunu düzenli indir.</p>
+      <div class="field"><label style="text-transform:none;letter-spacing:0;color:var(--text)">
+        <input type="checkbox" id="bkScans" checked style="width:auto;vertical-align:-2px"> Tarama önbelleğini de dahil et (dosya büyür)
+      </label></div>
+      <div class="card-actions">
+        <span class="note">İndirilen dosyayı güvenli bir yerde sakla.</span>
+        <button id="bkDownload">Tam yedeği indir</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Yedekten geri yükle</h3>
+      <p class="desc"><b style="color:var(--red)">Dikkat:</b> yedekteki tabloların
+        MEVCUT verisini siler ve dosyadakiyle değiştirir. Bu işlem geri alınamaz.
+        Önce güncel bir yedek indir.</p>
+      <div class="field"><div class="row">
+        <input type="file" id="rsFile" accept=".json,application/json" style="flex:1 1 260px">
+      </div></div>
+      <div class="field"><label style="text-transform:none;letter-spacing:0;color:var(--text)">
+        <input type="checkbox" id="rsConfirm" style="width:auto;vertical-align:-2px"> Mevcut verinin silineceğini anladım
+      </label></div>
+      <div class="card-actions">
+        <span class="note" id="rsInfo">—</span>
+        <button class="danger" id="rsRestore" disabled>Geri yükle</button>
+      </div>
+      <pre id="rsOut" class="muted" style="white-space:pre-wrap;max-height:220px;overflow:auto;margin:8px 0 0"></pre>
     </div>`;
+
+  $('#bkDownload').onclick = async ()=>{
+    const btn = $('#bkDownload'); btn.disabled = true; const o = btn.textContent;
+    btn.textContent = 'hazırlanıyor…';
+    try{
+      const full = $('#bkScans').checked ? 1 : 0;
+      const r = await fetch('/api/admin/backup?full='+full, { headers:{'X-Admin-Token':TOKEN} });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const blob = await r.blob();
+      const cd = r.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const name = (m && m[1]) || ('solscope-yedek-'+Date.now()+'.json');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      flash('yedek indirildi ('+Math.round(blob.size/1024)+' KB)');
+    }catch(e){ flash('yedek alınamadı: '+e.message); }
+    finally{ btn.disabled = false; btn.textContent = o; }
+  };
+
+  let _rsData = null;
+  const rsSync = ()=>{ $('#rsRestore').disabled = !(_rsData && $('#rsConfirm').checked); };
+  $('#rsConfirm').onchange = rsSync;
+  $('#rsFile').onchange = ()=>{
+    const f = $('#rsFile').files[0]; _rsData = null; rsSync();
+    if(!f){ $('#rsInfo').textContent = '—'; return; }
+    const rd = new FileReader();
+    rd.onload = ()=>{
+      try{
+        const d = JSON.parse(rd.result);
+        if(d.format !== 'solscope-backup') throw new Error('SolScope yedeği değil');
+        _rsData = d;
+        const c = d.counts || {};
+        const tot = Object.values(c).reduce((a,b)=>a+b,0);
+        const when = d.generated_at ? new Date(d.generated_at*1000).toLocaleString() : '?';
+        $('#rsInfo').textContent = `${when} · ${tot} satır · ${Object.keys(c).length} tablo`;
+      }catch(e){ $('#rsInfo').textContent = 'geçersiz: '+e.message; }
+      rsSync();
+    };
+    rd.readAsText(f);
+  };
+  $('#rsRestore').onclick = async ()=>{
+    if(!_rsData || !confirm('Mevcut veri silinip yedekle değiştirilecek. Emin misin?')) return;
+    const btn = $('#rsRestore'); btn.disabled = true; const o = btn.textContent;
+    btn.textContent = 'yükleniyor…'; $('#rsOut').textContent = '';
+    try{
+      const j = await api('/restore', { method:'POST', body: JSON.stringify({ data: _rsData }) });
+      const lines = Object.entries(j.restored||{}).map(([t,n])=> `  ${t}: ${n<0?'HATA':n+' satır'}`);
+      $('#rsOut').textContent = 'Geri yüklendi:\n'+lines.join('\n');
+      flash('geri yükleme tamam');
+    }catch(e){ $('#rsOut').textContent = 'hata: '+e.message; flash(e.message); }
+    finally{ btn.disabled = false; btn.textContent = o; }
+  };
+
   $('#tclear').onclick = async ()=>{
     const m = $('#tmint').value.trim(); if(!m) return;
     try{ await api('/cache/'+m, {method:'DELETE'}); flash('önbellek silindi'); }
