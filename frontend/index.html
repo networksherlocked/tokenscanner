@@ -404,8 +404,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .tout.miss{color:var(--bundled)} .tout.no_dump{color:var(--muted)} .tout.open{color:var(--dim)}
 .trackrec .tnote{margin-top:16px;font-size:11px;color:var(--dim);max-width:76ch}
 
-/* AI tespit karnesi: tek sütun, sayfa başına 6 kart + numaralı gezinme */
-#tlist{grid-template-columns:minmax(0,560px)}
+/* AI tespit karnesi: satırda 3 kutucuk × 6 satır (18) + numaralı gezinme */
 .tpager{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
 .tpager button{min-width:34px;height:34px;padding:0 8px;background:var(--panel);
   border:1px solid var(--rule);color:var(--muted);font-family:var(--display);font-weight:700;
@@ -421,17 +420,19 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   text-transform:uppercase;color:var(--bundled);margin-bottom:8px}
 .risklist .rcount{font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--bundled)}
 .risklist .subhead{font-size:11px;color:var(--dim);margin-bottom:16px;max-width:78ch}
-.risklist .rlist{display:grid;grid-template-columns:minmax(0,640px);gap:10px}
+.risklist .rlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
 .ritem{display:block;width:100%;text-align:left;background:linear-gradient(180deg,var(--panel-2),var(--panel));
   border:1px solid var(--rule);border-left:3px solid var(--bundled);border-radius:2px;
   padding:13px 15px;cursor:pointer;font-family:var(--mono);color:inherit;transition:border-color .2s,transform .12s}
 .ritem:hover{border-color:var(--bundled);transform:translateY(-1px)}
 .ritem .row1{display:flex;align-items:center;gap:9px;margin-bottom:7px}
-.ritem .rsym{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.02em;color:var(--text);text-transform:uppercase}
+.ritem .rsym{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:.02em;color:var(--text);
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ritem .rwas{font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--muted);border:1px solid currentColor;padding:1px 6px;border-radius:2px}
-.ritem .rage{margin-left:auto;font-size:10px;color:var(--dim);white-space:nowrap}
-.ritem .rwhy{font-size:12px;color:var(--muted);line-height:1.55}
+  color:var(--muted);border:1px solid currentColor;padding:1px 6px;border-radius:2px;flex:none}
+.ritem .rage{margin-left:auto;font-size:10px;color:var(--dim);white-space:nowrap;flex:none}
+.ritem .rwhy{font-size:12px;color:var(--muted);line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
 /* ---------- tarama konsolu ---------- */
 .scanning{display:none;padding:30px 0 46px;border-bottom:1px solid var(--rule);position:relative;overflow:hidden}
@@ -746,6 +747,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       </div>
       <div class="subhead" data-i18n="riskSub">A wallet blacklisted after a crash also holds a harmful share in these already-scanned tokens. Automatically re-flagged.</div>
       <div class="rlist" id="rlist"></div>
+      <div class="tpager" id="rpager"></div>
     </div>
   </section>
 </main>
@@ -1552,7 +1554,7 @@ async function loadRecent(){
 let lastTrack = null;
 let trackWindow = 86400;
 let trackPage = 0;
-const TRACK_PAGE = 6;
+const TRACK_PAGE = 18;   // satırda 3 × 6 satır
 
 const mcapShort = n => {
   if(n == null) return '—';
@@ -1624,23 +1626,25 @@ function renderTrack(rec){
   });
 
   $('trackScore').textContent = L('trackWatching', watching);
+  pager($('tpager'), pages, trackPage, p=>{ trackPage = p; renderTrack(lastTrack);
+    $('trackSection').scrollIntoView({behavior:'smooth', block:'start'}); });
+}
 
-  // sayfa numaraları — 6'dan fazla kayıt varsa
-  const pg = $('tpager'); pg.innerHTML = '';
-  if(pages > 1){
-    const mk = (txt, to, opts={}) => {
-      const bt = document.createElement('button');
-      bt.textContent = txt;
-      if(opts.on) bt.classList.add('on');
-      if(opts.dis) bt.disabled = true;
-      else bt.onclick = ()=>{ trackPage = to; renderTrack(lastTrack);
-        $('trackSection').scrollIntoView({behavior:'smooth', block:'start'}); };
-      pg.appendChild(bt);
-    };
-    mk('‹', trackPage - 1, { dis: trackPage === 0 });
-    for(let i = 0; i < pages; i++) mk(String(i + 1), i, { on: i === trackPage });
-    mk('›', trackPage + 1, { dis: trackPage === pages - 1 });
-  }
+/* ortak sayfa gezinme çubuğu: ‹ 1 2 3 › */
+function pager(el, pages, cur, onGo){
+  el.innerHTML = '';
+  if(pages <= 1) return;
+  const mk = (txt, to, opts={}) => {
+    const bt = document.createElement('button');
+    bt.textContent = txt;
+    if(opts.on) bt.classList.add('on');
+    if(opts.dis) bt.disabled = true;
+    else bt.onclick = ()=> onGo(to);
+    el.appendChild(bt);
+  };
+  mk('‹', cur - 1, { dis: cur === 0 });
+  for(let i = 0; i < pages; i++) mk(String(i + 1), i, { on: i === cur });
+  mk('›', cur + 1, { dis: cur === pages - 1 });
 }
 async function loadTrack(){
   try{
@@ -1655,17 +1659,23 @@ async function loadTrack(){
 
 /* ---------------- AI tespitli riskli tokenlar ---------------- */
 let lastRisk = null;
+let riskPage = 0;
 function renderRisk(tokens){
   const box = $('rlist');
   tokens = tokens || [];
   if(!tokens.length){ $('riskSection').hidden = true; return; }
   $('riskSection').hidden = false;
   box.innerHTML = '';
-  tokens.forEach(t=>{
+
+  const pages = Math.max(1, Math.ceil(tokens.length / TRACK_PAGE));
+  riskPage = Math.min(Math.max(0, riskPage), pages - 1);
+  const page = tokens.slice(riskPage * TRACK_PAGE, riskPage * TRACK_PAGE + TRACK_PAGE);
+
+  page.forEach(t=>{
     const b = document.createElement('button');
     b.className = 'ritem';
-    b.title = t.mint;
     const why = (lang === 'en' ? t.detail_en : t.detail) || t.detail || '';
+    b.title = `${t.mint}\n${why}`;
     b.innerHTML = `
       <div class="row1">
         ${tokImg(t.image)}
@@ -1678,10 +1688,12 @@ function renderRisk(tokens){
     box.appendChild(b);
   });
   $('riskCount').textContent = L('riskCount', tokens.length);
+  pager($('rpager'), pages, riskPage, p=>{ riskPage = p; renderRisk(lastRisk);
+    $('riskSection').scrollIntoView({behavior:'smooth', block:'start'}); });
 }
 async function loadRisk(){
   try{
-    const r = await fetch(`${API}/api/risk?limit=24`);
+    const r = await fetch(`${API}/api/risk?limit=48`);
     if(!r.ok) return;
     const data = await r.json();
     lastRisk = data.tokens || [];
