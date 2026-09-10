@@ -408,7 +408,9 @@ async def analyze_deployer(
 
     sample = list(ids)[:12]
     if sample:
-        sem = asyncio.Semaphore(6)
+        # 6 eşzamanlı DexScreener isteği tek IP'den burst'e yol açıp bazen
+        # taramanın kendi piyasa verisi çekimini de etkiliyordu — 3'e indirildi.
+        sem = asyncio.Semaphore(3)
 
         async def check(tid: str) -> bool:
             async with sem:

@@ -780,15 +780,22 @@ async def _backfill_track_symbols(limit: int = 25, budget: float = 6.0) -> None:
     if not mints:
         return
 
+    # Eşzamanlılık sınırsızdı — 25-50 mint için aynı anda 25-50 DexScreener
+    # isteği tek IP'den gidiyordu. Bu, tek başına atılan taramaların bile
+    # arada sırada "piyasa verisi yok" almasına yol açan burst deseniydi
+    # (bkz. bir alt satırdaki yorum). 3'e sınırlandı.
+    sem = asyncio.Semaphore(3)
+
     async def one(mint: str) -> None:
-        try:
-            snap = await fetch_market(mint)
-        except Exception:  # noqa: BLE001
-            return
-        if snap.symbol:
-            cache.track_set_symbol(mint, snap.symbol)
-        if snap.image_url:
-            cache.track_set_image(mint, snap.image_url)
+        async with sem:
+            try:
+                snap = await fetch_market(mint)
+            except Exception:  # noqa: BLE001
+                return
+            if snap.symbol:
+                cache.track_set_symbol(mint, snap.symbol)
+            if snap.image_url:
+                cache.track_set_image(mint, snap.image_url)
 
     try:
         await asyncio.wait_for(
