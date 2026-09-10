@@ -54,6 +54,25 @@ code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;paddin
   padding:7px 14px;font-size:11px}
 .subtabs button.on{color:var(--gold);border-color:var(--gold-dim);background:var(--panel2)}
 
+/* --- sayfalama --- */
+.pager{display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:16px}
+.pager button{background:transparent;color:var(--muted);border:1px solid var(--rule);
+  padding:5px 10px;font-size:11px;min-width:30px;font-family:var(--mono)}
+.pager button.on{color:var(--gold);border-color:var(--gold-dim);background:var(--panel2)}
+.pager button:disabled{opacity:.35;cursor:default}
+.pager .gap{color:var(--dim);padding:0 2px}
+.cnt{font-size:11px;color:var(--muted);font-family:var(--mono);margin-left:6px}
+td a.sol,td a.tok{color:var(--gold);text-decoration:none}
+td a.sol:hover,td a.tok:hover{text-decoration:underline}
+button.link{background:transparent;border:1px solid var(--rule);color:var(--muted);
+  padding:5px 10px;font-size:11px}
+button.link:hover{color:var(--gold);border-color:var(--gold-dim)}
+#lsnShareModal .modal{max-width:560px}
+#lsnShareModal .subtabs{margin-bottom:0}
+#lsnShareModal textarea{width:100%;min-height:250px;font-size:12px;line-height:1.6;margin-top:12px;
+  background:var(--ink);border:1px solid var(--rule);color:var(--text);border-radius:2px;
+  padding:12px;resize:vertical;font-family:var(--mono)}
+
 /* --- kart --- */
 .card{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:20px;margin-bottom:14px;
   display:flex;flex-direction:column}
@@ -236,6 +255,21 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
   </form>
 </div>
 
+<div class="modal-bg hidden" id="lsnShareModal">
+  <div class="modal">
+    <h2>Çöküş dersi — paylaşım metni</h2>
+    <div class="subtabs" id="lsnLang">
+      <button type="button" data-l="tr" class="on">Türkçe</button>
+      <button type="button" data-l="en">English</button>
+    </div>
+    <textarea id="lsnShareText" readonly></textarea>
+    <div class="row">
+      <button type="button" id="lsnCopy">Metni kopyala</button>
+      <button type="button" class="ghost" id="lsnShareClose">Kapat</button>
+    </div>
+  </div>
+</div>
+
 <header><div class="wrap">
   <div class="brand">AMERICA<i>.SX</i><em>admin</em></div>
   <div class="hbtns">
@@ -298,10 +332,35 @@ const vb = v => `<span class="badge b-${(v||'open')}">${esc(v||'—')}</span>`;
 const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
 // tokenın kendi tarama sonucu ekranı (public site + otomatik tarama)
 const tokLink = (mint, label) =>
-  `<a href="/t/${esc(mint)}" target="_blank" rel="noopener" title="tarama sonucunu aç">${esc(label)}</a>`;
+  `<a class="tok" href="/t/${esc(mint)}" target="_blank" rel="noopener" title="tarama sonucunu aç">${esc(label)}</a>`;
+const solLink = (addr, label) =>
+  `<a class="sol mono" href="https://solscan.io/account/${esc(addr)}" target="_blank" rel="noopener" title="Solscan'de aç">${esc(label ?? addr)}</a>`;
 const ago = ts => { const s=Math.floor(Date.now()/1000-ts); if(s<3600)return Math.floor(s/60)+' dk'; if(s<86400)return Math.floor(s/3600)+' sa'; return Math.floor(s/86400)+' g'; };
 const money = n => n==null?'—':(n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+Math.round(n/1e3)+'k':'$'+Math.round(n));
 function flash(m){ $('#msg').textContent = m; setTimeout(()=>{ if($('#msg').textContent===m) $('#msg').textContent=''; }, 2600); }
+
+/* --- istemci-tarafı sayfalama --- */
+const PAGE_SIZE = 20;
+function paginate(items, page){
+  const list = items || [];
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  page = Math.min(Math.max(1, page|0 || 1), pages);
+  return { slice: list.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE), page, pages, total: list.length };
+}
+function pagerHtml(page, pages, tag){
+  if(pages <= 1) return '';
+  const want = new Set([1, pages, page, page-1, page+1, page-2, page+2]);
+  const nums = [...want].filter(n => n>=1 && n<=pages).sort((a,b)=>a-b);
+  let out = `<div class="pager"><button data-pg="${tag}:${page-1}" ${page<=1?'disabled':''}>‹</button>`;
+  let prev = 0;
+  for(const n of nums){
+    if(prev && n-prev > 1) out += `<span class="gap">…</span>`;
+    out += `<button data-pg="${tag}:${n}" class="${n===page?'on':''}">${n}</button>`;
+    prev = n;
+  }
+  out += `<button data-pg="${tag}:${page+1}" ${page>=pages?'disabled':''}>›</button></div>`;
+  return out;
+}
 
 function showLogin(m){
   stopPoll();
@@ -338,6 +397,22 @@ $('#pwForm').onsubmit = async e=>{
     TOKEN = a; try{ localStorage.setItem('asx_admin', a); }catch(e){}
     pwClose(); flash('şifre değiştirildi');
   }catch(err){ $('#pwMsg').textContent = err.message; }
+};
+
+/* --- çöküş dersi paylaşım modalı --- */
+function lsnShareClose(){ $('#lsnShareModal').classList.add('hidden'); _shareLesson = null; }
+$('#lsnShareClose').onclick = lsnShareClose;
+$('#lsnShareModal').onclick = e=>{ if(e.target === $('#lsnShareModal')) lsnShareClose(); };
+$('#lsnLang').onclick = e=>{
+  const b = e.target.closest('button'); if(!b || !_shareLesson) return;
+  _shareLang = b.dataset.l;
+  document.querySelectorAll('#lsnLang button').forEach(x => x.classList.toggle('on', x === b));
+  $('#lsnShareText').value = lessonShareText(_shareLesson, _shareLang);
+};
+$('#lsnCopy').onclick = async ()=>{
+  const t = $('#lsnShareText').value;
+  try{ await navigator.clipboard.writeText(t); flash('metin kopyalandı'); }
+  catch(e){ $('#lsnShareText').select(); document.execCommand('copy'); flash('metin kopyalandı'); }
 };
 
 /* --- yönlendirme --- */
@@ -875,8 +950,11 @@ function modAppeals(d){
       <tbody>${rows||'<tr><td colspan="5" class="muted">itiraz yok</td></tr>'}</tbody></table></div>`;
 }
 function modFlagged(d){
-  const rows = (d.flagged||[]).map(f=>`<tr>
-    <td class="mono">${esc(f.address)}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
+  const all = d.flagged || [];
+  const pg = paginate(all, _flgPage);
+  _flgPage = pg.page;
+  const rows = pg.slice.map(f=>`<tr>
+    <td>${solLink(f.address)}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
     <td><span class="badge b-open">×${f.hits||1}</span> ${esc(f.note||'')}<div class="muted">${ago(f.created_at)} önce</div></td>
     <td><button class="danger sm" data-fx="${esc(f.address)}">kaldır</button></td>
   </tr>`).join('');
@@ -884,15 +962,18 @@ function modFlagged(d){
     <div class="card">
       <p class="desc">AI tespit derslerinin <b>otomatik</b> eklediği + buradan <b>elle</b> eklediğin adresler.
         Motorun <code>flagged_wallets</code> / <code>deployer_history</code> sinyalinde <b>anında</b> kullanılır;
-        ×N = adres kaç ayrı token çöküşünde görüldü. "← mint" = hangi dersten geldi.</p>
+        ×N = adres kaç ayrı token çöküşünde görüldü. "← mint" = hangi dersten geldi.
+        Adrese tıklayınca Solscan'de açılır.</p>
       <div class="field"><div class="row">
         <input id="faddr" placeholder="cüzdan adresi" style="flex:2 1 240px">
         <input id="fnote" placeholder="not (ör. X tokende pakette)" style="flex:3 1 240px">
         <button id="fadd">ekle</button>
       </div></div>
     </div>
+    <div class="section-title">İşaretli cüzdanlar <span class="cnt">${pg.total} adres</span></div>
     <div class="tbl-card"><table><thead><tr><th>adres</th><th>not</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="3" class="muted">liste boş</td></tr>'}</tbody></table></div>`;
+      <tbody>${rows||'<tr><td colspan="3" class="muted">liste boş</td></tr>'}</tbody></table></div>
+    ${pagerHtml(pg.page, pg.pages, 'flg')}`;
 }
 function wireMod(){
   const mv = $('#modView');
@@ -919,6 +1000,7 @@ function wireFlagged(root){
 
 /* ================= AI TESPİT (dersler + işaretli cüzdanlar) ================= */
 let _aiSub = 'lessons', _aiFirst = null;
+let _lsnPage = 1, _flgPage = 1, _lsnData = null, _flgData = null;
 function renderLessons(d){
   _aiFirst = d;
   $('#view').innerHTML = `
@@ -931,19 +1013,38 @@ function renderLessons(d){
   $('#aiSub').onclick = e=>{ const b = e.target.closest('button'); if(!b) return; _aiSub = b.dataset.s; paintAiSub(); };
   paintAiSub();
 }
+// sayfa geçişi — veriyi yeniden çekmeden dilimi değiştir
+function wirePager(av){
+  av.querySelectorAll('[data-pg]').forEach(b=> b.onclick = ()=>{
+    const [tag, n] = b.dataset.pg.split(':');
+    if(tag === 'lsn'){ _lsnPage = +n; av.innerHTML = lessonsTable(_lsnData); }
+    else if(tag === 'flg'){ _flgPage = +n; av.innerHTML = modFlagged(_flgData); wireFlagged(av); }
+    wirePager(av);
+    if(tag === 'lsn') wireLessons(av);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+function wireLessons(av){
+  av.querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
+    const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
+    flash((j.removed||0)+' cüzdan geri alındı'); _aiFirst = null; paintAiSub();
+  });
+  av.querySelectorAll('[data-lsn]').forEach(b=> b.onclick = ()=>{
+    const l = (_lsnData && _lsnData.lessons || [])[+b.dataset.lsn];
+    if(l) openLessonShare(l);
+  });
+}
 async function paintAiSub(){
   if(!['lessons','momentum','flagged'].includes(_aiSub)) _aiSub = 'lessons';
   document.querySelectorAll('#aiSub button').forEach(x=>x.classList.toggle('on', x.dataset.s===_aiSub));
   const av = $('#aiView'); av.innerHTML = '<p class="muted">yükleniyor…</p>';
   try{
     if(_aiSub==='lessons'){
-      const d = _aiFirst || await api('/lessons'); _aiFirst = null;
-      av.innerHTML = lessonsTable(d);
-      av.querySelectorAll('[data-lu]').forEach(b=> b.onclick = async ()=>{
-        if(!confirm('Bu dersin işaretlediği cüzdanlar geri alınsın mı?')) return;
-        const j = await api('/lessons/'+b.dataset.lu+'/undo', {method:'POST'});
-        flash((j.removed||0)+' cüzdan geri alındı'); paintAiSub();
-      });
+      _lsnData = _aiFirst || await api('/lessons'); _aiFirst = null;
+      _lsnPage = 1;
+      av.innerHTML = lessonsTable(_lsnData);
+      wireLessons(av); wirePager(av);
     }else if(_aiSub==='momentum'){
       _aiFirst = null;
       const d = await api('/momentum');
@@ -960,8 +1061,9 @@ async function paintAiSub(){
       });
     }else{
       _aiFirst = null;
-      av.innerHTML = modFlagged(await api('/flagged'));
-      wireFlagged(av);
+      _flgData = await api('/flagged'); _flgPage = 1;
+      av.innerHTML = modFlagged(_flgData);
+      wireFlagged(av); wirePager(av);
     }
   }catch(e){ if(e.message!=='auth') av.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
@@ -1023,14 +1125,22 @@ function momentumView(d){
       <tbody>${hrows||'<tr><td colspan="5" class="muted">henüz eşleşen tarama yok</td></tr>'}</tbody></table></div>`;
 }
 function lessonsTable(d){
-  const rows = (d.lessons||[]).map(l=>`<tr>
+  const all = d.lessons || [];
+  const pg = paginate(all, _lsnPage);
+  _lsnPage = pg.page;
+  const rows = pg.slice.map((l,i)=>{
+    const idx = (pg.page-1)*PAGE_SIZE + i;
+    return `<tr>
     <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
     <td class="mono">${tokLink(l.mint, l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
     <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
-    <td style="min-width:340px;max-width:560px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
-    <td style="white-space:nowrap">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}
-      ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}</td>
-  </tr>`).join('');
+    <td style="min-width:320px;max-width:540px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
+    <td style="white-space:nowrap">
+      <button class="link" data-lsn="${idx}">paylaş</button>
+      <div class="muted" style="margin-top:4px">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}</div>
+      ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}" style="margin-top:4px">geri al</button>`:''}</td>
+  </tr>`;
+  }).join('');
   return `
     <div class="card"><p class="desc"><b>Öz-öğrenme döngüsü.</b> "organic" ya da "inconclusive" denip
       sonraki ${Math.round((d.window_h||24))} saatte sert çöken (≥%55) tokenlar burada listelenir.
@@ -1038,9 +1148,44 @@ function lessonsTable(d){
       (çok-hop) fonlama ağacı, taze cüzdan kümesi ya da arzı tek elde toplamış bir cüzdan bulursa
       o adresleri (ve varsa deployer'ı) kalıcı kara listeye ("İşaretli cüzdanlar" sekmesi) ekler —
       sonraki taramalarda bu adresler "Daha önce işaretlenmiş cüzdanlar" sinyalini tetikler.
-      Bir ders yanlışsa "geri al" ile o dersin eklediği tüm adresler listeden çıkarılır.</p></div>
-    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi?</th><th>kara liste</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok — organic bir token sert çökene kadar boş kalır</td></tr>'}</tbody></table></div>`;
+      "paylaş" → çöküş sebebini içeren, TR/EN, CA adresli hazır bir metin açar.</p></div>
+    <div class="section-title">Çöküş dersleri <span class="cnt">${pg.total} ders</span></div>
+    <div class="tbl-card"><table><thead><tr><th>karar</th><th>token</th><th>çöküş</th><th>ne öğrenildi?</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" class="muted">henüz ders yok — organic bir token sert çökene kadar boş kalır</td></tr>'}</tbody></table></div>
+    ${pagerHtml(pg.page, pg.pages, 'lsn')}`;
+}
+
+/* --- çöküş dersi paylaşım metni (modal) --- */
+let _shareLesson = null, _shareLang = 'tr';
+function lessonShareText(l, lang){
+  const drop = Math.round((l.drop_pct||0)*100);
+  const flagged = l.wallets_flagged || 0;
+  const dep = l.deployer || '';
+  const parts = [];
+  if(lang === 'en'){
+    parts.push(`🚨 CRASH DETECTED — ${l.symbol || 'token'}`);
+    parts.push(`Scanned as "${l.verdict_was}" — then dropped ${drop}% shortly after.`);
+    parts.push(`Detected cause:\n${l.detail || '(no detail recorded)'}`);
+    if(dep) parts.push(`Deployer: ${dep}`);
+    if(flagged) parts.push(`${flagged} wallet(s) added to the permanent blacklist — they now trigger the "previously flagged" signal on every future scan.`);
+    parts.push(`CA: ${l.mint}`);
+    parts.push(`— america.sx · on-chain launch forensics, self-learning`);
+  }else{
+    parts.push(`🚨 ÇÖKÜŞ TESPİTİ — ${l.symbol || 'token'}`);
+    parts.push(`"${l.verdict_was}" olarak tarandı — kısa süre sonra %${drop} düştü.`);
+    parts.push(`Tespit edilen sebep:\n${l.detail || '(ayrıntı kaydedilmedi)'}`);
+    if(dep) parts.push(`Üretici (deployer): ${dep}`);
+    if(flagged) parts.push(`${flagged} cüzdan kalıcı kara listeye eklendi — bundan sonra her taramada "daha önce işaretlenmiş" sinyalini tetikliyorlar.`);
+    parts.push(`CA: ${l.mint}`);
+    parts.push(`— america.sx · zincir-üstü lansman adli analizi, öz-öğrenme`);
+  }
+  return parts.join('\n\n');
+}
+function openLessonShare(l){
+  _shareLesson = l; _shareLang = 'tr';
+  document.querySelectorAll('#lsnLang button').forEach(b => b.classList.toggle('on', b.dataset.l === 'tr'));
+  $('#lsnShareText').value = lessonShareText(l, 'tr');
+  $('#lsnShareModal').classList.remove('hidden');
 }
 
 /* ================= KARNE ================= */
