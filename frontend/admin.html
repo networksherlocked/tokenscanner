@@ -954,9 +954,9 @@ function modFlagged(d){
   const pg = paginate(all, _flgPage);
   _flgPage = pg.page;
   const rows = pg.slice.map(f=>`<tr>
-    <td>${solLink(f.address)}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
+    <td style="width:120px;white-space:nowrap">${solLink(f.address, short(f.address))}<div class="muted">${f.kind==='deployer'?'deployer · ':''}${f.via&&f.via!=='manual'?('← '+short(f.via)):'elle'}</div></td>
     <td><span class="badge b-open">×${f.hits||1}</span> ${esc(f.note||'')}<div class="muted">${ago(f.created_at)} önce</div></td>
-    <td><button class="danger sm" data-fx="${esc(f.address)}">kaldır</button></td>
+    <td style="width:1%;white-space:nowrap"><button class="danger sm" data-fx="${esc(f.address)}">kaldır</button></td>
   </tr>`).join('');
   return `
     <div class="card">
@@ -971,7 +971,7 @@ function modFlagged(d){
       </div></div>
     </div>
     <div class="section-title">İşaretli cüzdanlar <span class="cnt">${pg.total} adres</span></div>
-    <div class="tbl-card"><table><thead><tr><th>adres</th><th>not</th><th></th></tr></thead>
+    <div class="tbl-card"><table><thead><tr><th style="width:120px">adres</th><th>açıklama</th><th></th></tr></thead>
       <tbody>${rows||'<tr><td colspan="3" class="muted">liste boş</td></tr>'}</tbody></table></div>
     ${pagerHtml(pg.page, pg.pages, 'flg')}`;
 }
@@ -1135,10 +1135,12 @@ function lessonsTable(d){
     <td class="mono">${tokLink(l.mint, l.symbol||short(l.mint))}<div class="muted">${short(l.mint)}</div></td>
     <td><b class="bad">−%${Math.round((l.drop_pct||0)*100)}</b></td>
     <td style="min-width:320px;max-width:540px;white-space:normal;line-height:1.55">${esc(l.detail||'')}${l.deployer?`<div class="muted" style="margin-top:4px">deployer: ${short(l.deployer)}</div>`:''}</td>
-    <td style="white-space:nowrap">
-      <button class="link" data-lsn="${idx}">paylaş</button>
-      <div class="muted" style="margin-top:4px">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}</div>
-      ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}" style="margin-top:4px">geri al</button>`:''}</td>
+    <td style="white-space:nowrap;width:1%">
+      <div class="muted">${(l.wallets_flagged||0)>0?`<b>${l.wallets_flagged}</b> adres kara listede`:'işaretleme yok'}</div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="link" data-lsn="${idx}">paylaş</button>
+        ${l.wallets_flagged?`<button class="ghost sm" data-lu="${esc(l.mint)}">geri al</button>`:''}
+      </div></td>
   </tr>`;
   }).join('');
   return `
