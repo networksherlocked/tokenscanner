@@ -277,14 +277,16 @@ td.addr{color:var(--text)}
 .riskflags .rf.medium .tx b{color:var(--cabaled)}
 .riskflags .rf .tx span{color:var(--muted)}
 
-/* fiyat grafiği (DexScreener embed) */
+/* fiyat grafiği (GeckoTerminal embed) */
 .chartbox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
   background:var(--panel);border-radius:2px;overflow:hidden}
 .chartbox .head{font-family:var(--display);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
   color:var(--gold);padding:14px 16px 12px}
 .chartbox .chart-frame{position:relative;width:100%;aspect-ratio:16/10;min-height:420px;
   background:var(--ink);border-top:1px solid var(--rule);overflow:hidden}
-.chartbox .chart-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+/* iframe'i alta doğru 46px taşır, "Powered by GeckoTerminal" şeridi kırpılır */
+.chartbox .chart-frame iframe{position:absolute;left:0;right:0;top:0;bottom:-46px;
+  width:100%;height:calc(100% + 46px);border:0;display:block}
 .chartbox .chart-src{display:block;padding:9px 16px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
   font-family:var(--display);color:var(--dim);border-top:1px solid var(--rule);text-decoration:none}
 .chartbox .chart-src:hover{color:var(--gold)}
@@ -458,7 +460,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .scan-strip canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 /* kartal — tarama çizgisinin üzerinde, soldan sağa ilerler */
 .ss-eagle{position:absolute;top:0;left:0;transform:translate(-50%,-50%);
-  width:clamp(80px,12.5vw,128px);pointer-events:none;z-index:4;will-change:transform;
+  width:clamp(90px,14vw,144px);pointer-events:none;z-index:4;will-change:transform;
   filter:drop-shadow(0 0 10px rgba(34,211,238,.45)) drop-shadow(0 0 20px rgba(224,179,82,.3))}
 .ss-eagle img{display:block;width:100%;height:auto}
 .ss-eagle .crest{width:74px;height:74px;color:var(--gold);display:none;margin:0 auto}
@@ -641,7 +643,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
                 sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
             </div>
             <a id="chartLink" target="_blank" rel="noopener" class="chart-src"
-               data-i18n="chartSrc">Open full chart on DexScreener ↗</a>
+               data-i18n="chartSrc">Open full chart on GeckoTerminal ↗</a>
           </div>
           <div class="sharebox" id="shareBox" hidden>
             <div class="head" data-i18n="shareHead">Share this determination</div>
@@ -776,7 +778,7 @@ const STR = {
     navHome:'Home',
     navAbout:'About',
     chartHead:'Price chart',
-    chartSrc:'Open full chart on DexScreener ↗',
+    chartSrc:'Open full chart on GeckoTerminal ↗',
     riskFlagsHead:'Risk flags — separate from the distribution verdict',
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
@@ -871,7 +873,7 @@ const STR = {
     navHome:'Ana sayfa',
     navAbout:'Hakkında',
     chartHead:'Fiyat grafiği',
-    chartSrc:"DexScreener'da tam grafiği aç ↗",
+    chartSrc:"GeckoTerminal'de tam grafiği aç ↗",
     riskFlagsHead:'Risk bayrakları — dağıtım kararından ayrıdır',
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
@@ -1735,7 +1737,7 @@ function render(d){
 
   renderMomentum(d.momentum);
 
-  renderChart(d.mint, t.pair_address);
+  renderChart(t.pair_address);
 
   // Lansman verisi varsa: ilk alıcılar (fonlayan + işlem + yaş DOLU).
   // Yoksa: mevcut en büyük holder'lar.
@@ -1777,27 +1779,31 @@ function render(d){
   wireShare(d);
 }
 
-/* ---------------- fiyat grafiği (DexScreener embed) ----------------
-   NOT: Grafik, market cap'i çektiğimiz sağlayıcı (DexScreener) ile AYNI pair
-   adresiyle kuruluyor. Eskiden GeckoTerminal embed'i kullanılıyordu ama
-   DexScreener'ın pair adresi GeckoTerminal'in pool kimliğiyle her zaman
-   eşleşmiyordu → yanlış coin gösteriyordu. */
-let _chartKey = null;
-function renderChart(mint, pair){
+/* ---------------- fiyat grafiği (GeckoTerminal embed) ----------------
+   NOT: DexScreener'a geçilmişti (market cap ile aynı kaynak → eşleşme
+   garantisi) ama DexScreener'ın kendi embed uygulaması güvenilmez çıktı —
+   sık sık hiç açılmıyordu. GMGN'nin embed'i Cloudflare tarafından
+   engelleniyor (403 — denendi, kullanılamaz). GeckoTerminal'e geri
+   dönüldü: bg_color site zeminiyle (--ink) birebir eşleşiyor, "şeffaf"a
+   pratikte eşdeğer bir sonuç — gerçek CSS şeffaflığı bu tür embed'lerde
+   desteklenmiyor (başkasının sayfası, kendi zeminini kendi çiziyor).
+   Pool adresi market.pair_address'ten geliyor — gerçek on-chain havuz. */
+let _chartPool = null;
+function renderChart(pool){
   const box = $('chartBox'), fr = $('chartFrame');
-  const target = pair || mint;
-  if(!target){
-    _chartKey = null;
+  if(!pool){
+    _chartPool = null;
     fr.removeAttribute('src');
     box.hidden = true;
     return;
   }
-  if(target === _chartKey && !box.hidden) return;   // aynı token — yeniden yükleme
-  _chartKey = target;
-  const p = encodeURIComponent(target);
-  const params = 'embed=1&theme=dark&info=0&trades=0';
-  fr.src = `https://dexscreener.com/solana/${p}?${params}`;
-  $('chartLink').href = `https://dexscreener.com/solana/${p}`;
+  if(pool === _chartPool && !box.hidden) return;   // aynı token — yeniden yükleme
+  _chartPool = pool;
+  const p = encodeURIComponent(pool);
+  // bg_color = --ink (#0b1424) → grafik zemini site zeminiyle aynı
+  fr.src = `https://www.geckoterminal.com/solana/pools/${p}`
+    + '?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&bg_color=0b1424';
+  $('chartLink').href = `https://www.geckoterminal.com/solana/pools/${p}`;
   box.hidden = false;
 }
 

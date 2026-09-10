@@ -89,16 +89,25 @@ code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;paddin
 .stat span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .stat.warn b{color:var(--amber)} .stat.bad b{color:var(--red)}
 
-/* --- özet: tek çerçeve, tüm değerler bir şeritte yan yana --- */
-.sumcard{padding:22px 24px 4px}
-.sumrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));row-gap:18px}
-.sumcell{padding:0 18px 18px 0;border-left:1px solid var(--rule)}
-.sumcell:first-child{border-left:0}
+/* --- özet: tek çerçeve, 7 sütun × 2 satır, hücreler ortalı --- */
+.sumcard{padding:22px 24px}
+.sumrow{display:grid;grid-template-columns:repeat(7,1fr);row-gap:20px}
+.sumcell{padding:0 10px 0 0;border-left:1px solid var(--rule);text-align:center}
+.sumcell:nth-child(7n+1){border-left:0}
 .sumcell b{font-family:var(--disp);font-weight:700;font-size:21px;display:block;color:var(--text);line-height:1.1}
 .sumcell span{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
   display:block;margin-top:5px;line-height:1.35}
 .sumcell.warn b{color:var(--amber)} .sumcell.bad b{color:var(--red)}
-@media(max-width:700px){.sumrow{grid-template-columns:repeat(auto-fit,minmax(74px,1fr))}}
+@media(max-width:820px){
+  .sumrow{grid-template-columns:repeat(4,1fr)}
+  .sumcell:nth-child(7n+1){border-left:1px solid var(--rule)}
+  .sumcell:nth-child(4n+1){border-left:0}
+}
+@media(max-width:520px){
+  .sumrow{grid-template-columns:repeat(2,1fr)}
+  .sumcell:nth-child(4n+1){border-left:1px solid var(--rule)}
+  .sumcell:nth-child(2n+1){border-left:0}
+}
 
 /* --- panel: hero satırı (organik / rpc / karar dağılımı) --- */
 .hero3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;margin-bottom:14px}
