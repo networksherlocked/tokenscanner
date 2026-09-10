@@ -961,6 +961,17 @@ class ScanCache:
         org_seq = [1 if r["outcome"] == "clear" else 0 for r in org]
         org_ok = sum(org_seq)
 
+        vb_rows = self._rows(
+            "SELECT verdict, COUNT(*) AS c FROM scan_history "
+            "WHERE verdict IS NOT NULL GROUP BY verdict"
+        )
+        verdict_breakdown = {"bundled": 0, "cabaled": 0, "organic": 0, "inconclusive": 0}
+        for r in vb_rows:
+            if r["verdict"] in verdict_breakdown:
+                verdict_breakdown[r["verdict"]] = int(r["c"])
+
+        day_ago = int(time.time()) - 86400
+
         return {
             "scans_cached": n("SELECT COUNT(*) FROM scans"),
             "scans_total": n("SELECT COUNT(*) FROM scan_history"),
@@ -975,6 +986,10 @@ class ScanCache:
             "gainers": n("SELECT COUNT(*) FROM gainers WHERE hits >= 2"),
             "gain_lessons": n("SELECT COUNT(*) FROM gain_lessons"),
             "backend": "postgres" if self.pg else "sqlite",
+            "scans_24h": n("SELECT COUNT(*) FROM scan_history WHERE created_at >= ?", (day_ago,)),
+            "rugs_caught": n("SELECT COUNT(*) FROM track WHERE rug_flagged = 1"),
+            "flagged_deployers": n("SELECT COUNT(*) FROM flagged WHERE kind = 'deployer'"),
+            "verdict_breakdown": verdict_breakdown,
             "organic_perf": {
                 "settled": len(org_seq),
                 "correct": org_ok,
@@ -982,6 +997,12 @@ class ScanCache:
                 "recent": org_seq[-48:],
             },
         }
+
+    def recent_scans(self, limit: int = 8) -> list[dict]:
+        return self._rows(
+            "SELECT mint, verdict, score, confidence, created_at FROM scan_history "
+            "ORDER BY created_at DESC LIMIT ?", (limit,)
+        )
 
     def history(self, mint: str, limit: int = 20) -> list[dict]:
         return self._rows(

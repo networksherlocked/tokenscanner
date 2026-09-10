@@ -613,6 +613,8 @@ async def lifespan(app: FastAPI):
     state["cache"].close()
 
 
+_BOOT_TS = time.time()
+
 app = FastAPI(title="america.sx", version="0.4.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -983,9 +985,16 @@ async def admin_page():
 
 @app.get("/api/admin/overview", dependencies=[Depends(_admin)])
 async def admin_overview():
+    cache = state["cache"]
+    recent_flagged = sorted(
+        cache.flagged_list(), key=lambda r: r["created_at"], reverse=True
+    )[:6]
     return {
-        "stats": state["cache"].stats(),
+        "stats": cache.stats(),
         "providers": state["pool"].stats(),
+        "recent_scans": cache.recent_scans(6),
+        "recent_flagged": recent_flagged,
+        "x_today": cache.x_posts_today(),
         "config": {
             "track_window_sec": TRACK_WINDOW,
             "track_drop_pct": TRACK_DROP,
@@ -993,6 +1002,8 @@ async def admin_overview():
             "rate_limit_per_min": RATE_LIMIT,
             "rpc_quota": RPC_QUOTA,
             "cache_ttl_hours": round(state["cache"].ttl / 3600, 2),
+            "version": app.version,
+            "uptime_sec": int(time.time() - _BOOT_TS),
         },
     }
 

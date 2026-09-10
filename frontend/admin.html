@@ -87,6 +87,42 @@ code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;paddin
 .stat{border:1px solid var(--rule);background:var(--panel);border-radius:3px;padding:14px}
 .stat b{font-family:var(--disp);font-weight:700;font-size:24px;display:block;color:var(--text);line-height:1.1}
 .stat span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.stat.warn b{color:var(--amber)} .stat.bad b{color:var(--red)}
+.subhead{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.grp{margin-bottom:16px}
+.grp:last-child{margin-bottom:0}
+
+/* --- panel: hero satırı (organik / rpc / karar dağılımı) --- */
+.hero3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:860px){.hero3{grid-template-columns:1fr}}
+.hero3 .rpcbox,.hero3 .orgbox,.hero3 .vbox{margin-bottom:0;height:100%;box-sizing:border-box}
+
+/* --- karar dağılımı --- */
+.vbox{border:1px solid var(--rule2);background:var(--panel);border-radius:3px;padding:16px}
+.vbox .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+.vbar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--ink);border:1px solid var(--rule)}
+.vbar i{display:block;height:100%}
+.vbar .b-bundled{background:var(--red)} .vbar .b-cabaled{background:var(--amber)}
+.vbar .b-organic{background:var(--blue)} .vbar .b-inconclusive{background:var(--dim)}
+.vleg{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:12px}
+.vleg span{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.vleg i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.vleg .n{color:var(--text);font-family:var(--disp);font-weight:600}
+.vbox.empty{color:var(--dim);font-size:11px}
+
+/* --- son aktivite akışı --- */
+.feedgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.feedgrid{grid-template-columns:1fr}}
+.feed h4{font-family:var(--disp);font-weight:600;font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.feed ul{list-style:none;margin:0;padding:0}
+.feed li{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 0;border-bottom:1px solid var(--rule)}
+.feed li:last-child{border-bottom:0}
+.feed .who{display:flex;align-items:center;gap:8px;min-width:0}
+.feed .mono{font-size:11px;color:var(--text)}
+.feed .when{font-size:10px;color:var(--dim);white-space:nowrap;flex:none}
+.feed .empty{color:var(--dim);font-size:11px;padding:6px 0}
 
 /* --- tablo --- */
 table{width:100%;border-collapse:collapse;font-size:12px}
@@ -311,22 +347,47 @@ async function route(t){
 }
 
 /* ================= PANEL ================= */
+function grp(title, items, s){
+  const cells = items.map(([k,l,warnIf])=>{
+    const v = s[k] ?? 0;
+    const cls = warnIf && warnIf(v) ? ' bad' : '';
+    return `<div class="stat${cls}"><b>${v}</b><span>${l}</span></div>`;
+  }).join('');
+  return `<div class="grp"><div class="subhead">${title}</div><div class="grid">${cells}</div></div>`;
+}
 function renderPanel(d){
   const s = d.stats, c = d.config || {};
-  const cards = [
-    ['scans_cached','önbellekte'],['scans_total','toplam tarama'],
-    ['track_open','izlenen'],['track_settled','sonuçlanan'],
-    ['track_correct','doğru'],['track_miss','kaçırılan'],
-    ['appeals_open','açık itiraz'],['flagged','işaretli cüzdan'],['lessons','çöküş dersi'],
-    ['gainers','yükseliş adresi'],['gain_lessons','yükseliş dersi'],
-  ].map(([k,l])=>`<div class="stat"><b>${s[k]??0}</b><span>${l}</span></div>`).join('');
+  const uptime = fmtUptime(c.uptime_sec);
 
   $('#view').innerHTML = `
     <div class="section-title">Algoritma başarısı</div>
-    <div id="orgBox"></div>
-    <div id="rpcBox"></div>
+    <div class="hero3">
+      <div id="orgBox"></div>
+      <div id="rpcBox"></div>
+      <div id="vBox"></div>
+    </div>
+
     <div class="section-title">Özet</div>
-    <div class="grid">${cards}</div>
+    ${grp('Tarama', [
+      ['scans_cached','önbellekte'],['scans_total','toplam tarama'],['scans_24h','son 24 saat'],
+    ], s)}
+    ${grp('Karne (izlenen sonuçlar)', [
+      ['track_open','izlenen'],['track_settled','sonuçlanan'],
+      ['track_correct','doğru'],['track_miss','kaçırılan', v=>v>0],
+    ], s)}
+    ${grp('Öğrenme & moderasyon', [
+      ['flagged','işaretli cüzdan'],['flagged_deployers','işaretli üretici'],
+      ['rugs_caught','yakalanan rug'],['lessons','çöküş dersi'],
+      ['gainers','yükseliş adresi'],['gain_lessons','yükseliş dersi'],
+      ['appeals_open','açık itiraz', v=>v>0],
+    ], s)}
+
+    <div class="section-title">Son aktivite</div>
+    <div class="card feedgrid">
+      <div class="feed"><h4>son taramalar</h4><ul id="feedScans"></ul></div>
+      <div class="feed"><h4>son işaretlenenler</h4><ul id="feedFlagged"></ul></div>
+    </div>
+
     <div class="card" style="margin-top:14px">
       <div class="statusline">
         <span>depo <b class="ok">${esc(s.backend||'—')}</b></span><span class="muted">·</span>
@@ -334,9 +395,11 @@ function renderPanel(d){
         <span>çöküş eşiği %${Math.round((c.track_drop_pct||0)*100)}</span><span class="muted">·</span>
         <span>min mcap ${money(c.min_market_cap)}</span><span class="muted">·</span>
         <span>rate ${c.rate_limit_per_min||'—'}/dk</span><span class="muted">·</span>
-        <span>önbellek ${c.cache_ttl_hours!=null?c.cache_ttl_hours+' sa':'—'}</span>
+        <span>önbellek ${c.cache_ttl_hours!=null?c.cache_ttl_hours+' sa':'—'}</span><span class="muted">·</span>
+        <span>bugün ${d.x_today??0} tweet</span>
       </div>
       <p class="muted">Bu değerler "Ayarlar" sekmesinden düzenlenir (önbellek süresi, RPC, anahtarlar) ya da env değişkenidir.</p>
+      <p class="muted" style="margin-top:6px">america.sx v${esc(c.version||'—')} · ${uptime} önce başladı</p>
     </div>
     <div class="section-title">RPC sağlayıcıları</div>
     <div class="tbl-card"><table>
@@ -346,12 +409,62 @@ function renderPanel(d){
   paintProv(d);
   paintRpc(d);
   paintOrg(d);
+  paintVerdict(d);
+  paintFeed(d);
   let last = calls(d);
   _poll = setInterval(async ()=>{
     let j; try{ j = await api('/overview'); }catch(e){ return; }
     const now = calls(j);
-    paintProv(j); paintRpc(j, now !== last); paintOrg(j); last = now;
+    paintProv(j); paintRpc(j, now !== last); paintOrg(j); paintVerdict(j); paintFeed(j); last = now;
   }, 4000);
+}
+function fmtUptime(sec){
+  sec = sec||0;
+  const d = Math.floor(sec/86400), h = Math.floor((sec%86400)/3600), m = Math.floor((sec%3600)/60);
+  if(d>0) return `${d}g ${h}sa`;
+  if(h>0) return `${h}sa ${m}dk`;
+  return `${m}dk`;
+}
+function paintVerdict(d){
+  const box = $('#vBox'); if(!box) return;
+  const vb2 = (d.stats && d.stats.verdict_breakdown) || {};
+  const total = Object.values(vb2).reduce((a,b)=>a+b,0);
+  const LBL = {bundled:'bundled', cabaled:'cabaled', organic:'organic', inconclusive:'inconclusive'};
+  if(!total){
+    box.innerHTML = `<div class="vbox empty">Karar dağılımı · henüz tamamlanmış tarama yok.</div>`;
+    return;
+  }
+  const order = ['bundled','cabaled','organic','inconclusive'];
+  const bars = order.map(k=>{
+    const pct = (vb2[k]||0)/total*100;
+    return pct>0 ? `<i class="b-${k}" style="width:${pct.toFixed(2)}%" title="${LBL[k]} %${pct.toFixed(0)}"></i>` : '';
+  }).join('');
+  const legend = order.map(k=>
+    `<span><i class="b-${k}" style="background:currentColor"></i>${LBL[k]} <span class="n">${vb2[k]||0}</span></span>`
+  ).join('');
+  box.innerHTML = `<div class="vbox">
+    <div class="lbl">Karar dağılımı · toplam ${total}</div>
+    <div class="vbar">${bars}</div>
+    <div class="vleg">${legend}</div></div>`;
+}
+function feedRow(mono, badgeHtml, ts){
+  return `<li><div class="who"><span class="mono">${esc(mono)}</span>${badgeHtml}</div>
+    <span class="when">${ago(ts)} önce</span></li>`;
+}
+function paintFeed(d){
+  const sc = $('#feedScans'), fl = $('#feedFlagged');
+  if(sc){
+    const rows = d.recent_scans || [];
+    sc.innerHTML = rows.length
+      ? rows.map(r=> feedRow(short(r.mint), vb(r.verdict), r.created_at)).join('')
+      : '<li class="empty">henüz tarama yok</li>';
+  }
+  if(fl){
+    const rows = d.recent_flagged || [];
+    fl.innerHTML = rows.length
+      ? rows.map(r=> feedRow(short(r.address), `<span class="badge b-open">${esc(r.kind||'wallet')}</span>`, r.created_at)).join('')
+      : '<li class="empty">henüz işaretlenen yok</li>';
+  }
 }
 function paintOrg(d){
   const box = $('#orgBox'); if(!box) return;
