@@ -8,6 +8,7 @@ yüzden hem havuz çözümü hem OHLCV kısa süreli önbelleğe alınır.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -16,7 +17,16 @@ import httpx
 log = logging.getLogger(__name__)
 
 _GT = "https://api.geckoterminal.com/api/v2"
-_UA = "Mozilla/5.0 (compatible; americasx/1.0; +https://america.sx)"
+# Render'ın veri merkezi IP'si "bot" User-Agent'larda daha çok 429/403 yiyor —
+# gerçek tarayıcı başlıkları kullan (DexScreener/pump.fun ile aynı numara).
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 # preset -> (timeframe, aggregate, limit)
 _PRESETS: dict[str, tuple[str, int, int]] = {
@@ -39,10 +49,19 @@ _pool_cache: dict[str, tuple[tuple[str | None, str | None, str | None], float]] 
 _ohlcv_cache: dict[tuple, tuple[tuple, float]] = {}
 
 
-async def _get(client: httpx.AsyncClient, path: str, params: dict | None = None):
-    r = await client.get(_GT + path, params=params)
-    r.raise_for_status()
-    return r.json()
+async def _get(
+    client: httpx.AsyncClient, path: str, params: dict | None = None, tries: int = 3
+):
+    r = None
+    for i in range(tries):
+        r = await client.get(_GT + path, params=params)
+        if r.status_code == 429 and i < tries - 1:
+            await asyncio.sleep(1.5 * (i + 1))
+            continue
+        r.raise_for_status()
+        return r.json()
+    if r is not None:
+        r.raise_for_status()
 
 
 async def _resolve_pool(
@@ -86,7 +105,27 @@ async def _resolve_pool(
     return out
 
 
-async def fetch_chart(mint: str, preset: str = DEFAULT_PRESET) -> dict:
+def _parse_candles(data) -> list[dict]:
+    rows = (((data or {}).get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
+    out = []
+    for r in rows:
+        if not r or len(r) < 5 or r[1] is None:
+            continue
+        try:
+            out.append({
+                "t": int(r[0]), "o": float(r[1]), "h": float(r[2]),
+                "l": float(r[3]), "c": float(r[4]),
+                "v": float(r[5]) if len(r) > 5 and r[5] is not None else 0.0,
+            })
+        except (TypeError, ValueError):
+            continue
+    out.sort(key=lambda x: x["t"])
+    return out
+
+
+async def fetch_chart(
+    mint: str, preset: str = DEFAULT_PRESET, pair: str | None = None
+) -> dict:
     preset = preset if preset in _PRESETS else DEFAULT_PRESET
     tf, agg, lim = _PRESETS[preset]
     ck = (mint, tf, agg, lim)
@@ -94,44 +133,50 @@ async def fetch_chart(mint: str, preset: str = DEFAULT_PRESET) -> dict:
 
     hit = _ohlcv_cache.get(ck)
     if hit and now - hit[1] < _OHLCV_TTL:
-        candles, sym, dex = hit[0]
+        candles, sym, dex, pool = hit[0]
         return {"live": len(candles) >= 2, "candles": candles,
-                "symbol": sym, "dex": dex, "preset": preset}
+                "symbol": sym, "dex": dex, "pool": pool, "preset": preset}
+
+    def _stale():
+        if hit:
+            c, s, d, p = hit[0]
+            return {"live": len(c) >= 2, "candles": c, "symbol": s, "dex": d,
+                    "pool": p, "preset": preset, "stale": True}
+        return None
 
     try:
-        async with httpx.AsyncClient(
-            timeout=12, headers={"User-Agent": _UA, "Accept": "application/json"}
-        ) as client:
-            pool, sym, dex = await _resolve_pool(client, mint)
-            if not pool:
-                return {"live": False, "reason": "no_pool", "candles": []}
-            data = await _get(
-                client, f"/networks/solana/pools/{pool}/ohlcv/{tf}",
-                {"aggregate": agg, "limit": lim},
-            )
+        async with httpx.AsyncClient(timeout=12, headers=_HEADERS) as client:
+            # 1) pool: taramanın verdiği pair adresi (bir GeckoTerminal isteği
+            #    daha az → daha az 429). Yoksa / işe yaramazsa havuz çözümü.
+            pool, sym, dex = (pair or None), None, None
+            candles: list[dict] = []
+            if pool:
+                try:
+                    data = await _get(
+                        client, f"/networks/solana/pools/{pool}/ohlcv/{tf}",
+                        {"aggregate": agg, "limit": lim},
+                    )
+                    candles = _parse_candles(data)
+                except Exception:  # noqa: BLE001
+                    candles = []
+            if len(candles) < 2:
+                rpool, sym, dex = await _resolve_pool(client, mint)
+                if rpool and rpool != pool:
+                    pool = rpool
+                    data = await _get(
+                        client, f"/networks/solana/pools/{pool}/ohlcv/{tf}",
+                        {"aggregate": agg, "limit": lim},
+                    )
+                    candles = _parse_candles(data)
     except Exception as exc:  # noqa: BLE001
         log.info("grafik verisi alınamadı %s: %s", mint, exc)
-        if hit:
-            c, s, d = hit[0]
-            return {"live": len(c) >= 2, "candles": c, "symbol": s, "dex": d,
-                    "preset": preset, "stale": True}
-        return {"live": False, "reason": "unavailable", "candles": []}
+        return _stale() or {"live": False, "reason": "unavailable",
+                            "candles": [], "pool": pair or None}
 
-    rows = (((data or {}).get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
-    candles = []
-    for r in rows:
-        if not r or len(r) < 5 or r[1] is None:
-            continue
-        try:
-            candles.append({
-                "t": int(r[0]), "o": float(r[1]), "h": float(r[2]),
-                "l": float(r[3]), "c": float(r[4]),
-                "v": float(r[5]) if len(r) > 5 and r[5] is not None else 0.0,
-            })
-        except (TypeError, ValueError):
-            continue
-    candles.sort(key=lambda x: x["t"])
+    if not pool:
+        return _stale() or {"live": False, "reason": "no_pool", "candles": [], "pool": None}
 
-    _ohlcv_cache[ck] = ((candles, sym, dex), now)
+    _ohlcv_cache[ck] = ((candles, sym, dex, pool), now)
     return {"live": len(candles) >= 2, "candles": candles,
-            "symbol": sym, "dex": dex, "preset": preset}
+            "symbol": sym, "dex": dex, "pool": pool, "preset": preset,
+            **({} if len(candles) >= 2 else {"reason": "no_ohlcv"})}

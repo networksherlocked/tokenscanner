@@ -1166,9 +1166,15 @@ async def risk_list(limit: int = 24):
 
 
 @app.get("/api/chart/{mint}")
-async def chart(mint: str, preset: str = "24h"):
-    """Sonuç ekranındaki yerel SVG grafik için OHLCV (GeckoTerminal)."""
-    return await fetch_chart(_validate(mint), preset)
+async def chart(mint: str, preset: str = "24h", pair: str = ""):
+    """Sonuç ekranındaki yerel SVG grafik için OHLCV (GeckoTerminal).
+
+    `pair` = taramanın bulduğu DEX pair adresi — verilirse havuz çözümü
+    atlanır (bir GeckoTerminal isteği daha az)."""
+    p = pair.strip()
+    return await fetch_chart(
+        _validate(mint), preset, p if BASE58.match(p) else None
+    )
 
 
 @app.get("/api/health")

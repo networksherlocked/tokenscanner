@@ -295,8 +295,10 @@ td.addr{color:var(--text)}
   letter-spacing:.04em;padding:5px 8px;cursor:pointer;text-transform:uppercase}
 .chart-ctl button:hover{color:var(--text)}
 .chart-ctl button.on{background:var(--panel-2);color:var(--gold)}
-.chart-canvas{position:relative;width:100%;min-height:260px;background:var(--ink);border-top:1px solid var(--rule)}
+.chart-canvas{position:relative;width:100%;min-height:260px;background:var(--ink);border-top:1px solid var(--rule);overflow:hidden}
 .chart-canvas svg{display:block;max-width:100%}
+.chart-embed{width:100%;height:340px;border:0;display:block}
+@media(max-width:560px){.chart-embed{height:300px}}
 .chart-canvas .cx-label{position:absolute;transform:translate(-50%,-100%);pointer-events:none;
   font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 6px;border-radius:2px;
   background:var(--ink);border:1px solid currentColor;white-space:nowrap;z-index:2}
@@ -1974,7 +1976,7 @@ function render(d){
 
   renderMomentum(d.momentum);
 
-  renderChart(d.mint);
+  renderChart(d.mint, (d.token || {}).pair_address);
 
   // Lansman verisi varsa: ilk alıcılar (fonlayan + işlem + yaş DOLU).
   // Yoksa: mevcut en büyük holder'lar.
@@ -2020,7 +2022,7 @@ function render(d){
    3. taraf iframe (GeckoTerminal/DexScreener embed) yerine kendi SVG
    grafiğimizi çiziyoruz. Veri: /api/chart/{mint} → GeckoTerminal OHLCV
    (anahtarsız). Çizgi + mum modu, dönem seçici, crosshair. */
-const CHART = { mint:null, mode:'line', linePreset:'24h', candlePreset:'c5m', data:null, poll:null };
+const CHART = { mint:null, pair:null, mode:'line', linePreset:'24h', candlePreset:'c5m', data:null, poll:null, embed:null };
 const CHART_H = () => (window.innerWidth < 560 ? 260 : 320);
 const CH_NS = 'http://www.w3.org/2000/svg';
 
@@ -2043,14 +2045,14 @@ function niceTicks(lo, hi, count){
 }
 function chartEffPreset(){ return CHART.mode === 'line' ? CHART.linePreset : CHART.candlePreset; }
 
-function renderChart(mint){
+function renderChart(mint, pair){
   const box = $('chartBox');
   if(!mint){
-    CHART.mint = null; clearTimeout(CHART.poll); box.hidden = true;
-    $('chartCanvas').innerHTML = ''; return;
+    CHART.mint = null; CHART.pair = null; CHART.embed = null;
+    clearTimeout(CHART.poll); box.hidden = true; $('chartCanvas').innerHTML = ''; return;
   }
   if(mint === CHART.mint && !box.hidden) return;
-  CHART.mint = mint; CHART.data = null;
+  CHART.mint = mint; CHART.pair = pair || null; CHART.data = null; CHART.embed = null;
   box.hidden = false;
   $('chartCanvas').innerHTML = `<div class="cnote">${L('chartLoading')}</div>`;
   chartControls();
@@ -2068,35 +2070,52 @@ function chartControls(){
   el.innerHTML = modeGrp + presetGrp;
   el.querySelectorAll('[data-m]').forEach(b=> b.onclick = ()=>{
     if(CHART.mode === b.dataset.m) return;
-    CHART.mode = b.dataset.m; CHART.data = null; chartControls(); chartLoad();
+    CHART.mode = b.dataset.m; CHART.data = null; CHART.embed = null; chartControls(); chartLoad();
   });
   el.querySelectorAll('[data-p]').forEach(b=> b.onclick = ()=>{
     const k = CHART.mode === 'line' ? 'linePreset' : 'candlePreset';
     if(CHART[k] === b.dataset.p) return;
-    CHART[k] = b.dataset.p; CHART.data = null; chartControls(); chartLoad();
+    CHART[k] = b.dataset.p; CHART.data = null; CHART.embed = null; chartControls(); chartLoad();
   });
 }
 async function chartLoad(){
   clearTimeout(CHART.poll);
   const mint = CHART.mint, preset = chartEffPreset();
+  if(CHART.embed){ CHART.poll = setTimeout(chartLoad, 90000); return; }  // iframe modu — poll'a gerek yok
   if(!CHART.data) $('chartCanvas').innerHTML = `<div class="cnote">${L('chartLoading')}</div>`;
   try{
-    const r = await fetch(`${API}/api/chart/${mint}?preset=${preset}`);
+    const q = `preset=${preset}` + (CHART.pair ? `&pair=${encodeURIComponent(CHART.pair)}` : '');
+    const r = await fetch(`${API}/api/chart/${mint}?${q}`);
     const j = await r.json();
     if(mint !== CHART.mint) return;
     CHART.data = j; chartDraw();
   }catch(e){
-    if(!CHART.data) $('chartCanvas').innerHTML = `<div class="cnote">${L('chartNone')}</div>`;
+    if(!CHART.data) chartEmbedFallback();
   }
   CHART.poll = setTimeout(chartLoad, 40000);
+}
+/* OHLCV alınamazsa (Render IP'si GeckoTerminal'de sık 429 yer) → o havuzun
+   GeckoTerminal iframe grafiğine düş. Hiç yoksa "veri yok". */
+function chartEmbedFallback(){
+  const pool = (CHART.data && CHART.data.pool) || CHART.pair;
+  const wrap = $('chartCanvas');
+  if(!pool){
+    wrap.innerHTML = `<div class="cnote">${L('chartNone')}</div>`;
+    $('chartSrc').textContent = ''; $('chartLast').textContent = '';
+    return;
+  }
+  CHART.embed = pool;
+  $('chartCtl').innerHTML = '';
+  wrap.innerHTML = `<iframe class="chart-embed" title="price chart" loading="lazy"
+    src="https://www.geckoterminal.com/solana/pools/${encodeURIComponent(pool)}?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&bg_color=0b1424"
+    sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>`;
+  $('chartSrc').textContent = 'GeckoTerminal';
+  $('chartLast').textContent = '';
 }
 function chartDraw(){
   const wrap = $('chartCanvas'), j = CHART.data || {};
   const cs = (j.candles || []).filter(c => isFinite(c.c) && c.c > 0);
-  if(cs.length < 2){
-    wrap.innerHTML = `<div class="cnote">${L('chartNone')}</div>`;
-    $('chartSrc').textContent = ''; $('chartLast').textContent = ''; return;
-  }
+  if(cs.length < 2){ chartEmbedFallback(); return; }
   const W = Math.round(wrap.clientWidth || 640), H = CHART_H();
   const padL = 8, padR = 60, padT = 10, padB = 18;
   const plotW = W - padL - padR, plotH = H - padT - padB, n = cs.length;
