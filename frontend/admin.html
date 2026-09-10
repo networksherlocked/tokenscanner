@@ -88,9 +88,20 @@ code{background:var(--ink);border:1px solid var(--rule);border-radius:2px;paddin
 .stat b{font-family:var(--disp);font-weight:700;font-size:24px;display:block;color:var(--text);line-height:1.1}
 .stat span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .stat.warn b{color:var(--amber)} .stat.bad b{color:var(--red)}
-.subhead{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
-.grp{margin-bottom:16px}
-.grp:last-child{margin-bottom:0}
+
+/* --- özet: hepsi tek çerçeve, ayraçlı KPI satırları --- */
+.sumcard{padding:22px 24px}
+.sumgrp{padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--rule)}
+.sumgrp:last-child{padding-bottom:0;margin-bottom:0;border-bottom:0}
+.sumhead{font-family:var(--disp);font-weight:600;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--gold-dim);margin:0 0 14px}
+.sumrow{display:flex;flex-wrap:wrap;gap:22px 44px}
+.sumcell{min-width:96px}
+.sumcell b{font-family:var(--disp);font-weight:700;font-size:26px;display:block;color:var(--text);line-height:1.1}
+.sumcell span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+  display:block;margin-top:5px;white-space:nowrap}
+.sumcell.warn b{color:var(--amber)} .sumcell.bad b{color:var(--red)}
+@media(max-width:560px){.sumrow{gap:18px 28px}.sumcell{min-width:84px}}
 
 /* --- panel: hero satırı (organik / rpc / karar dağılımı) --- */
 .hero3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;margin-bottom:14px}
@@ -347,13 +358,13 @@ async function route(t){
 }
 
 /* ================= PANEL ================= */
-function grp(title, items, s){
+function sumGrp(title, items, s){
   const cells = items.map(([k,l,warnIf])=>{
     const v = s[k] ?? 0;
     const cls = warnIf && warnIf(v) ? ' bad' : '';
-    return `<div class="stat${cls}"><b>${v}</b><span>${l}</span></div>`;
+    return `<div class="sumcell${cls}"><b>${v}</b><span>${l}</span></div>`;
   }).join('');
-  return `<div class="grp"><div class="subhead">${title}</div><div class="grid">${cells}</div></div>`;
+  return `<div class="sumgrp"><div class="sumhead">${title}</div><div class="sumrow">${cells}</div></div>`;
 }
 function renderPanel(d){
   const s = d.stats, c = d.config || {};
@@ -368,19 +379,21 @@ function renderPanel(d){
     </div>
 
     <div class="section-title">Özet</div>
-    ${grp('Tarama', [
-      ['scans_cached','önbellekte'],['scans_total','toplam tarama'],['scans_24h','son 24 saat'],
-    ], s)}
-    ${grp('Karne (izlenen sonuçlar)', [
-      ['track_open','izlenen'],['track_settled','sonuçlanan'],
-      ['track_correct','doğru'],['track_miss','kaçırılan', v=>v>0],
-    ], s)}
-    ${grp('Öğrenme & moderasyon', [
-      ['flagged','işaretli cüzdan'],['flagged_deployers','işaretli üretici'],
-      ['rugs_caught','yakalanan rug'],['lessons','çöküş dersi'],
-      ['gainers','yükseliş adresi'],['gain_lessons','yükseliş dersi'],
-      ['appeals_open','açık itiraz', v=>v>0],
-    ], s)}
+    <div class="card sumcard">
+      ${sumGrp('Tarama', [
+        ['scans_cached','önbellekte'],['scans_total','toplam tarama'],['scans_24h','son 24 saat'],
+      ], s)}
+      ${sumGrp('Karne (izlenen sonuçlar)', [
+        ['track_open','izlenen'],['track_settled','sonuçlanan'],
+        ['track_correct','doğru'],['track_miss','kaçırılan', v=>v>0],
+      ], s)}
+      ${sumGrp('Öğrenme & moderasyon', [
+        ['flagged','işaretli cüzdan'],['flagged_deployers','işaretli üretici'],
+        ['rugs_caught','yakalanan rug'],['lessons','çöküş dersi'],
+        ['gainers','yükseliş adresi'],['gain_lessons','yükseliş dersi'],
+        ['appeals_open','açık itiraz', v=>v>0],
+      ], s)}
+    </div>
 
     <div class="section-title">Son aktivite</div>
     <div class="card feedgrid">
