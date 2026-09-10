@@ -86,6 +86,8 @@ button.link:hover{color:var(--gold);border-color:var(--gold-dim)}
 .card > .desc code,.hint code{white-space:nowrap}
 .hint{color:var(--dim);font-size:11px;margin-top:8px;line-height:1.55;
   width:100%;max-width:none;text-align:justify;text-justify:inter-word}
+.split2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.split2{grid-template-columns:1fr}}
 /* kaydet vb. butonları her kartın sağ alt köşesinde */
 .card-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;
   margin-top:18px;padding-top:14px;border-top:1px solid var(--rule)}
@@ -302,6 +304,7 @@ td.mono{font-size:11px;color:var(--text);word-break:break-all}
       <button data-t="moderation">Denetim</button>
       <button data-t="track">AI izleme</button>
       <button data-t="lessons">AI tespit</button>
+      <button data-t="visits">Ziyaretler</button>
       <button data-t="tools">Araçlar</button>
     </div>
     <div class="msg" id="msg"></div>
@@ -434,6 +437,7 @@ async function route(t){
     if(t==='moderation') return renderModeration();
     if(t==='track')      return renderTrack(await api('/track'));
     if(t==='lessons')    return renderLessons(await api('/lessons'));
+    if(t==='visits')     return renderVisits(await api('/visits'));
     if(t==='tools')      return renderTools();
   }catch(e){ if(e.message!=='auth') v.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
@@ -1258,6 +1262,81 @@ function paintTrkSub(){
     if(!confirm('Karne kaydı silinsin mi?')) return;
     await api('/track/' + b.dataset.tm, {method:'DELETE'}); flash('silindi'); route('track');
   });
+}
+
+/* ================= ZİYARETLER ================= */
+const CC_NAME = {
+  TR:'Türkiye', US:'ABD', DE:'Almanya', GB:'Birleşik Krallık', FR:'Fransa',
+  NL:'Hollanda', RU:'Rusya', UA:'Ukrayna', IN:'Hindistan', BR:'Brezilya',
+  CA:'Kanada', AU:'Avustralya', ES:'İspanya', IT:'İtalya', PL:'Polonya',
+  AE:'BAE', SA:'S. Arabistan', AZ:'Azerbaycan', KZ:'Kazakistan', ID:'Endonezya',
+  NG:'Nijerya', VN:'Vietnam', PH:'Filipinler', JP:'Japonya', KR:'G. Kore',
+  CN:'Çin', MX:'Meksika', AR:'Arjantin', SE:'İsveç', CH:'İsviçre',
+};
+function bars(items, keyFn){
+  if(!items || !items.length) return '<tr><td colspan="2" class="muted">kayıt yok</td></tr>';
+  const top = items[0].n || 1;
+  return items.map(r=>{
+    const w = Math.max(4, Math.round((r.n / top) * 100));
+    return `<tr><td>${esc(keyFn(r))}
+      <div style="height:4px;background:var(--rule);border-radius:2px;margin-top:5px;overflow:hidden">
+        <i style="display:block;height:100%;width:${w}%;background:var(--gold-dim)"></i></div></td>
+      <td style="text-align:right;width:1%;white-space:nowrap"><b>${r.n}</b></td></tr>`;
+  }).join('');
+}
+function renderVisits(d){
+  const o = d.overview || {}, s = o.series || [];
+  const smax = s.reduce((a,b)=> Math.max(a, b.n), 0) || 1;
+  const spark = s.length
+    ? `<div style="display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:10px">
+        ${s.map(p=>{
+          const h = Math.max(3, Math.round(p.n/smax*100));
+          const dt = new Date(p.day*1000).toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'});
+          return `<div title="${dt}: ${p.n} ziyaret · ${p.uniq} tekil"
+            style="flex:1;min-width:5px;height:${h}%;background:var(--gold-dim);border-radius:2px 2px 0 0"></div>`;
+        }).join('')}
+       </div>
+       <div class="muted" style="margin-top:4px">son ${s.length} gün · günlük ziyaret</div>`
+    : '<p class="muted">henüz veri yok — ilk ziyaretlerden sonra grafik çizilir</p>';
+
+  $('#view').innerHTML = `
+    <div class="card"><p class="desc">Sayfa görüntülemeleri — sunucu tarafında, JS gerektirmeden sayılıyor.
+      IP <b>saklanmıyor</b>: günlük dönen bir tuzla hash'lenip yalnızca "gün içi tekil ziyaretçi" için kullanılıyor.
+      Botlar (Twitterbot, arama motorları…) ayrı sayılıyor. "Nereden geldi" = tarayıcının Referer başlığı.
+      Ülke bilgisi ${d.geoip
+        ? '<b>ipapi.co</b> ile çözülüyor (anahtarsız, önbellekli).'
+        : 'yalnızca bir CDN (ör. Cloudflare) <code>CF-IPCountry</code> başlığı gönderiyorsa görünür — ' +
+          'sunucuda <code>GEOIP=1</code> ile ipapi.co çözümü de açılabilir.'}</p></div>
+
+    <div class="section-title">Özet</div>
+    <div class="card sumcard"><div class="sumgrp"><div class="sumrow">
+      <div class="sumcell"><b>${o.total ?? 0}</b><span>toplam</span></div>
+      <div class="sumcell"><b>${o.d30 ?? 0}</b><span>son 30 gün</span></div>
+      <div class="sumcell"><b>${o.d7 ?? 0}</b><span>son 7 gün</span></div>
+      <div class="sumcell"><b>${o.d1 ?? 0}</b><span>son 24 saat</span></div>
+      <div class="sumcell"><b>${o.uniq_d7 ?? 0}</b><span>tekil · 7 gün</span></div>
+      <div class="sumcell"><b>${o.uniq_d1 ?? 0}</b><span>tekil · 24 saat</span></div>
+      <div class="sumcell"><b>${o.bot_total ?? 0}</b><span>bot (toplam)</span></div>
+    </div>${spark}</div></div>
+
+    <div class="split2">
+      <div>
+        <div class="section-title">Nereden geldi <span class="cnt">son 7 gün</span></div>
+        <div class="tbl-card"><table><thead><tr><th>kaynak</th><th style="text-align:right">ziyaret</th></tr></thead>
+          <tbody>${bars(d.referrers, r=>r.host)}</tbody></table></div>
+        <div class="section-title" style="margin-top:18px">Nereden geldi <span class="cnt">son 30 gün</span></div>
+        <div class="tbl-card"><table><thead><tr><th>kaynak</th><th style="text-align:right">ziyaret</th></tr></thead>
+          <tbody>${bars(d.referrers_30||[], r=>r.host)}</tbody></table></div>
+      </div>
+      <div>
+        <div class="section-title">Ülke <span class="cnt">son 7 gün</span></div>
+        <div class="tbl-card"><table><thead><tr><th>ülke</th><th style="text-align:right">ziyaret</th></tr></thead>
+          <tbody>${bars(d.countries||[], r=> (CC_NAME[r.country]||r.country))}</tbody></table></div>
+        <div class="section-title" style="margin-top:18px">Ülke <span class="cnt">son 30 gün</span></div>
+        <div class="tbl-card"><table><thead><tr><th>ülke</th><th style="text-align:right">ziyaret</th></tr></thead>
+          <tbody>${bars(d.countries_30||[], r=> (CC_NAME[r.country]||r.country))}</tbody></table></div>
+      </div>
+    </div>`;
 }
 
 /* ================= ARAÇLAR ================= */

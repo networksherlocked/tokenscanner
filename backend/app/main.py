@@ -13,6 +13,7 @@ Uç noktalar:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -21,7 +22,9 @@ import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
+import httpx
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -49,6 +52,7 @@ BASE58 = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 state: dict = {}
 _inflight: dict[str, asyncio.Task] = {}
 _ip_hits: dict[str, list[float]] = {}
+_last_visit_prune = 0.0
 
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MIN", "10"))
 
@@ -109,6 +113,15 @@ async def refresh_track() -> None:
         await _backfill_track_symbols(limit=25)
     except Exception:  # noqa: BLE001
         log.exception("Sembol backfill hatası")
+
+    # Ziyaret tablosunu 90 günden eskiye budama (~6 saatte bir yeter).
+    global _last_visit_prune
+    if now - _last_visit_prune > 6 * 3600:
+        _last_visit_prune = now
+        try:
+            cache.visit_prune(90)
+        except Exception:  # noqa: BLE001
+            log.debug("visit_prune düştü", exc_info=True)
 
 
 async def _refresh_track_row(cache, row: dict, now: int) -> None:
@@ -685,6 +698,152 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- ziyaret istatistiği -------------------------------------------------
+# Sunucu tarafında, JS gerektirmeden. IP saklanmaz — günlük dönen bir tuzla
+# hash'lenip sadece "gün içi tekil ziyaretçi" sayımı için tutulur. Nereden
+# geldiği: Referer başlığı (t.co, google…). Ülke: varsa CDN başlığı
+# (CF-IPCountry vb.); GEOIP=1 ise ipapi.co (anahtarsız, ağır önbellekli).
+GEOIP = os.getenv("GEOIP", "0") != "0"
+_BOT_UA = (
+    "bot", "crawl", "spider", "slurp", "curl", "wget", "python-httpx",
+    "python-requests", "go-http", "headless", "phantom", "preview",
+    "facebookexternalhit", "discordbot", "telegrambot", "twitterbot",
+    "whatsapp", "embedly", "monitor", "uptime", "pingdom", "lighthouse",
+    "chrome-lighthouse", "gptbot", "claudebot", "ccbot",
+)
+_REF_MAP = {
+    "t.co": "twitter/x", "twitter.com": "twitter/x", "x.com": "twitter/x",
+    "instagram.com": "instagram", "l.instagram.com": "instagram",
+    "facebook.com": "facebook", "lm.facebook.com": "facebook", "m.facebook.com": "facebook",
+    "reddit.com": "reddit", "out.reddit.com": "reddit", "old.reddit.com": "reddit",
+    "t.me": "telegram", "telegram.me": "telegram", "web.telegram.org": "telegram",
+    "discord.com": "discord", "discordapp.com": "discord",
+    "mail.google.com": "gmail", "youtube.com": "youtube", "linkedin.com": "linkedin",
+    "github.com": "github", "medium.com": "medium",
+}
+_geo_cache: dict[str, tuple[float, str | None]] = {}
+_geo_lock = asyncio.Lock()
+_geo_last = 0.0
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _is_bot(ua: str) -> bool:
+    u = ua.lower()
+    return not u or any(b in u for b in _BOT_UA)
+
+
+def _ref_host(referer: str | None, own_host: str) -> str | None:
+    if not referer:
+        return None
+    try:
+        h = (urlsplit(referer).hostname or "").lower()
+    except ValueError:
+        return None
+    if h.startswith("www."):
+        h = h[4:]
+    if not h or h == own_host or h.endswith("." + own_host):
+        return None
+    if h in _REF_MAP:
+        return _REF_MAP[h]
+    if h.startswith("google.") or h == "google":
+        return "google"
+    if h.startswith("bing."):
+        return "bing"
+    if "duckduckgo" in h:
+        return "duckduckgo"
+    if h.startswith("yandex."):
+        return "yandex"
+    return h[:60]
+
+
+def _visit_country(request: Request) -> str | None:
+    for hdr in ("cf-ipcountry", "x-vercel-ip-country", "cloudfront-viewer-country",
+                "x-country-code", "fastly-geo-country"):
+        v = request.headers.get(hdr)
+        if v and v.upper() not in ("XX", "T1", "ZZ", "-"):
+            return v.upper()[:2]
+    return None
+
+
+def _visitor_hash(ip: str) -> str | None:
+    if not ip:
+        return None
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    salt = (ADMIN_TOKEN or "asx-visits") + "|" + day
+    return hashlib.sha256((salt + ip).encode()).hexdigest()[:16]
+
+
+async def _geoip_country(ip: str) -> str | None:
+    hit = _geo_cache.get(ip)
+    if hit and time.monotonic() - hit[0] < 86400:
+        return hit[1]
+    global _geo_last
+    async with _geo_lock:
+        wait = 1.3 - (time.monotonic() - _geo_last)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        cc = None
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as c:
+                r = await c.get(f"https://ipapi.co/{ip}/country/")
+            if r.status_code == 200:
+                t = r.text.strip().upper()
+                if len(t) == 2 and t.isalpha():
+                    cc = t
+        except Exception:  # noqa: BLE001
+            pass
+        _geo_last = time.monotonic()
+    if len(_geo_cache) > 5000:
+        _geo_cache.clear()
+    _geo_cache[ip] = (time.monotonic(), cc)
+    return cc
+
+
+async def _record_visit(cache, path, visitor, ref_host, country, bot, geo_ip):
+    if geo_ip:
+        try:
+            country = await _geoip_country(geo_ip)
+        except Exception:  # noqa: BLE001
+            country = None
+    try:
+        cache.add_visit(path, visitor, ref_host, country, bot)
+    except Exception:  # noqa: BLE001
+        log.debug("ziyaret kaydı yazılamadı", exc_info=True)
+
+
+@app.middleware("http")
+async def _log_visit(request: Request, call_next):
+    resp = await call_next(request)
+    try:
+        p = request.url.path
+        if (request.method == "GET"
+                and not p.startswith("/api")
+                and not p.startswith("/admin")
+                and str(resp.headers.get("content-type", "")).startswith("text/html")):
+            cache = state.get("cache")
+            if cache is not None:
+                ua = request.headers.get("user-agent", "")
+                bot = _is_bot(ua)
+                ip = _client_ip(request)
+                own = (request.url.hostname or "").lower()
+                country = _visit_country(request)
+                asyncio.create_task(_record_visit(
+                    cache, p,
+                    None if bot else _visitor_hash(ip),
+                    _ref_host(request.headers.get("referer"), own),
+                    country, bot,
+                    ip if (GEOIP and not bot and not country and ip) else None,
+                ))
+    except Exception:  # noqa: BLE001
+        pass
+    return resp
+
 
 def _check_rate(request: Request) -> None:
     ip = request.client.host if request.client else "unknown"
@@ -1074,6 +1233,19 @@ async def admin_overview():
             "version": app.version,
             "uptime_sec": int(time.time() - _BOOT_TS),
         },
+    }
+
+
+@app.get("/api/admin/visits", dependencies=[Depends(_admin)])
+async def admin_visits():
+    c = state["cache"]
+    return {
+        "overview": c.visit_overview(),
+        "referrers": c.visit_referrers(7, 15),
+        "referrers_30": c.visit_referrers(30, 15),
+        "countries": c.visit_countries(7, 15),
+        "countries_30": c.visit_countries(30, 15),
+        "geoip": GEOIP,
     }
 
 

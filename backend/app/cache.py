@@ -112,6 +112,12 @@ CREATE TABLE IF NOT EXISTS wallet_meta (
     tx_count INTEGER NOT NULL DEFAULT 0, reached INTEGER NOT NULL DEFAULT 0,
     resolved_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS visits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, path TEXT,
+    visitor TEXT, ref_host TEXT, country TEXT, bot INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_visits_ts ON visits(ts DESC);
 """
 
 _SCHEMA_PG = """
@@ -198,6 +204,13 @@ CREATE TABLE IF NOT EXISTS wallet_meta (
     tx_count INTEGER NOT NULL DEFAULT 0, reached INTEGER NOT NULL DEFAULT 0,
     resolved_at BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS visits (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, ts BIGINT NOT NULL,
+    path TEXT, visitor TEXT, ref_host TEXT, country TEXT,
+    bot INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_visits_ts ON visits(ts DESC);
 """
 
 
@@ -872,11 +885,13 @@ class ScanCache:
     _BACKUP_TABLES = [
         "config", "flagged", "gainers", "lessons", "gain_lessons",
         "appeals", "track", "launch_cache", "wallet_meta",
-        "gain_hits", "x_posts", "scan_history", "scans",
+        "gain_hits", "x_posts", "scan_history", "visits", "scans",
     ]
     # id'si otomatik üretilen (identity/autoincrement) tablolar — geri yüklerken
     # id sütunu atılır, veritabanı yeniden üretir.
-    _AUTO_ID_TABLES = {"lessons", "gain_lessons", "appeals", "x_posts", "scan_history"}
+    _AUTO_ID_TABLES = {
+        "lessons", "gain_lessons", "appeals", "x_posts", "scan_history", "visits",
+    }
 
     def _table_columns(self, table: str) -> set[str]:
         try:
@@ -1013,6 +1028,73 @@ class ScanCache:
         return self._rows(
             "SELECT mint, verdict, score, confidence, created_at FROM scan_history "
             "ORDER BY created_at DESC LIMIT ?", (limit,)
+        )
+
+    # ---- ziyaret istatistiği --------------------------------------------
+
+    def add_visit(
+        self, path: str | None, visitor: str | None, ref_host: str | None,
+        country: str | None, bot: bool,
+    ) -> None:
+        self._write(
+            "INSERT INTO visits (ts, path, visitor, ref_host, country, bot) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (int(time.time()), (path or "")[:200] or None,
+             visitor, ref_host, country, 1 if bot else 0),
+        )
+
+    def visit_prune(self, keep_days: int = 90) -> None:
+        self._write(
+            "DELETE FROM visits WHERE ts < ?",
+            (int(time.time()) - keep_days * 86400,),
+        )
+
+    def _vn(self, sql: str, params: tuple = ()) -> int:
+        r = self._one(sql, params)
+        return int(next(iter(r.values()))) if r and next(iter(r.values())) is not None else 0
+
+    def visit_overview(self) -> dict:
+        now = int(time.time())
+        d1, d7, d30 = now - 86400, now - 7 * 86400, now - 30 * 86400
+        series = self._rows(
+            "SELECT CAST(ts / 86400 AS INTEGER) AS day, "
+            "COUNT(*) AS n, COUNT(DISTINCT visitor) AS uniq "
+            "FROM visits WHERE bot = 0 AND ts >= ? "
+            "GROUP BY CAST(ts / 86400 AS INTEGER) "
+            "ORDER BY CAST(ts / 86400 AS INTEGER)",
+            (now - 14 * 86400,),
+        )
+        return {
+            "total": self._vn("SELECT COUNT(*) FROM visits WHERE bot = 0"),
+            "bot_total": self._vn("SELECT COUNT(*) FROM visits WHERE bot = 1"),
+            "d1": self._vn("SELECT COUNT(*) FROM visits WHERE bot = 0 AND ts >= ?", (d1,)),
+            "d7": self._vn("SELECT COUNT(*) FROM visits WHERE bot = 0 AND ts >= ?", (d7,)),
+            "d30": self._vn("SELECT COUNT(*) FROM visits WHERE bot = 0 AND ts >= ?", (d30,)),
+            "uniq_d1": self._vn(
+                "SELECT COUNT(DISTINCT visitor) FROM visits WHERE bot = 0 AND ts >= ?", (d1,)),
+            "uniq_d7": self._vn(
+                "SELECT COUNT(DISTINCT visitor) FROM visits WHERE bot = 0 AND ts >= ?", (d7,)),
+            "series": [
+                {"day": int(r["day"]) * 86400, "n": int(r["n"]), "uniq": int(r["uniq"])}
+                for r in series
+            ],
+        }
+
+    def visit_referrers(self, days: int = 7, limit: int = 12) -> list[dict]:
+        since = int(time.time()) - days * 86400
+        return self._rows(
+            "SELECT COALESCE(NULLIF(ref_host, ''), '(doğrudan)') AS host, "
+            "COUNT(*) AS n FROM visits WHERE bot = 0 AND ts >= ? "
+            "GROUP BY COALESCE(NULLIF(ref_host, ''), '(doğrudan)') "
+            "ORDER BY n DESC LIMIT ?", (since, limit),
+        )
+
+    def visit_countries(self, days: int = 7, limit: int = 12) -> list[dict]:
+        since = int(time.time()) - days * 86400
+        return self._rows(
+            "SELECT country, COUNT(*) AS n FROM visits "
+            "WHERE bot = 0 AND ts >= ? AND country IS NOT NULL AND country <> '' "
+            "GROUP BY country ORDER BY n DESC LIMIT ?", (since, limit),
         )
 
     def history(self, mint: str, limit: int = 20) -> list[dict]:
