@@ -7,7 +7,7 @@
 > `americasx_lang` (eski `uavsx_lang` geriye dönük okunuyor).
 
 Solana tokenlarının arz dağıtımını inceleyen on-chain adli analiz motoru.
-Bir mint adresi alır, **17 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
+Bir mint adresi alır, **18 bağımsız sinyal** çalıştırır ve **Bundled / Cabaled /
 Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 
 **Paylaşım & şeffaflık (v5):**
@@ -16,7 +16,31 @@ Organic / Inconclusive** kararını skor + güven değeriyle döndürür.
 - `GET /badge/{mint}.svg` — projeler sitelerine gömebilir (`<img src=…>`).
 - `POST /api/appeal` — karara itiraz (SQLite `appeals`, elle inceleme kuyruğu).
 - Sonuç panelinde "Bu kararı paylaş": link kopyala · X'te paylaş · rozet göm · itiraz.
-- "Yöntem" sayfası: 17 sinyalin tam listesi + lansman analizi açıklaması.
+- "Yöntem" sayfası: 18 sinyalin tam listesi + lansman analizi açıklaması.
+
+**Motor doğruluğu (v7):**
+- Yeni `launch_dominance` sinyali: lansmanda (bonding curve) tek bir cüzdanın
+  arzın büyük kısmını tek seferde alması — o cüzdan sonradan tamamen satıp
+  artık güncel top-holder'da görünmese bile yakalar. `supply_whale`/
+  `top10_concentration` yalnızca ŞU ANKİ holder tablosuna bakar; bir sniper
+  curve'ü süpürüp hemen çıktıysa (klasik "insta-dump") o iki sinyal de kördü
+  — bu, on-chain'de gözlemlenen gerçek bir kaçırılmış vakadan (tek cüzdan
+  bonding curve'ün %72'sini alıp tamamen çıkmış, sistem "organic" demişti)
+  giderildi.
+- Bug düzeltmesi: `collect_launch_snapshot` artık mezuniyette likiditenin
+  taşındığı havuz/pair adresini alıcı sayımından **dışlıyor**
+  (`extra_ignore`). Önceden pump.fun → PumpSwap geçişinde havuzun kendi token
+  hesabı 4. bir "alıcı" gibi sayılıyor, payları ve alıcı sayısını bozuyordu.
+- Lansman alıcı eşiği 4 → **3**'e indirildi (`collect_launch_snapshot`,
+  `launch_from_trades`, `ctx.launch_ok`): havuz adresi artık dışlandığı için
+  gerçek alıcı sayısı bazı hızlı-mezun lansmanlarda 3'e düşebiliyordu; eski
+  eşik bu (küçük ama gerçek ve çok bilgilendirici) veriyi tamamen atıp
+  motoru "mevcut yapı" moduna düşürüyordu.
+- Güven skoruna örneklem-büyüklüğü cezası: lansman alıcı sayısı < 8 ise
+  `classify()` güveni orantılı düşürür (< 6 alıcıda ek bir caveat da
+  eklenir). Önceden "veri çözülebildi mi" ölçülüyordu, "kaç veri noktası
+  üzerinden karar verildi" ölçülmüyordu — 3-4 alıcılık bir lansmanda "desen
+  yok" demek 50+ alıcılık bir lansmana göre çok daha zayıf bir kanıttır.
 
 **Motor doğruluğu (v6):**
 - Yeni `lp_lock` sinyali: likidite yakılmış/kilitli mi yoksa geliştirici
@@ -225,7 +249,7 @@ backend/app/
   rpc/solana.py     Zincir sorguları: holder, cüzdan yaşı, fonlama kaynağı, ücret
   rpc/market.py     DexScreener — fiyat, likidite, çift oluşum zamanı
   engine/registry.py  Küratörlü adres listeleri (CEX, LP, burn, işaretli cüzdan)
-  engine/signals.py   17 bağımsız sinyal + kalibrasyon tablosu
+  engine/signals.py   18 bağımsız sinyal + kalibrasyon tablosu
   rpc/liquidity.py    LP kilit durumu (Raydium API burnPercent + LP mint analizi)
   rpc/trades.py       Eski token lansman verisi — indeksleyici adaptörleri (Birdeye)
   engine/classifier.py  Yakınsama kuralı → karar, skor, güven
@@ -247,7 +271,7 @@ Tek sinyal asla karar vermez. `classifier.py`:
   sürüsü zamana yayılır; tek-iki slotluk kütle giriş bir paket imzasıdır).
   Sert sinyaller: yaş kümesi, **hazırlanmış cüzdan partisi**, ortak fonlayıcı,
   eşzamanlı giriş, eşit bakiyeler, ücret parmak izi, işaretli cüzdan, tek cüzdan
-  baskınlığı, fonlama ağacı.
+  baskınlığı, **lansmanda tekil hakimiyet**, fonlama ağacı.
 - **Cabaled** — `combo` ≥ 0.9, bundled eşiği tutmamış.
 - **Inconclusive** — coverage < 0.4 ya da 3+ sert sinyal veri yokluğundan kör.
 - **Organic** — hiçbiri.

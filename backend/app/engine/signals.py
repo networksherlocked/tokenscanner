@@ -105,7 +105,7 @@ class SignalContext:
         return bool(
             self.launch
             and getattr(self.launch, "available", False)
-            and len(getattr(self.launch, "buyers", [])) >= 4
+            and len(getattr(self.launch, "buyers", [])) >= 3
         )
 
     @property
@@ -219,6 +219,50 @@ def sig_supply_whale(ctx: SignalContext) -> Signal:
         s.detail = f"En büyük iki cüzdan birlikte arzın %{top2:.1f}'ini tutuyor."
     else:
         s.detail = f"En büyük tekil cüzdan arzın %{top.share:.1f}'i — aşırı yoğunlaşma yok."
+    return s
+
+
+def sig_launch_dominance(ctx: SignalContext) -> Signal:
+    """Lansmanda (bonding curve / havuz açılışı) tek bir cüzdanın arzın büyük
+    kısmını kapması.
+
+    supply_whale'in TERSİNE şu anki değil LANSMAN ANINDAKİ payı ölçer: o
+    cüzdan sonradan tamamen satıp çıksa ve artık top holder listesinde hiç
+    görünmese bile bu sinyal yakalar. Küçük alıcı sayısı (n) bu tür tekil
+    süpürmelerde normaldir — çoklu-cüzdan koordinasyon sinyallerinin aksine
+    az veriyle de güvenilir çalışır, bu yüzden ctx.launch_ok'un ötesinde ayrı
+    bir minimum ARAMAZ.
+    """
+    s = Signal(
+        key="launch_dominance",
+        label="Lansmanda tekil hakimiyet",
+        direction="bundled",
+        weight=1.0,
+    )
+    if not ctx.launch_ok:
+        s.data_ok = False
+        return s
+    buyers = [b for b in ctx.launch.buyers if b.amount_raw > 0]
+    if len(buyers) < 3:
+        s.data_ok = False
+        return s
+    top = max(buyers, key=lambda b: b.share)
+    s.evidence = {
+        "top_owner": top.owner,
+        "top_share": round(top.share, 2),
+        "buyers": len(buyers),
+    }
+    WARN, HIGH = 35.0, 65.0
+    if top.share >= WARN:
+        s.fired = True
+        s.strength = max(0.5, _ramp(top.share, WARN, HIGH))
+        s.detail = (
+            f"Lansmanda tek bir cüzdan ({top.owner[:6]}…{top.owner[-4:]}) "
+            f"arzın %{top.share:.1f}'ini almış — o cüzdan artık elinde "
+            f"tutmasa bile bu, lansmanın adil dağıtılmadığının kanıtıdır."
+        )
+    else:
+        s.detail = f"Lansmanda en büyük tekil alım %{top.share:.1f} — aşırı yoğunlaşma yok."
     return s
 
 
@@ -1033,6 +1077,7 @@ ALL_SIGNALS: list[Callable[[SignalContext], Signal]] = [
     sig_fresh_wallets,
     sig_flagged_wallets,
     sig_supply_whale,
+    sig_launch_dominance,
     sig_top10_concentration,
     sig_funding_profile,
     sig_funding_tree,

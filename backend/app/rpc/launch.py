@@ -156,7 +156,8 @@ def _token_gains(tx: dict, mint: str) -> list[tuple[str, int]]:
 
 
 async def collect_launch_snapshot(
-    pool: RpcPool, mint: str, anchor: str, source: str
+    pool: RpcPool, mint: str, anchor: str, source: str,
+    extra_ignore: set[str] | None = None,
 ) -> LaunchSnapshot:
     snap = LaunchSnapshot(source=source)
     pages, reached = await _pages_to_oldest(pool, anchor, LAUNCH_MAX_PAGES)
@@ -192,7 +193,10 @@ async def collect_launch_snapshot(
         concurrency=8,
     )
 
-    ignore = {anchor, mint, registry.SYSTEM_PROGRAM}
+    # anchor (bonding curve) migration sonrası göçen likiditenin gittiği
+    # havuz/pair adresi anchor'dan FARKLI olabilir (pump.fun -> PumpSwap gibi);
+    # o adrese düşen bakiye artışı bir "alıcı" değil, mezuniyet transferidir.
+    ignore = {anchor, mint, registry.SYSTEM_PROGRAM} | (extra_ignore or set())
     buyers: dict[str, LaunchBuyer] = {}
     for sig, tx in zip(oldest, txs):
         if not tx:
@@ -215,7 +219,11 @@ async def collect_launch_snapshot(
         if len(buyers) >= LAUNCH_MAX_BUYERS:
             break
 
-    if len(buyers) < 4:
+    # 3 gerçek alıcı (deployer + en az 2 diğeri) tekil-hakimiyet gibi bir
+    # sinyal için zaten yeterli örneklem — az önce havuz/pair adresini
+    # dışladığımız için eşiği 4'te tutmak gerçek ama küçük lansmanları
+    # (ör. anında mezun olan bir curve) veri yokluğuna düşürürdü.
+    if len(buyers) < 3:
         return snap
 
     snap.buyers = list(buyers.values())
@@ -256,7 +264,7 @@ def launch_from_trades(trades: list, source: str = "indexer") -> LaunchSnapshot:
         if len(buyers) >= LAUNCH_MAX_BUYERS:
             break
 
-    if len(buyers) < 4:
+    if len(buyers) < 3:
         return snap
 
     snap.buyers = list(buyers.values())

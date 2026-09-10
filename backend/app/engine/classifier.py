@@ -27,6 +27,7 @@ HARD_SIGNALS = {
     "fee_fingerprint",
     "flagged_wallets",
     "supply_whale",
+    "launch_dominance",
     "funding_tree",
 }
 
@@ -130,6 +131,7 @@ def classify(
     market_available: bool,
     token_age_hours: float | None,
     launch_available: bool = True,
+    launch_buyer_count: int | None = None,
 ) -> Verdict:
     fired = [s for s in signals if s.fired]
     hard_fired = [s for s in fired if s.key in HARD_SIGNALS]
@@ -218,6 +220,18 @@ def classify(
     conf = 0.55 * signal_coverage + 0.30 * coverage + 0.15 * (1.0 if market_available else 0.0)
 
     caveats: list[str] = []
+    # Küçük örneklem cezası: "koordineli desen bulunamadı" iddiası 3-4
+    # lansman alıcısı üzerinden kurulmuşsa, 50+ alıcılı bir lansmana göre çok
+    # daha zayıf bir kanıttır — signal_coverage/chain_coverage bunu yakalamaz
+    # (veri "çözülebilir" olabilir ama az olabilir).
+    if launch_available and launch_buyer_count is not None and launch_buyer_count < 8:
+        conf *= 0.55 + 0.45 * min(1.0, launch_buyer_count / 8)
+        if launch_buyer_count < 6:
+            caveats.append(
+                f"Lansmanda yalnızca {launch_buyer_count} alıcı bulundu — "
+                "koordinasyon sinyalleri bu kadar küçük bir örneklemde "
+                "istatistiksel olarak güçsüzdür, güven buna göre düşürüldü."
+            )
     if kind == "bundled" and mass_slot_bundle and not strong_bundle:
         caveats.append(
             "Lansman alıcılarının neredeyse tamamı tek-iki slot içinde girmiş "

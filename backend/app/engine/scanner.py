@@ -200,7 +200,14 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     )
     launch = None
     if anchor and not skip_launch:
-        launch = await collect_launch_snapshot(pool, mint, anchor, source)
+        # anchor bonding curve ise (pump.fun) mezuniyette likidite FARKLI bir
+        # havuz adresine taşınır — o adrese düşen bakiye artışı bir alıcı
+        # değildir, göçü "alıcı" gibi sayıp payları bozmasın diye dışlanır.
+        pool_addr = market.pair_address if source == "bonding_curve" else None
+        launch = await collect_launch_snapshot(
+            pool, mint, anchor, source,
+            extra_ignore={pool_addr} if pool_addr else None,
+        )
 
     # 3b) Zincir taraması başlangıcı göremediyse (bütçe / çok eski Raydium pool)
     #     bir indeksleyiciden ilk trade'leri çek. Anahtar yoksa sessizce atlanır.
@@ -274,6 +281,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
         market_available=market.available,
         token_age_hours=age_hours,
         launch_available=launch_ok,
+        launch_buyer_count=len(launch.buyers) if launch_ok else None,
     )
 
     # Karar kararlılığı: bu tarama veri toplayamayıp "inconclusive" çıktıysa ama

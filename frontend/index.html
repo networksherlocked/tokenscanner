@@ -450,7 +450,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
 .hero-eagle.no-img{display:none}
 
-/* tarama şeridi: 17 sinyal izi + soldan sağa kayan kartal */
+/* tarama şeridi: 18 sinyal izi + soldan sağa kayan kartal */
 .scan-strip{position:relative;margin:0 0 16px;height:clamp(180px,23vw,260px);
   border:1px solid var(--gold-dim);border-radius:3px;overflow:hidden;
   box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 90px rgba(0,0,0,.55);
@@ -567,7 +567,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       <div class="hero-text">
         <div class="kicker" data-i18n="kicker">Solana · launch forensics</div>
         <h1 data-i18n="h1">See who took a token's supply, and how.</h1>
-        <p class="lede" data-i18n="lede">Paste a mint address. Seventeen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
+        <p class="lede" data-i18n="lede">Paste a mint address. Eighteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.</p>
         <div class="search">
           <input id="mint" data-i18n-ph="mintPh" placeholder="Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
                  spellcheck="false" autocomplete="off" aria-label="Mint address">
@@ -608,7 +608,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       <div class="scan-stats">
         <div class="scan-stat"><b id="statHolders">0</b><span data-i18n="statHoldersLbl">launch buyers</span></div>
         <div class="scan-stat"><b id="statRpc">0</b><span data-i18n="statRpcLbl">RPC calls</span></div>
-        <div class="scan-stat"><b id="statSignals">0/17</b><span data-i18n="statSignalsLbl">signals</span></div>
+        <div class="scan-stat"><b id="statSignals">0/18</b><span data-i18n="statSignalsLbl">signals</span></div>
         <div class="scan-stat"><b id="scanElapsed">0.0s</b><span data-i18n="statElapsedLbl">elapsed</span></div>
       </div>
       <button class="scan-cancel" id="scanCancel" type="button" data-i18n="scanCancel">Stop scan</button>
@@ -706,7 +706,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
     <h2 data-i18n="aboutTitle">About america.sx</h2>
     <div class="sub" data-i18n="aboutSub">On-chain launch & supply-distribution forensics for Solana</div>
 
-    <p class="lead" data-i18n="aboutP1">america.sx takes a Solana token mint address and examines how its supply was acquired. It runs seventeen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth, LP lock status and more — then checks how many of them point the same way. One signal never decides on its own.</p>
+    <p class="lead" data-i18n="aboutP1">america.sx takes a Solana token mint address and examines how its supply was acquired. It runs eighteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth, LP lock status and more — then checks how many of them point the same way. One signal never decides on its own.</p>
 
     <div class="about-grid">
       <div class="ablock wide">
@@ -754,7 +754,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 // separate <script> before this one.
 const API = window.SOLSCOPE_API ?? '';
 const COLORS = {bundled:'#d5433f', cabaled:'#d5932f', organic:'#5c8fd6', inconclusive:'#8b9bb4'};
-const SIGNALS_N = 17;  // ızgara/iskelet için sabit; sonuçta d.signals.length kullanılır
+const SIGNALS_N = 18;  // ızgara/iskelet için sabit; sonuçta d.signals.length kullanılır
 const VERDICT_LABEL = { bundled:'Bundled', cabaled:'Cabaled', organic:'Organic', inconclusive:'Inconclusive' };
 
 const $ = id => document.getElementById(id);
@@ -789,7 +789,7 @@ const STR = {
     appealOk:'Received. Thank you.', appealErr:'Could not send — try again later.',
     kicker:'Solana · launch forensics',
     h1:"See who took a token's supply, and how.",
-    lede:'Paste a mint address. Seventeen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
+    lede:'Paste a mint address. Eighteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
     mintPh:'Mint address — e.g. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Scan', scanBtnBusy:'Scanning', pasteBtn:'Paste',
     hint:'Results are cached briefly. A deep scan usually takes 25–75 seconds.',
@@ -802,7 +802,7 @@ const STR = {
     footerBody:'Each classification is the current output of heuristic rules applied to public on-chain data. It describes a pattern; it carries no claim of intent, fraud or crime. It can produce false positives and false negatives. "Organic" means "no manipulation pattern found" — not "safe" or "will go up". As data changes, the verdict for the same token changes too. Not investment advice.',
     aboutTitle:'About america.sx',
     aboutSub:'On-chain launch & supply-distribution forensics for Solana',
-    aboutP1:"america.sx takes a Solana token mint address and examines how its supply was acquired. It runs seventeen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth, LP lock status and more — then checks how many of them point the same way. One signal never decides on its own.",
+    aboutP1:"america.sx takes a Solana token mint address and examines how its supply was acquired. It runs eighteen independent on-chain signals — wallet ages, funding sources, entry timing, balance patterns, transaction-fee fingerprints, liquidity depth, LP lock status and more — then checks how many of them point the same way. One signal never decides on its own.",
     aboutVerdictH:'The verdict',
     aboutBundled:'supply distribution looks manufactured — several hard signals agree and coordinated buying is visible.',
     aboutCabaled:'distribution is insider-heavy or unusual, but without the hard signatures of a bundle.',
@@ -812,7 +812,7 @@ const STR = {
     aboutAgedP:"The largest-accounts query returns a token's current top holders, not the wallets that sniped the launch. For a token more than a week old the original bundle may have already distributed, so a scan reflects the present holder structure. america.sx flags this in the result.",
     aboutLaunchH:'Launch analysis',
     aboutLaunchP:"The core of the engine. Using the pump.fun bonding-curve address (or the DEX pair) as an anchor, we page the token's signatures back to block one and parse the first ~40 transactions to reconstruct the actual launch buyers. The bundle signals run on those wallets — not on today's whales. When the launch history is too long to reach within budget, the engine falls back to current holders and says so.",
-    aboutSignalsH:'The seventeen signals',
+    aboutSignalsH:'The eighteen signals',
     aboutNumbersH:'Two numbers',
     aboutNumbersP:'Every scan returns a score (how well the token fits its category — not a price prediction) and a confidence (how much data was available for the call).',
     aboutLimitsH:'Limits',
@@ -884,7 +884,7 @@ const STR = {
     appealOk:'Alındı. Teşekkürler.', appealErr:'Gönderilemedi — sonra tekrar dene.',
     kicker:'Solana · lansman adli analizi',
     h1:'Bir tokenın arzını kimin, nasıl aldığını görün.',
-    lede:'Mint adresini yapıştırın. On yedi bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
+    lede:'Mint adresini yapıştırın. On sekiz bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
     mintPh:'Mint adresi — örn. 7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
     scanBtn:'Tara', scanBtnBusy:'Taranıyor', pasteBtn:'Yapıştır',
     hint:'Sonuçlar kısa süre önbellekte tutulur. Derin tarama genelde 25–75 saniye sürer.',
@@ -897,7 +897,7 @@ const STR = {
     footerBody:'Her sınıflandırma, halka açık zincir verisine uygulanan sezgisel kuralların o andaki çıktısıdır. Bir desen tarif eder; niyet, dolandırıcılık veya suç iddiası taşımaz. Yanlış pozitif ve yanlış negatif üretebilir. "Organic", "manipülasyon deseni bulunamadı" demektir — "güvenli" ya da "yükselecek" demek değildir. Veri değiştikçe aynı token için karar da değişir. Yatırım tavsiyesi değildir.',
     aboutTitle:'america.sx Hakkında',
     aboutSub:'Solana için zincir üstü lansman ve arz dağıtımı adli analizi',
-    aboutP1:'america.sx bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On yedi bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği, LP kilit durumu ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
+    aboutP1:'america.sx bir Solana token mint adresini alır ve arzının nasıl dağıtıldığını inceler. On sekiz bağımsız zincir sinyali çalıştırır — cüzdan yaşları, fonlama kaynakları, giriş zamanlaması, bakiye desenleri, işlem ücreti parmak izleri, likidite derinliği, LP kilit durumu ve daha fazlası — sonra kaçının aynı yöne işaret ettiğine bakar. Tek bir sinyal asla tek başına karar vermez.',
     aboutVerdictH:'Karar',
     aboutBundled:'arz dağıtımı üretilmiş görünüyor — birden çok sert sinyal aynı yönü gösteriyor ve koordineli alım görülüyor.',
     aboutCabaled:'dağıtım insider ağırlıklı ya da olağandışı, ama bir bundle\'ın sert imzaları yok.',
@@ -907,7 +907,7 @@ const STR = {
     aboutAgedP:'En büyük hesaplar sorgusu bir tokenın ŞU ANKİ en büyük cüzdanlarını verir, lansmanı snipe\'layan cüzdanları değil. Bir haftadan eski bir token için orijinal paket çoktan dağılmış olabilir; tarama mevcut holder yapısını yansıtır. america.sx bunu sonuçta belirtir.',
     aboutLaunchH:'Lansman analizi',
     aboutLaunchP:'Motorun çekirdeği. pump.fun bonding curve adresini (ya da DEX pair\'ini) çıpa alıp tokenın imzalarını ilk bloğa kadar sayfalarız ve ilk ~40 işlemi parse ederek gerçek lansman alıcılarını yeniden kurarız. Bundle sinyalleri bugünün balinalarında değil, o cüzdanlarda çalışır. Lansman geçmişi bütçe içinde başa ulaşılamayacak kadar uzunsa motor mevcut holder\'lara düşer ve bunu belirtir.',
-    aboutSignalsH:'On yedi sinyal',
+    aboutSignalsH:'On sekiz sinyal',
     aboutNumbersH:'İki sayı',
     aboutNumbersP:'Her tarama bir skor (token atandığı kategoriye ne kadar uyuyor — fiyat tahmini değil) ve bir güven (karar verilirken ne kadar veri vardı) döndürür.',
     aboutLimitsH:'Sınırlar',
@@ -977,6 +977,7 @@ const SIG_EN = {
   deployer_history:'Deployer history',
   flagged_wallets:'Previously flagged wallets',
   supply_whale:'Single-wallet dominance',
+  launch_dominance:'Single-wallet launch dominance',
   top10_concentration:'Top-10 concentration',
   funding_profile:'Funding-source profile',
   mint_authority:'Mint / freeze authority',
@@ -1015,7 +1016,7 @@ const SCAN_LOG = {
     [24000, 'tracing launch buyers: wallet age + funding source'],
     [34000, 'where did the SOL come from? mapping the funding graph'],
     [42000, 'checking deployer history — serial launcher?'],
-    [46000, 'computing 17 independent signals'],
+    [46000, 'computing 18 independent signals'],
     [49000, 'applying convergence rule'],
     [52000, 'preparing verdict, score and confidence'],
   ],
@@ -1029,7 +1030,7 @@ const SCAN_LOG = {
     [24000, 'lansman alıcıları: cüzdan yaşı + fonlama kaynağı'],
     [34000, 'SOL nereden geldi? fonlama grafiği çıkarılıyor'],
     [42000, 'deployer geçmişi kontrol ediliyor — seri lansman cüzdanı mı?'],
-    [46000, '17 bağımsız sinyal hesaplanıyor'],
+    [46000, '18 bağımsız sinyal hesaplanıyor'],
     [49000, 'yakınsama kuralı uygulanıyor'],
     [52000, 'karar, skor ve güven hazırlanıyor'],
   ],
@@ -1088,6 +1089,9 @@ const SIG_CATALOG = [
   ['supply_whale','bundled',
     'One non-exchange wallet holding a large slice of supply.',
     'Arzın büyük kısmını tutan tek borsa-dışı cüzdan.'],
+  ['launch_dominance','bundled',
+    'One wallet bought most of the launch/bonding-curve supply in one go — flags it even if that wallet has since sold and no longer holds.',
+    'Lansmanda/bonding curve\'de arzın büyük kısmını tek bir cüzdan almış — o cüzdan artık satmış ve elinde tutmuyor olsa bile yakalar.'],
   ['deployer_history','cabaled',
     'Deployer\'s prior tokens, and how many of them died / rugged.',
     'Deployer\'ın önceki tokenları ve kaçının öldüğü / rug olduğu.'],
@@ -1142,7 +1146,7 @@ function scanLine(text){
   el.appendChild(document.createTextNode(text));
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
-/* --- tarama şeridi: 17 sinyal izi + soldan sağa kayan kartal --- */
+/* --- tarama şeridi: 18 sinyal izi + soldan sağa kayan kartal --- */
 // [engine key, TR kısa ad, EN kısa ad] — yalnızca ateşleme etiketi için
 const SS_SIGS = [
   ['wallet_age_cluster','yaş kümesi','birth cluster'],
@@ -1156,6 +1160,7 @@ const SS_SIGS = [
   ['deployer_history','deployer geçmişi','deployer history'],
   ['flagged_wallets','işaretli cüzdan','flagged wallet'],
   ['supply_whale','arz balinası','supply whale'],
+  ['launch_dominance','lansman hakimiyeti','launch dominance'],
   ['top10_concentration','top-10 yoğunluğu','top-10 concentration'],
   ['funding_profile','fonlama kaynağı','funding source'],
   ['mint_authority','mint yetkisi','mint authority'],

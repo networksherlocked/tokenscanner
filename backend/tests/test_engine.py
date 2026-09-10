@@ -396,6 +396,74 @@ def disguised_bundle_case():
     return chain, _market(liq=130_000.0, mcap=2_200_000.0), launch, True
 
 
+def sniped_launch_case():
+    """Gerçek kaçırılmış vaka (DhZttCNF…pump / CARDCAT): bonding curve'de sadece
+    3 gerçek alıcı var — deployer, önemsiz bir alım, ve curve'ün ezici
+    çoğunluğunu (~%91) tek seferde süpüren bir sniper. O sniper taramadan ÖNCE
+    tamamen satıp çıkmış — ŞU ANKİ holder tablosunda hiç görünmüyor, dağıtım
+    orada tertemiz/dağınık görünüyor. supply_whale/top10_concentration (güncel
+    tabloya bakar) ve çoklu-cüzdan sinyalleri (n=3 için veri yetersiz) burada
+    kördür; yalnızca launch_dominance (lansman anındaki payı ölçer) yakalar."""
+    holders = []
+    for i in range(10):
+        holders.append(
+            HolderRecord(
+                token_account=f"HA{i:040d}",
+                owner=f"HOLD{i:039d}",
+                amount_raw=int(SUPPLY * (0.02 - i * 0.0015)),
+                first_slot=445_600_000 + i * 5_000,
+                first_block_time=LAUNCH + 3600 * (i + 1),
+                owner_created_at=LAUNCH - (60 + i * 30) * 86_400,
+                owner_tx_count=90 + i * 20,
+                funder=f"SECONDARYFUNDER{i:025d}",
+            )
+        )
+    for h in holders:
+        h.share = h.amount_raw / SUPPLY * 100
+    chain = ChainSnapshot(mint_info=_mint(), holders=holders, coverage=1.0)
+
+    buyers = [
+        LaunchBuyer(
+            owner="DEPLOYERWALLETxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            amount_raw=66_285_714,
+            first_slot=445_591_386,
+            first_block_time=LAUNCH + 5,
+            entry_fee=32_000,
+            first_signature="sig1",
+            owner_created_at=LAUNCH - 3600 * 24 * 200,
+            owner_tx_count=50,
+            funder="5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",  # Binance
+        ),
+        LaunchBuyer(
+            owner="TinyBuyerxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            amount_raw=1_552_373,
+            first_slot=445_591_392,
+            first_block_time=LAUNCH + 11,
+            entry_fee=31_500,
+            first_signature="sig2",
+            owner_created_at=LAUNCH - 3600 * 24 * 700,
+            owner_tx_count=1500,
+            funder="A2bgy3EgDsNU4HnQmaTGfcqVxDoLhyyAekfJRQwJgXXE",
+        ),
+        LaunchBuyer(
+            owner="SniperWalletThatFullyExitedxxxxxxxxxxxxxxx",
+            amount_raw=726_814_285,
+            first_slot=445_592_372,
+            first_block_time=LAUNCH + 991,
+            entry_fee=45_000,
+            first_signature="sig3",
+            owner_created_at=LAUNCH - 3600 * 24 * 90,
+            owner_tx_count=96,
+            funder="H1qNFw7qidjD4rwf72YXxx65E1LxvHusFyWjMdGypm5B",
+        ),
+    ]
+    total = sum(b.amount_raw for b in buyers)
+    for b in buyers:
+        b.share = b.amount_raw / total * 100
+    launch = LaunchSnapshot(available=True, source="bonding_curve", buyers=buyers)
+    return chain, _market(liq=45_000.0, mcap=280_000.0), launch, True
+
+
 def indexer_launch_case():
     """Çok eski Raydium token: zincir imza taraması başlangıcı göremedi, lansman
     verisi bir indeksleyiciden (EarlyTrade) geldi. Slot/ücret yok ama yaş kümesi
@@ -455,6 +523,7 @@ def run(name: str, builder, age_hours: float = 8.0) -> str:
         market_available=market.available,
         token_age_hours=age_hours,
         launch_available=launch_avail,
+        launch_buyer_count=len(launch.buyers) if (launch and launch_avail) else None,
     )
     print(f"\n{'=' * 66}\n{name}\n{'=' * 66}")
     print(f"  KARAR: {verdict.label}  |  skor {verdict.score}  |  güven {verdict.confidence} ({verdict.confidence_label})")
@@ -487,6 +556,9 @@ if __name__ == "__main__":
         "İNDEKSLEYİCİ LANSMANI": run(
             "İNDEKSLEYİCİ LANSMANI", indexer_launch_case, age_hours=2400.0
         ),
+        "SNİPE'LANMIŞ LANSMAN": run(
+            "SNİPE'LANMIŞ LANSMAN", sniped_launch_case, age_hours=20.6
+        ),
     }
     expected = {
         "BUNDLE SENARYOSU": "bundled",
@@ -499,6 +571,7 @@ if __name__ == "__main__":
         "BOT YARIŞI": "organic",
         "KİLİTSİZ LP": "organic",
         "İNDEKSLEYİCİ LANSMANI": "bundled",
+        "SNİPE'LANMIŞ LANSMAN": "cabaled",
     }
     print(f"\n{'=' * 66}")
     ok = True
@@ -515,5 +588,12 @@ if __name__ == "__main__":
     ok &= lp_ok
     print(f"  {'KİLİTSİZ LP risk bayrağı':20s} → {'VAR' if lp_ok else 'YOK':9s} "
           f"{'GEÇTİ' if lp_ok else 'KALDI'}")
+
+    # SNİPE'LANMIŞ LANSMAN: artık elinde tutmayan bir sniper'ın lansman-anı
+    # hakimiyetini launch_dominance yakalamalı (organic DEĞİL).
+    ld_fired = "launch_dominance" in results["SNİPE'LANMIŞ LANSMAN"].fired
+    ok &= ld_fired
+    print(f"  {'launch_dominance ateşlendi':20s} → {'VAR' if ld_fired else 'YOK':9s} "
+          f"{'GEÇTİ' if ld_fired else 'KALDI'}")
 
     sys.exit(0 if ok else 1)

@@ -885,7 +885,7 @@ async def share_page(mint: str, request: Request):
         )[:200]
     else:
         title = "america.sx — Solana launch forensics"
-        desc = "Paste a Solana mint. Seventeen independent on-chain signals decide."
+        desc = "Paste a Solana mint. Eighteen independent on-chain signals decide."
 
     def esc(s: str) -> str:
         return (
