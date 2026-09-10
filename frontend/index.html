@@ -819,7 +819,18 @@ const STR = {
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
     copied:'Copied', copyMint:'Click to copy mint address',
-    shareTweet: (label, score) => `america.sx read this Solana token as ${label} (score ${score}).`,
+    shareTweetFull: (sym, mint, mcap, n, kind) => {
+      const lbl = { bundled:'BUNDLED', cabaled:'CABALED', organic:'ORGANIC',
+        inconclusive:'INCONCLUSIVE' }[kind] || (kind||'').toUpperCase();
+      const note = {
+        organic:'No coordinated distribution pattern — supply looks organic. Not a safety guarantee; DYOR.',
+        bundled:'Looks manufactured — several hard signals point to coordinated buying at launch. Be careful.',
+        cabaled:'Distribution is insider-heavy / unusual, without a clean bundle signature. Look closer before you ape.',
+        inconclusive:'Not enough on-chain data for a firm call on how supply was distributed.',
+      }[kind] || '';
+      return `$${sym} · MC ${mcap}\n${mint}\n\n`
+        + `We scanned this for you with ${n} on-chain algorithms → ${lbl}.\n${note}`;
+    },
     appealIntro:'Think this verdict is wrong? Tell us why — reviewed manually.',
     appealContact:'Contact (optional — email or @handle)',
     appealBody:"What's wrong, and what's the on-chain evidence?",
@@ -914,7 +925,18 @@ const STR = {
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
     copied:'Kopyalandı', copyMint:'Kopyalamak için tıkla',
-    shareTweet: (label, score) => `america.sx bu Solana tokenını ${label} okudu (skor ${score}).`,
+    shareTweetFull: (sym, mint, mcap, n, kind) => {
+      const lbl = { bundled:'PAKETLİ', cabaled:'KABAL', organic:'ORGANİK',
+        inconclusive:'BELİRSİZ' }[kind] || (kind||'').toUpperCase();
+      const note = {
+        organic:'Koordineli dağıtım deseni yok — arz organik görünüyor. Garanti değil; kendin araştır.',
+        bundled:'Üretilmiş görünüyor — sert sinyaller lansmanda koordineli alıma işaret ediyor. Dikkatli ol.',
+        cabaled:'Dağıtım insider ağırlıklı / olağandışı; net bir paket imzası yok. Almadan önce iyi bak.',
+        inconclusive:'Arzın nasıl dağıtıldığına dair kesin karar için yeterli zincir verisi yok.',
+      }[kind] || '';
+      return `$${sym} · MC ${mcap}\n${mint}\n\n`
+        + `Bu tokenı senin için ${n} zincir algoritmasıyla taradık → ${lbl}.\n${note}`;
+    },
     appealIntro:'Bu kararın yanlış olduğunu mu düşünüyorsun? Nedenini yaz — elle inceleniyor.',
     appealContact:'İletişim (opsiyonel — e-posta veya @kullanıcı)',
     appealBody:'Ne yanlış ve zincir üstü kanıtı ne?',
@@ -1852,9 +1874,14 @@ function wireShare(d){
   const label = VERDICT_LABEL[v.kind] || v.kind || '';
   $('embedCode').value =
     `<a href="${url}"><img src="${origin}/badge/${d.mint}.svg" alt="america.sx: ${label}" height="46"></a>`;
-  const tweet = L('shareTweet', label, v.score);
+  const tk = d.token || {};
+  const sym = tk.symbol || tk.name || short(d.mint);
+  const mcap = mcapShort(tk.market_cap);
+  const nAlgos = (d.signals && d.signals.length) || SIGNALS_N;
+  const tweet = L('shareTweetFull', sym, d.mint, mcap, nAlgos, v.kind)
+    + '\n\n' + (lang === 'en' ? 'Full scan → ' : 'Tam sonuç → ') + url;
   $('shareX').href =
-    `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}&url=${encodeURIComponent(url)}`;
+    `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}`;
   // reset toggles
   $('embedCode').hidden = true; $('appealForm').hidden = true;
   $('appealMsg').textContent = ''; $('appealBody').value = ''; $('appealContact').value = '';
