@@ -37,6 +37,7 @@ from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
 from . import xpost
 from .rpc import trades as rpc_trades
+from .rpc.chart import fetch_chart
 from .rpc.market import fetch_market
 from .rpc.pool import RpcError, RpcPool
 from .rpc.pool import mask_endpoints as pool_mask
@@ -1162,6 +1163,12 @@ async def track(limit: int = 20):
 async def risk_list(limit: int = 24):
     """AI tarafından tespit edilen riskli tokenlar (kara liste yayılımı)."""
     return {"tokens": state["cache"].risk_list(min(limit, 48))}
+
+
+@app.get("/api/chart/{mint}")
+async def chart(mint: str, preset: str = "24h"):
+    """Sonuç ekranındaki yerel SVG grafik için OHLCV (GeckoTerminal)."""
+    return await fetch_chart(_validate(mint), preset)
 
 
 @app.get("/api/health")
