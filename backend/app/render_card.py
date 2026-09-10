@@ -1,8 +1,9 @@
 """
 Paylaşılabilir kart (PNG, X/OG için) ve gömülebilir rozet (SVG).
 
-Kart tarama önbelleğinden üretilir; token henüz taranmadıysa genel bir kart
-döner. Rozet siteler `<img src=".../badge/MINT.svg">` ile gömer.
+Kart, sonuç sayfasındaki "karar" panelinin YATAY (1200×630) versiyonudur;
+sayfa diline göre EN veya TR üretilir (`/card/MINT.png?lang=tr`). Token
+henüz taranmadıysa genel bir kart döner.
 """
 
 from __future__ import annotations
@@ -20,6 +21,8 @@ _PANEL = (23, 38, 63)
 _GOLD = (200, 164, 92)
 _TEXT = (226, 232, 244)
 _MUTED = (135, 151, 179)
+_DIM = (82, 100, 134)
+_TRACK = (40, 58, 92)
 _VERDICT_RGB = {
     "bundled": (213, 67, 63),
     "cabaled": (213, 147, 47),
@@ -39,9 +42,56 @@ _LABEL = {
     "inconclusive": "INCONCLUSIVE",
 }
 
+# --- diller --------------------------------------------------------------
+_T = {
+    "en": {
+        "kicker": "DETERMINATION",
+        "score": "MATCH SCORE",
+        "conf": "CONFIDENCE",
+        "mcap": "Market cap",
+        "liq": "Liquidity",
+        "age": "Age",
+        "basis": "Analysis basis",
+        "launch": "launch buyers",
+        "holders": "current holders",
+        "age_fmt": lambda h: (f"{h/24:.1f} d" if h and h >= 48 else f"{h:.0f} h") if h else "—",
+        "not_scanned": "NOT YET SCANNED",
+        "conf_lbl": {"yüksek": "HIGH", "orta": "MEDIUM", "düşük": "LOW", "çok düşük": "VERY LOW"},
+        "summary": {
+            "bundled": "Supply distribution looks manufactured — coordinated buying patterns detected.",
+            "cabaled": "Distribution is insider-heavy or unusual, without the hard signatures of a bundle.",
+            "organic": 'No coordinated distribution pattern found. This does not mean "safe" or "will go up".',
+            "inconclusive": "Not enough on-chain data was collected to make a firm call.",
+        },
+    },
+    "tr": {
+        "kicker": "KARAR",
+        "score": "UYUM SKORU",
+        "conf": "GÜVEN",
+        "mcap": "Piyasa değeri",
+        "liq": "Likidite",
+        "age": "Yaş",
+        "basis": "Analiz temeli",
+        "launch": "lansman alıcıları",
+        "holders": "mevcut holder'lar",
+        "age_fmt": lambda h: (f"{h/24:.1f} gün" if h and h >= 48 else f"{h:.0f} saat") if h else "—",
+        "not_scanned": "HENÜZ TARANMADI",
+        "conf_lbl": {"yüksek": "YÜKSEK", "orta": "ORTA", "düşük": "DÜŞÜK", "çok düşük": "ÇOK DÜŞÜK"},
+        "summary": {},  # TR: taramanın kendi Türkçe özeti kullanılır
+    },
+}
+
 
 def _short(a: str | None) -> str:
     return f"{a[:4]}…{a[-4:]}" if a and len(a) > 10 else (a or "—")
+
+
+def _money(n) -> str:
+    try:
+        n = float(n)
+    except (TypeError, ValueError):
+        return "—"
+    return f"${n:,.0f}"
 
 
 # ---------- PNG kart -------------------------------------------------------
@@ -55,14 +105,36 @@ def _font(name: str, size: int):
         return ImageFont.load_default()
 
 
-def render_png(scan: dict | None, mint: str) -> bytes:
+def _wrap(draw, text: str, font, max_w: int, max_lines: int = 3) -> list[str]:
+    out: list[str] = []
+    cur = ""
+    for word in (text or "").split():
+        trial = (cur + " " + word).strip()
+        if draw.textlength(trial, font=font) <= max_w or not cur:
+            cur = trial
+        else:
+            out.append(cur)
+            cur = word
+            if len(out) == max_lines:
+                break
+    if cur and len(out) < max_lines:
+        out.append(cur)
+    if out and draw.textlength(out[-1], font=font) > max_w:
+        while out[-1] and draw.textlength(out[-1] + "…", font=font) > max_w:
+            out[-1] = out[-1][:-1]
+        out[-1] += "…"
+    return out
+
+
+def render_png(scan: dict | None, mint: str, lang: str = "en") -> bytes:
     from PIL import Image, ImageDraw
 
+    T = _T.get(lang if lang in _T else "en")
     W, H = 1200, 630
     img = Image.new("RGB", (W, H), _INK)
     d = ImageDraw.Draw(img)
 
-    # ince guilloche benzeri dikey çizgiler
+    # ince dikey guilloche
     for x in range(0, W, 6):
         d.line([(x, 0), (x, H)], fill=(14, 24, 42), width=1)
 
@@ -75,52 +147,87 @@ def render_png(scan: dict | None, mint: str) -> bytes:
     d.rectangle([W // 3, 0, 2 * W // 3, 8], fill=(236, 226, 202))
     d.rectangle([2 * W // 3, 0, W, 8], fill=_VERDICT_RGB["organic"])
 
-    f_kicker = _font("Oswald-SemiBold.ttf", 26)
-    f_verdict = _font("Oswald-SemiBold.ttf", 132)
-    f_sym = _font("Oswald-SemiBold.ttf", 46)
-    f_meta = _font("PlexMono-Medium.ttf", 26)
-    f_small = _font("PlexMono-Medium.ttf", 22)
-    f_brand = _font("Oswald-SemiBold.ttf", 30)
+    f_kicker = _font("Oswald-SemiBold.ttf", 24)
+    f_verdict = _font("Oswald-SemiBold.ttf", 104)
+    f_sum = _font("PlexMono-Medium.ttf", 25)
+    f_lbl = _font("Oswald-SemiBold.ttf", 20)
+    f_val = _font("PlexMono-Medium.ttf", 26)
+    f_sym = _font("Oswald-SemiBold.ttf", 40)
+    f_small = _font("PlexMono-Medium.ttf", 21)
+    f_brand = _font("Oswald-SemiBold.ttf", 28)
 
-    d.text((64, 60), "SOLANA · LAUNCH FORENSICS", font=f_kicker, fill=_GOLD)
+    PAD = 64
+    LW = 632                      # sol blok genişliği
+    d.text((PAD, 52), "SOLANA · LAUNCH FORENSICS", font=f_kicker, fill=_GOLD)
+    d.text((PAD, 90), T["kicker"], font=f_kicker, fill=_GOLD)
 
     if not scan:
-        d.text((64, 150), "NOT YET SCANNED", font=f_verdict, fill=_MUTED)
-        d.text((64, 320), _short(mint), font=f_meta, fill=_MUTED)
+        d.text((PAD, 128), T["not_scanned"], font=f_verdict, fill=_MUTED)
+        d.text((PAD, 300), _short(mint), font=f_val, fill=_MUTED)
     else:
         tok = scan.get("token") or {}
         v = scan.get("verdict") or {}
-        d.text((64, 132), _LABEL.get(kind, kind.upper() or "—"),
+
+        d.text((PAD, 118), _LABEL.get(kind, (kind or "—").upper()),
                font=f_verdict, fill=vc)
 
-        y = 300
-        sym = tok.get("symbol") or ""
-        name = tok.get("name") or ""
-        d.text((64, y), f"{sym}  {name}".strip()[:38], font=f_sym, fill=_TEXT)
-        y += 74
-        score = v.get("score", "—")
-        conf = v.get("confidence", "—")
-        d.text((64, y), f"score {score}   ·   confidence {conf}",
-               font=f_meta, fill=_MUTED)
-        y += 44
-        mcap = tok.get("market_cap")
-        mcap_s = f"${mcap:,.0f}" if mcap else "—"
-        basis = "launch buyers" if (scan.get("launch") or {}).get("available") \
-            else "current holders"
-        d.text((64, y), f"mcap {mcap_s}   ·   basis: {basis}",
-               font=f_small, fill=_MUTED)
-        y += 40
-        fired = [s for s in scan.get("signals", []) if s.get("fired")]
-        if fired:
-            names = ", ".join(s.get("label", s.get("key", "")) for s in fired[:4])
-            d.text((64, y), f"fired: {names}"[:78], font=f_small, fill=_MUTED)
+        # özet — EN: kendi tablomuz, TR: taramanın Türkçe özeti
+        summary = (T["summary"].get(kind) if lang == "en" else None) \
+            or v.get("summary") or ""
+        y = 250
+        for line in _wrap(d, summary, f_sum, LW, 3):
+            d.text((PAD, y), line, font=f_sum, fill=_MUTED)
+            y += 34
 
-    # filigran (dalgalanan ABD bayrağı + altın kartal) + wordmark (sağ alt)
+        # skor + güven barları
+        def bar(y0, label, value, pct, extra=""):
+            d.text((PAD, y0), label, font=f_lbl, fill=_DIM)
+            rt = f"{value}" + (f"  ·  {extra}" if extra else "")
+            d.text((PAD + LW - d.textlength(rt, font=f_val), y0 - 2), rt,
+                   font=f_val, fill=_TEXT)
+            by = y0 + 30
+            d.rounded_rectangle([PAD, by, PAD + LW, by + 9], radius=4, fill=_TRACK)
+            fw = max(8, int(LW * min(100, max(0, pct)) / 100))
+            d.rounded_rectangle([PAD, by, PAD + fw, by + 9], radius=4, fill=vc)
+
+        score = v.get("score")
+        conf = v.get("confidence")
+        clbl = T["conf_lbl"].get(v.get("confidence_label"), "")
+        bar(398, T["score"], score if score is not None else "—",
+            score if isinstance(score, (int, float)) else 0)
+        bar(468, T["conf"], conf if conf is not None else "—",
+            conf if isinstance(conf, (int, float)) else 0, clbl)
+
+        # sağ blok — token bilgileri
+        rx = PAD + LW + 60
+        sym = (tok.get("symbol") or "").upper()
+        name = tok.get("name") or ""
+        d.text((rx, 118), (sym or _short(mint))[:16], font=f_sym, fill=_TEXT)
+        if name and name.upper() != sym:
+            d.text((rx, 168), name[:26], font=f_small, fill=_MUTED)
+
+        rows = [
+            (T["mcap"], _money(tok.get("market_cap"))),
+            (T["liq"], _money(tok.get("liquidity_usd"))),
+            (T["age"], T["age_fmt"](tok.get("age_hours"))),
+        ]
+        basis_key = "launch" if (scan.get("launch") or {}).get("available") else "holders"
+        bcount = (scan.get("launch") or {}).get("buyer_count")
+        basis_val = T[basis_key] + (f" ({bcount})" if basis_key == "launch" and bcount else "")
+        rows.append((T["basis"], basis_val))
+
+        ry = 220
+        for lab, val in rows:
+            d.text((rx, ry), lab, font=f_lbl, fill=_GOLD)
+            d.text((rx, ry + 26), str(val)[:26], font=f_val, fill=_TEXT)
+            ry += 78
+
+    # filigran + wordmark
     _draw_watermark(img)
-    d.text((64, H - 58), "america", font=f_brand, fill=_TEXT)
+    d.text((PAD, H - 56), "america", font=f_brand, fill=_TEXT)
     tw = d.textlength("america", font=f_brand)
-    d.text((64 + tw + 2, H - 58), ".sx", font=f_brand, fill=_GOLD)
-    d.text((64, H - 92), _short(mint), font=f_small, fill=(82, 100, 134))
+    d.text((PAD + tw + 2, H - 56), ".sx", font=f_brand, fill=_GOLD)
+    d.text((PAD, H - 88), _short(mint), font=f_small, fill=_DIM)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
@@ -152,7 +259,7 @@ def _draw_watermark(img) -> None:
     """Sağ alt köşeye silik filigran: dalgalanan ABD bayrağı + altın kartal.
 
     Görseller (frontend/flag.png, frontend/eagle.png) bulunamazsa sessizce
-    atlanır — eski SVG kalkan arması tamamen kaldırıldı.
+    atlanır.
     """
     from PIL import Image, ImageDraw, ImageFilter
 
@@ -164,21 +271,19 @@ def _draw_watermark(img) -> None:
     except Exception:  # noqa: BLE001
         return
 
-    # bayrak: yumuşak eliptik maskeyle bulanık, çok silik bir yıkama
-    flag = _fit_width(flag, int(W * 0.46))
+    flag = _fit_width(flag, int(W * 0.42))
     mask = Image.new("L", flag.size, 0)
     ImageDraw.Draw(mask).ellipse(
         [flag.width * 0.12, flag.height * 0.04,
          flag.width * 1.02, flag.height * 1.05],
-        fill=int(255 * 0.10),
+        fill=int(255 * 0.09),
     )
     mask = mask.filter(ImageFilter.GaussianBlur(flag.width * 0.12))
     flag.putalpha(mask)
-    img.paste(flag, (W - flag.width + 46, H - flag.height + 34), flag)
+    img.paste(flag, (W - flag.width + 40, H - flag.height + 30), flag)
 
-    # kartal: düz düşük opaklık (altın siluet zaten şeffaf zeminde)
-    eagle = _scale_alpha(_fit_width(eagle, int(W * 0.30)), 0.15)
-    img.paste(eagle, (W - eagle.width - 8, H - eagle.height + 18), eagle)
+    eagle = _scale_alpha(_fit_width(eagle, int(W * 0.26)), 0.14)
+    img.paste(eagle, (W - eagle.width - 10, H - eagle.height + 14), eagle)
 
 
 # ---------- SVG rozet ----------------------------------------------------

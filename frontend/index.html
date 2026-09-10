@@ -808,6 +808,8 @@ function eagleImgFail(img){ img.style.display='none'; const p=img.closest('.hero
 /* ---------------- i18n ---------------- */
 let lang = 'en';
 try{ const s = (localStorage.getItem('americasx_lang') || localStorage.getItem('uavsx_lang')); if(s === 'tr' || s === 'en') lang = s; }catch(e){}
+// /t/{mint}?lang=xx paylaşım sayfası dili sabitler
+if(window.__PREFILL_LANG__ === 'tr' || window.__PREFILL_LANG__ === 'en') lang = window.__PREFILL_LANG__;
 
 const STR = {
   en: {
@@ -1869,7 +1871,8 @@ function renderChart(pool){
 function wireShare(d){
   const box = $('shareBox'); box.hidden = false;
   const origin = location.origin;
-  const url = `${origin}/t/${d.mint}`;
+  // paylaşım linki sayfa dilini taşır → OG kartı (yatay görsel) o dilde üretilir
+  const url = `${origin}/t/${d.mint}?lang=${lang}`;
   const v = d.verdict || {};
   const label = VERDICT_LABEL[v.kind] || v.kind || '';
   $('embedCode').value =

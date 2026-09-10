@@ -1070,9 +1070,9 @@ def _cached_scan(mint: str) -> dict | None:
 
 
 @app.get("/card/{mint}.png")
-async def card_png(mint: str):
+async def card_png(mint: str, lang: str = "en"):
     scan = _cached_scan(mint)
-    png = render_png(scan, mint)
+    png = render_png(scan, mint, "tr" if lang == "tr" else "en")
     return Response(
         content=png,
         media_type="image/png",
@@ -1091,26 +1091,34 @@ async def badge_svg(mint: str):
 
 
 @app.get("/t/{mint}", response_class=HTMLResponse)
-async def share_page(mint: str, request: Request):
+async def share_page(mint: str, request: Request, lang: str = "en"):
     """Arayüzün aynısı ama <head>'e o tokenın OG etiketleri enjekte edilmiş."""
     if not _FRONTEND_DIR.is_dir():
         raise HTTPException(404, "frontend yok")
     doc = (_FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
     scan = _cached_scan(mint)
     base = str(request.base_url).rstrip("/")
+    lang = "tr" if lang == "tr" else "en"
 
     # mint _validate'ten geçti — yalnızca base58, HTML/JS'e güvenli.
     mint = _validate(mint)
+    card = f"{base}/card/{mint}.png?lang={lang}"
     if scan:
         tok = scan.get("token") or {}
         v = scan.get("verdict") or {}
         label = _VLABEL.get(v.get("kind"), "Scanned")
         sym = tok.get("symbol") or mint[:6]
         title = f"{label} — {sym} · america.sx"
-        desc = (
-            f"{label} · score {v.get('score')} · confidence {v.get('confidence')}. "
-            f"{v.get('summary', '')}"
-        )[:200]
+        if lang == "tr":
+            desc = (
+                f"{label} · skor {v.get('score')} · güven {v.get('confidence')}. "
+                f"{v.get('summary', '')}"
+            )[:200]
+        else:
+            desc = (
+                f"{label} · score {v.get('score')} · confidence {v.get('confidence')}. "
+                f"{v.get('summary', '')}"
+            )[:200]
     else:
         title = "america.sx — Solana launch forensics"
         desc = "Paste a Solana mint. Eighteen independent on-chain signals decide."
@@ -1125,13 +1133,13 @@ async def share_page(mint: str, request: Request):
         f'<meta property="og:type" content="website">'
         f'<meta property="og:title" content="{esc(title)}">'
         f'<meta property="og:description" content="{esc(desc)}">'
-        f'<meta property="og:image" content="{base}/card/{mint}.png">'
-        f'<meta property="og:url" content="{base}/t/{mint}">'
+        f'<meta property="og:image" content="{esc(card)}">'
+        f'<meta property="og:url" content="{base}/t/{mint}?lang={lang}">'
         f'<meta name="twitter:card" content="summary_large_image">'
         f'<meta name="twitter:title" content="{esc(title)}">'
         f'<meta name="twitter:description" content="{esc(desc)}">'
-        f'<meta name="twitter:image" content="{base}/card/{mint}.png">'
-        f'<script>window.__PREFILL_MINT__="{mint}";</script>'
+        f'<meta name="twitter:image" content="{esc(card)}">'
+        f'<script>window.__PREFILL_MINT__="{mint}";window.__PREFILL_LANG__="{lang}";</script>'
     )
     doc = doc.replace("</head>", og + "</head>", 1)
     return HTMLResponse(doc)
