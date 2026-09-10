@@ -283,32 +283,16 @@ td.addr{color:var(--text)}
 .riskflags .rf.medium .tx b{color:var(--cabaled)}
 .riskflags .rf .tx span{color:var(--muted)}
 
-/* fiyat grafiği — yerel SVG (GeckoTerminal OHLCV verisi) */
+/* fiyat grafiği — gömülü TradingView widget (Birdeye) */
 .chartbox{margin-top:26px;border:1px solid var(--rule);border-top:2px solid var(--gold-dim);
   background:var(--panel);border-radius:2px;overflow:hidden}
 .chart-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   padding:12px 14px 10px}
 .chart-top .head{font-family:var(--display);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);padding:0}
-.chart-ctl{display:flex;gap:4px;flex-wrap:wrap}
-.chart-ctl .grp{display:flex;gap:2px;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
-.chart-ctl button{background:transparent;border:0;color:var(--dim);font-family:var(--mono);font-size:10px;
-  letter-spacing:.04em;padding:5px 8px;cursor:pointer;text-transform:uppercase}
-.chart-ctl button:hover{color:var(--text)}
-.chart-ctl button.on{background:var(--panel-2);color:var(--gold)}
-.chart-canvas{position:relative;width:100%;min-height:260px;background:var(--ink);border-top:1px solid var(--rule);overflow:hidden}
-.chart-canvas svg{display:block;max-width:100%}
-.chart-embed{width:100%;height:340px;border:0;display:block}
-@media(max-width:560px){.chart-embed{height:300px}}
-.chart-canvas .cx-label{position:absolute;transform:translate(-50%,-100%);pointer-events:none;
-  font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 6px;border-radius:2px;
-  background:var(--ink);border:1px solid currentColor;white-space:nowrap;z-index:2}
-.chart-canvas .cx-time{position:absolute;transform:translate(-50%,0);pointer-events:none;
-  font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--ink);
-  padding:1px 5px;border:1px solid var(--rule);border-radius:2px;white-space:nowrap;z-index:2}
-.chart-canvas .cnote{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:12px;color:var(--dim)}
-.chart-tick{fill:var(--dim);font-family:var(--mono);font-size:9px}
-.chart-tag{fill:var(--ink);font-family:var(--mono);font-size:10px}
+.chart-canvas{position:relative;width:100%;background:var(--ink);border-top:1px solid var(--rule);overflow:hidden}
+.chart-canvas .cnote{padding:40px 14px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.chart-embed{width:100%;height:460px;border:0;display:block}
+@media(max-width:560px){.chart-embed{height:380px}}
 .chart-foot{padding:8px 14px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
   font-family:var(--display);color:var(--dim);border-top:1px solid var(--rule);display:flex;
   justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -690,7 +674,6 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
           <div class="chartbox" id="chartBox" hidden>
             <div class="chart-top">
               <span class="head" data-i18n="chartHead">Price chart</span>
-              <div class="chart-ctl" id="chartCtl"></div>
             </div>
             <div class="chart-canvas" id="chartCanvas"></div>
             <div class="chart-foot">
@@ -877,8 +860,7 @@ const STR = {
     navHome:'Home',
     navAbout:'About',
     chartHead:'Price chart',
-    chartLine:'Line', chartCandles:'Candles',
-    chartLoading:'loading chart…', chartNone:'no chart data for this token',
+    chartNone:'no chart data for this token',
     riskFlagsHead:'Risk flags — separate from the distribution verdict',
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
@@ -983,8 +965,7 @@ const STR = {
     navHome:'Ana sayfa',
     navAbout:'Hakkında',
     chartHead:'Fiyat grafiği',
-    chartLine:'Çizgi', chartCandles:'Mum',
-    chartLoading:'grafik yükleniyor…', chartNone:'bu token için grafik verisi yok',
+    chartNone:'bu token için grafik verisi yok',
     riskFlagsHead:'Risk bayrakları — dağıtım kararından ayrıdır',
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
@@ -1976,7 +1957,7 @@ function render(d){
 
   renderMomentum(d.momentum);
 
-  renderChart(d.mint, (d.token || {}).pair_address);
+  renderChart(d.mint);
 
   // Lansman verisi varsa: ilk alıcılar (fonlayan + işlem + yaş DOLU).
   // Yoksa: mevcut en büyük holder'lar.
@@ -2018,190 +1999,32 @@ function render(d){
   wireShare(d);
 }
 
-/* ---------------- fiyat grafiği — yerel SVG ----------------
-   3. taraf iframe (GeckoTerminal/DexScreener embed) yerine kendi SVG
-   grafiğimizi çiziyoruz. Veri: /api/chart/{mint} → GeckoTerminal OHLCV
-   (anahtarsız). Çizgi + mum modu, dönem seçici, crosshair. */
-const CHART = { mint:null, pair:null, mode:'line', linePreset:'24h', candlePreset:'c5m', data:null, poll:null, embed:null };
-const CHART_H = () => (window.innerWidth < 560 ? 260 : 320);
-const CH_NS = 'http://www.w3.org/2000/svg';
-
-function fmtP(n){
-  if(n == null || !isFinite(n)) return '—';
-  if(n >= 1000) return '$' + Math.round(n).toLocaleString();
-  if(n >= 1) return '$' + n.toFixed(n >= 100 ? 1 : 3);
-  if(n <= 0) return '$0';
-  const e = Math.floor(Math.log10(n));
-  return '$' + n.toFixed(Math.min(12, -e + 3)).replace(/0+$/, '').replace(/\.$/, '');
-}
-function niceTicks(lo, hi, count){
-  const span = (hi - lo) || Math.abs(hi) || 1;
-  const s0 = span / count, mag = Math.pow(10, Math.floor(Math.log10(s0)));
-  const norm = s0 / mag;
-  const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
-  const out = [];
-  for(let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-6; v += step) out.push(v);
-  return out;
-}
-function chartEffPreset(){ return CHART.mode === 'line' ? CHART.linePreset : CHART.candlePreset; }
-
-function renderChart(mint, pair){
-  const box = $('chartBox');
+/* ---------------- fiyat grafiği — gömülü TradingView widget ----------------
+   Kendi SVG grafiğimiz Render sunucusunun IP'sinden OHLCV çekemiyordu
+   (GeckoTerminal/pump.fun datacenter IP'lerini kısıtlıyor). Çözüm: grafiği
+   istemci tarafında yükleyen gömülebilir bir widget. GMGN.ai iframe'e izin
+   vermiyor (X-Frame-Options + CSP frame-ancestors), o yüzden Birdeye'ın
+   gömülebilir TradingView widget'ını kullanıyoruz — mum, hacim, canlı veri. */
+let _chartMint = null;
+function renderChart(mint){
+  const box = $('chartBox'), wrap = $('chartCanvas');
   if(!mint){
-    CHART.mint = null; CHART.pair = null; CHART.embed = null;
-    clearTimeout(CHART.poll); box.hidden = true; $('chartCanvas').innerHTML = ''; return;
-  }
-  if(mint === CHART.mint && !box.hidden) return;
-  CHART.mint = mint; CHART.pair = pair || null; CHART.data = null; CHART.embed = null;
-  box.hidden = false;
-  $('chartCanvas').innerHTML = `<div class="cnote">${L('chartLoading')}</div>`;
-  chartControls();
-  chartLoad();
-}
-function chartControls(){
-  const el = $('chartCtl');
-  const cnd = [['c1m','1m'],['c5m','5m'],['c15m','15m'],['c1h','1h']];
-  const modeGrp = `<div class="grp">
-    <button data-m="line" class="${CHART.mode==='line'?'on':''}">${L('chartLine')}</button>
-    <button data-m="candles" class="${CHART.mode==='candles'?'on':''}">${L('chartCandles')}</button></div>`;
-  const presetGrp = CHART.mode === 'line'
-    ? `<div class="grp">${['1h','24h','7d','30d'].map(p=>`<button data-p="${p}" class="${CHART.linePreset===p?'on':''}">${p}</button>`).join('')}</div>`
-    : `<div class="grp">${cnd.map(([p,l])=>`<button data-p="${p}" class="${CHART.candlePreset===p?'on':''}">${l}</button>`).join('')}</div>`;
-  el.innerHTML = modeGrp + presetGrp;
-  el.querySelectorAll('[data-m]').forEach(b=> b.onclick = ()=>{
-    if(CHART.mode === b.dataset.m) return;
-    CHART.mode = b.dataset.m; CHART.data = null; CHART.embed = null; chartControls(); chartLoad();
-  });
-  el.querySelectorAll('[data-p]').forEach(b=> b.onclick = ()=>{
-    const k = CHART.mode === 'line' ? 'linePreset' : 'candlePreset';
-    if(CHART[k] === b.dataset.p) return;
-    CHART[k] = b.dataset.p; CHART.data = null; CHART.embed = null; chartControls(); chartLoad();
-  });
-}
-async function chartLoad(){
-  clearTimeout(CHART.poll);
-  const mint = CHART.mint, preset = chartEffPreset();
-  if(CHART.embed){ CHART.poll = setTimeout(chartLoad, 90000); return; }  // iframe modu — poll'a gerek yok
-  if(!CHART.data) $('chartCanvas').innerHTML = `<div class="cnote">${L('chartLoading')}</div>`;
-  try{
-    const q = `preset=${preset}` + (CHART.pair ? `&pair=${encodeURIComponent(CHART.pair)}` : '');
-    const r = await fetch(`${API}/api/chart/${mint}?${q}`);
-    const j = await r.json();
-    if(mint !== CHART.mint) return;
-    CHART.data = j; chartDraw();
-  }catch(e){
-    if(!CHART.data) chartEmbedFallback();
-  }
-  CHART.poll = setTimeout(chartLoad, 40000);
-}
-/* OHLCV alınamazsa (Render IP'si GeckoTerminal'de sık 429 yer) → o havuzun
-   GeckoTerminal iframe grafiğine düş. Hiç yoksa "veri yok". */
-function chartEmbedFallback(){
-  const pool = (CHART.data && CHART.data.pool) || CHART.pair;
-  const wrap = $('chartCanvas');
-  if(!pool){
-    wrap.innerHTML = `<div class="cnote">${L('chartNone')}</div>`;
+    _chartMint = null; box.hidden = true; wrap.innerHTML = '';
     $('chartSrc').textContent = ''; $('chartLast').textContent = '';
     return;
   }
-  CHART.embed = pool;
-  $('chartCtl').innerHTML = '';
-  wrap.innerHTML = `<iframe class="chart-embed" title="price chart" loading="lazy"
-    src="https://www.geckoterminal.com/solana/pools/${encodeURIComponent(pool)}?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&bg_color=0b1424"
-    sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>`;
-  $('chartSrc').textContent = 'GeckoTerminal';
+  if(mint === _chartMint && !box.hidden) return;
+  _chartMint = mint;
+  box.hidden = false;
+  const src = 'https://embed.birdeye.so/tv-widget/' + encodeURIComponent(mint)
+    + '?chain=solana&viewMode=pair&chartInterval=15&theme=dark&chartTimezone=Etc%2FUTC';
+  wrap.innerHTML = '<iframe class="chart-embed" title="price chart" loading="lazy" '
+    + 'referrerpolicy="no-referrer" '
+    + 'sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" '
+    + 'src="' + src + '"></iframe>';
+  $('chartSrc').textContent = 'Birdeye · TradingView';
   $('chartLast').textContent = '';
 }
-function chartDraw(){
-  const wrap = $('chartCanvas'), j = CHART.data || {};
-  const cs = (j.candles || []).filter(c => isFinite(c.c) && c.c > 0);
-  if(cs.length < 2){ chartEmbedFallback(); return; }
-  const W = Math.round(wrap.clientWidth || 640), H = CHART_H();
-  const padL = 8, padR = 60, padT = 10, padB = 18;
-  const plotW = W - padL - padR, plotH = H - padT - padB, n = cs.length;
-  const cand = CHART.mode === 'candles';
-
-  let lo = Infinity, hi = -Infinity;
-  cs.forEach(c=>{ const a = cand ? c.l : c.c, b = cand ? c.h : c.c;
-    if(a < lo) lo = a; if(b > hi) hi = b; });
-  if(!(hi > lo)){ lo *= 0.999; hi = lo * 1.002 + 1e-12; }
-  const mp = (hi - lo) * 0.08; lo -= mp; hi += mp;
-
-  const X = i => padL + (n === 1 ? plotW/2 : i * plotW / (n - 1));
-  const Y = p => padT + (1 - (p - lo) / (hi - lo)) * plotH;
-  const first = cs[0].c, last = cs[n-1].c, up = last >= first;
-  const col = up ? '#6fbf73' : '#d5433f';
-
-  let g = `<defs><linearGradient id="cgrad" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="${col}" stop-opacity=".16"/>
-    <stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>`;
-  niceTicks(lo, hi, 4).forEach(v=>{
-    const y = Y(v);
-    if(y < padT - 1 || y > H - padB + 1) return;
-    g += `<line x1="${padL}" x2="${padL+plotW}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(200,164,92,.13)" stroke-width="1" stroke-dasharray="2 4"/>`;
-    g += `<text class="chart-tick" x="${padL+plotW+5}" y="${(y+3).toFixed(1)}">${fmtP(v)}</text>`;
-  });
-
-  if(cand){
-    const bw = Math.max(1, Math.min(9, plotW / n * 0.66));
-    cs.forEach((c,i)=>{
-      const x = X(i), cc = c.c >= c.o ? '#6fbf73' : '#d5433f';
-      const yT = Y(Math.max(c.o,c.c)), yB = Y(Math.min(c.o,c.c));
-      g += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${Y(c.h).toFixed(1)}" y2="${Y(c.l).toFixed(1)}" stroke="${cc}" stroke-width="1"/>`;
-      g += `<rect x="${(x-bw/2).toFixed(1)}" y="${yT.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,yB-yT).toFixed(1)}" fill="${cc}" opacity=".9"/>`;
-    });
-  } else {
-    let d = '';
-    cs.forEach((c,i)=>{ d += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(c.c).toFixed(1) + ' '; });
-    g += `<path d="${d}L ${X(n-1).toFixed(1)} ${(H-padB)} L ${X(0).toFixed(1)} ${(H-padB)} Z" fill="url(#cgrad)"/>`;
-    g += `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
-  }
-
-  const ly = Y(last);
-  g += `<line x1="${padL}" x2="${padL+plotW}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/>`;
-  g += `<rect x="${padL+plotW+2}" y="${(ly-8).toFixed(1)}" width="${padR-4}" height="16" fill="${col}"/>`;
-  g += `<text class="chart-tag" x="${padL+plotW+6}" y="${(ly+3.5).toFixed(1)}">${fmtP(last)}</text>`;
-
-  wrap.innerHTML =
-    `<svg width="${W}" height="${H}" style="display:block">${g}</svg>` +
-    `<div class="cx-label" id="cxLabel" hidden></div><div class="cx-time" id="cxTime" hidden></div>`;
-
-  const svg = wrap.querySelector('svg'), lbl = $('cxLabel'), tm = $('cxTime');
-  svg.onmousemove = ev => {
-    const rect = svg.getBoundingClientRect(), sx = rect.width / W, sy = rect.height / H;
-    let i = Math.round(((ev.clientX - rect.left) / sx - padL) / (plotW / (n - 1)));
-    i = Math.max(0, Math.min(n - 1, i));
-    const c = cs[i], gx = X(i);
-    let ln = svg.querySelector('#cxg'); if(ln) ln.remove();
-    ln = document.createElementNS(CH_NS, 'line'); ln.id = 'cxg';
-    ln.setAttribute('x1', gx.toFixed(1)); ln.setAttribute('x2', gx.toFixed(1));
-    ln.setAttribute('y1', padT); ln.setAttribute('y2', H - padB);
-    ln.setAttribute('stroke', 'var(--muted)'); ln.setAttribute('stroke-width', '1');
-    ln.setAttribute('stroke-dasharray', '2 3'); ln.setAttribute('opacity', '.55');
-    svg.appendChild(ln);
-    lbl.hidden = false; lbl.style.color = col;
-    lbl.style.left = (gx * sx) + 'px'; lbl.style.top = Math.max(16, Y(c.c) * sy - 6) + 'px';
-    lbl.textContent = cand
-      ? `O ${fmtP(c.o)} · H ${fmtP(c.h)} · L ${fmtP(c.l)} · C ${fmtP(c.c)}`
-      : fmtP(c.c);
-    tm.hidden = false; tm.style.left = (gx * sx) + 'px'; tm.style.top = (rect.height - 15) + 'px';
-    tm.textContent = new Date(c.t * 1000).toLocaleString(locale(),
-      {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-  };
-  svg.onmouseleave = () => {
-    lbl.hidden = true; tm.hidden = true;
-    const ln = svg.querySelector('#cxg'); if(ln) ln.remove();
-  };
-
-  const chg = first ? ((last - first) / first * 100) : 0;
-  $('chartSrc').textContent = (j.dex ? j.dex + ' · ' : '') + 'GeckoTerminal'
-    + (j.stale ? ' · ' + (lang === 'en' ? 'cached' : 'önbellek') : '');
-  $('chartLast').innerHTML =
-    `${fmtP(last)} <span style="color:${up ? '#6fbf73' : '#d5433f'}">${chg > 0 ? '+' : ''}${chg.toFixed(1)}%</span>`;
-}
-let _chRz;
-window.addEventListener('resize', ()=>{ clearTimeout(_chRz);
-  _chRz = setTimeout(()=>{ if(CHART.data && !$('chartBox').hidden) chartDraw(); }, 200); });
 
 /* ---------------- paylaşım / rozet / itiraz ---------------- */
 /* X paylaşımına "ne yakaladık" ek bilgisi — gerçek durumlardan 1-2'sini
