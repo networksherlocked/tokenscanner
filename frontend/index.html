@@ -405,7 +405,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .trackrec .tnote{margin-top:16px;font-size:11px;color:var(--dim);max-width:76ch}
 
 /* AI tespit karnesi: satırda 3 kutucuk × 6 satır (18) + numaralı gezinme */
-.tpager{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+.tpager{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:18px}
 .tpager button{min-width:34px;height:34px;padding:0 8px;background:var(--panel);
   border:1px solid var(--rule);color:var(--muted);font-family:var(--display);font-weight:700;
   font-size:12px;border-radius:2px;cursor:pointer;transition:border-color .15s,color .15s}
@@ -723,6 +723,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       </div>
       <div class="subhead" data-i18n="organicSub">No coordinated distribution pattern. Kept on the board longer.</div>
       <div class="tlist" id="olist"></div>
+      <div class="tpager" id="opager"></div>
     </div>
   </section>
 
@@ -1554,7 +1555,7 @@ async function loadRecent(){
 let lastTrack = null;
 let trackWindow = 86400;
 let trackPage = 0;
-const TRACK_PAGE = 18;   // satırda 3 × 6 satır
+const TRACK_PAGE = 15;   // satırda 3 × 5 satır
 
 const mcapShort = n => {
   if(n == null) return '—';
@@ -1703,11 +1704,17 @@ async function loadRisk(){
 
 /* ---------------- organik lansmanlar ---------------- */
 let lastOrganic = null;
+let organicPage = 0;
 function renderOrganic(rec){
   if(!rec || !rec.length){ $('organicSection').hidden = true; return; }
   $('organicSection').hidden = false;
   const box = $('olist'); box.innerHTML = '';
   const col = COLORS.organic;
+
+  const pages = Math.max(1, Math.ceil(rec.length / TRACK_PAGE));
+  organicPage = Math.min(Math.max(0, organicPage), pages - 1);
+  const total = rec.length;
+  rec = rec.slice(organicPage * TRACK_PAGE, organicPage * TRACK_PAGE + TRACK_PAGE);
 
   rec.forEach(t=>{
     const chg = t.change_pct;
@@ -1748,11 +1755,13 @@ function renderOrganic(rec){
     box.appendChild(b);
   });
 
-  $('organicCount').textContent = L('organicCount', rec.length);
+  $('organicCount').textContent = L('organicCount', total);
+  pager($('opager'), pages, organicPage, p=>{ organicPage = p; renderOrganic(lastOrganic);
+    $('organicSection').scrollIntoView({behavior:'smooth', block:'start'}); });
 }
 async function loadOrganic(){
   try{
-    const r = await fetch(`${API}/api/organic?limit=30`);
+    const r = await fetch(`${API}/api/organic?limit=60`);
     if(!r.ok) return;
     const data = await r.json();
     if(data.window_sec) trackWindow = data.window_sec;
