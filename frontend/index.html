@@ -1261,13 +1261,13 @@ function ssDraw(p, now){
     ctx.beginPath(); ctx.arc(pg.x, pg.y, 6, 0, Math.PI*2); ctx.stroke();
   }
 
-  for(let k=m.lasers.length-1;k>=0;k--){
-    const Lz = m.lasers[k];
-    const age = (now - Lz.born)/380;
-    if(age > 1){ m.lasers.splice(k,1); continue; }
-    ctx.strokeStyle = `rgba(34,211,238,${0.9*(1-age)})`; ctx.lineWidth = 2;
+  // bulunan noktalara kartaldan sürekli çizgi: hızlı belirir, sonra tarama
+  // bitene kadar sabit kalır (yalnızca yanıp kaybolmaz)
+  for(const Lz of m.lasers){
+    const a = Math.min(1, (now - Lz.born)/220);
+    ctx.strokeStyle = `rgba(34,211,238,${0.55*a})`; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(sweepX, eagleY); ctx.lineTo(Lz.x, Lz.y); ctx.stroke();
-    ctx.strokeStyle = `rgba(240,180,178,${0.5*(1-age)})`; ctx.lineWidth = 4;
+    ctx.strokeStyle = `rgba(240,180,178,${0.28*a})`; ctx.lineWidth = 3.2;
     ctx.beginPath(); ctx.moveTo(sweepX, eagleY); ctx.lineTo(Lz.x, Lz.y); ctx.stroke();
   }
 
