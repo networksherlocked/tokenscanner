@@ -1163,22 +1163,34 @@ function lessonShareText(l, lang){
   const drop = Math.round((l.drop_pct||0)*100);
   const flagged = l.wallets_flagged || 0;
   const dep = l.deployer || '';
+  const sym = l.symbol ? ('$' + l.symbol) : 'token';
+  const url = `${location.origin}/t/${l.mint}`;
+  const isRug = l.outcome === 'rug';
   const parts = [];
   if(lang === 'en'){
-    parts.push(`🚨 CRASH DETECTED — ${l.symbol || 'token'}`);
-    parts.push(`Scanned as "${l.verdict_was}" — then dropped ${drop}% shortly after.`);
-    parts.push(`Detected cause:\n${l.detail || '(no detail recorded)'}`);
+    parts.push(`🚨 CRASH DETECTED — ${sym}`);
+    parts.push(`Scanned as "${l.verdict_was}" — then ${isRug ? 'the developer pulled liquidity' : `it dropped ${drop}%`} shortly after.`);
+    // detail_en backend'den gelir; eski kayıtlarda yoksa yapılandırılmış özet
+    if(l.detail_en){
+      parts.push(l.detail_en);
+    }else if(isRug){
+      parts.push(`The token's creator${dep ? ` (${dep})` : ''} pulled the pool liquidity — a rug. ${dep ? 'The creator was added to the permanent blacklist.' : 'The pool creator could not be resolved, so nobody was flagged.'}`);
+    }else if(flagged){
+      parts.push(`The saved scan data was re-examined and coordinated-distribution traces were found. ${flagged} address(es)${dep ? ' including the deployer' : ''} were added to the permanent blacklist — from now on every scan they appear in triggers the "previously flagged wallets" signal.`);
+    }else{
+      parts.push(`The saved scan data was re-examined but no coordinated-distribution trace (shared funder, hidden funding tree, fresh-wallet cluster, single-wallet supply) was found — most likely a general market/liquidity crash, not a coordinated rug. No addresses were flagged.`);
+    }
     if(dep) parts.push(`Deployer: ${dep}`);
-    if(flagged) parts.push(`${flagged} wallet(s) added to the permanent blacklist — they now trigger the "previously flagged" signal on every future scan.`);
     parts.push(`CA: ${l.mint}`);
+    parts.push(`Scan result: ${url}`);
     parts.push(`— america.sx · on-chain launch forensics, self-learning`);
   }else{
-    parts.push(`🚨 ÇÖKÜŞ TESPİTİ — ${l.symbol || 'token'}`);
-    parts.push(`"${l.verdict_was}" olarak tarandı — kısa süre sonra %${drop} düştü.`);
-    parts.push(`Tespit edilen sebep:\n${l.detail || '(ayrıntı kaydedilmedi)'}`);
+    parts.push(`🚨 ÇÖKÜŞ TESPİTİ — ${sym}`);
+    parts.push(`"${l.verdict_was}" olarak tarandı — kısa süre sonra ${isRug ? 'geliştirici likiditeyi çekti' : `%${drop} düştü`}.`);
+    parts.push(l.detail || '(ayrıntı kaydedilmedi)');
     if(dep) parts.push(`Üretici (deployer): ${dep}`);
-    if(flagged) parts.push(`${flagged} cüzdan kalıcı kara listeye eklendi — bundan sonra her taramada "daha önce işaretlenmiş" sinyalini tetikliyorlar.`);
     parts.push(`CA: ${l.mint}`);
+    parts.push(`Tarama sonucu: ${url}`);
     parts.push(`— america.sx · zincir-üstü lansman adli analizi, öz-öğrenme`);
   }
   return parts.join('\n\n');

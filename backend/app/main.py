@@ -208,18 +208,18 @@ def _short_addr(a: str | None) -> str:
     return f"{a[:4]}…{a[-4:]}" if a and len(a) > 12 else (a or "?")
 
 
-def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
+def _cluster_evidence(scan: dict) -> tuple[list[str], str, str]:
     """Kayıtlı taramada (YENİ RPC çağrısı yapmadan) organize dağıtım izi ara.
 
-    Bulursa şüpheli cüzdanlar + insan-okur açıklama listesi döndürür. Bulamazsa
-    boş — genel piyasa çöküşünü koordineli rug sanıp masum cüzdanları
+    Bulursa şüpheli cüzdanlar + insan-okur açıklama (TR ve EN) döndürür.
+    Bulamazsa boş — genel piyasa çöküşünü koordineli rug sanıp masum cüzdanları
     işaretlememek için.
     """
     launch = scan.get("launch") or {}
     buyers = launch.get("buyers") or []
     signals = {s.get("key"): s for s in scan.get("signals", [])}
 
-    reasons: list[str] = []
+    reasons: list[tuple[str, str]] = []
     suspects: set[str] = set()
 
     # 1) ortak fonlayıcı — birden çok lansman alıcısının ilk SOL'u aynı cüzdandan
@@ -230,10 +230,12 @@ def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
             funders.setdefault(f, []).append(b.get("owner"))
     for f, owners in funders.items():
         if len(owners) >= 2:
-            reasons.append(
+            reasons.append((
                 f"{len(owners)} lansman alıcısının ilk SOL'unu aynı cüzdan "
-                f"({_short_addr(f)}) göndermiş — cüzdanları bu adres finanse etmiş"
-            )
+                f"({_short_addr(f)}) göndermiş — cüzdanları bu adres finanse etmiş",
+                f"{len(owners)} launch buyers received their first SOL from the same "
+                f"wallet ({_short_addr(f)}) — this address funded them",
+            ))
             suspects.update(o for o in owners if o)
             suspects.add(f)
 
@@ -241,54 +243,70 @@ def _cluster_evidence(scan: dict) -> tuple[list[str], str]:
     ft = launch.get("funding_tree") or {}
     conv = ft.get("convergence") or {}
     if conv.get("buyers", 0) >= 2 and conv.get("ancestor"):
-        reasons.append(
-            f"{conv['buyers']} lansman alıcısının parası {conv.get('max_hop', 2)} "
-            f"adım geriden tek adrese ({_short_addr(conv['ancestor'])}) çıkıyor — "
-            f"araya cüzdan koyarak gizlenmiş ortak kaynak"
-        )
+        hop = conv.get("max_hop", 2)
+        reasons.append((
+            f"{conv['buyers']} lansman alıcısının parası {hop} adım geriden tek "
+            f"adrese ({_short_addr(conv['ancestor'])}) çıkıyor — araya cüzdan "
+            f"koyarak gizlenmiş ortak kaynak",
+            f"{conv['buyers']} launch buyers' funds trace back {hop} hops to a "
+            f"single address ({_short_addr(conv['ancestor'])}) — a shared source "
+            f"hidden behind relay wallets",
+        ))
         suspects.add(conv["ancestor"])
     for gf, ffs in (ft.get("grandfunders") or {}).items():
         if len(ffs) >= 2:
-            reasons.append(
+            reasons.append((
                 f"{len(ffs)} ayrı fonlayıcı tek üst kaynağa "
-                f"({_short_addr(gf)}) bağlanıyor"
-            )
+                f"({_short_addr(gf)}) bağlanıyor",
+                f"{len(ffs)} separate funders connect to one upstream source "
+                f"({_short_addr(gf)})",
+            ))
             suspects.add(gf)
             suspects.update(ffs)
 
     # 3) taze cüzdan kümesi — lansmanda geçmişsiz cüzdanlarla giriş
     fresh = [b.get("owner") for b in buyers if 0 < (b.get("tx_count") or 0) <= 10]
     if len(fresh) >= 3:
-        reasons.append(
-            f"{len(fresh)} lansman alıcısı sıfır geçmişli (o gün açılmış) cüzdan"
-        )
+        reasons.append((
+            f"{len(fresh)} lansman alıcısı sıfır geçmişli (o gün açılmış) cüzdan",
+            f"{len(fresh)} launch buyers were zero-history wallets (opened that day)",
+        ))
         suspects.update(o for o in fresh if o)
 
     # 4) motorun eşik altında kalan sert küme sinyalleri
     _labels = {
-        "common_funder": "ortak fonlayıcı",
-        "same_slot_entry": "aynı slotta giriş",
-        "fee_fingerprint": "aynı öncelik ücreti",
-        "identical_balances": "birebir eşit bakiye",
+        "common_funder": ("ortak fonlayıcı", "shared funder"),
+        "same_slot_entry": ("aynı slotta giriş", "same-slot entry"),
+        "fee_fingerprint": ("aynı öncelik ücreti", "identical priority fee"),
+        "identical_balances": ("birebir eşit bakiye", "identical balances"),
     }
-    for key, lbl in _labels.items():
+    for key, (lbl_tr, lbl_en) in _labels.items():
         sg = signals.get(key) or {}
         n = (sg.get("evidence") or {}).get("cluster_size", 0)
         if n >= 2:
-            reasons.append(f"eşik altında kalan ama görünür {n} cüzdanlık '{lbl}' kümesi")
+            reasons.append((
+                f"eşik altında kalan ama görünür {n} cüzdanlık '{lbl_tr}' kümesi",
+                f"a visible {n}-wallet '{lbl_en}' cluster (below the firing threshold)",
+            ))
 
     # 5) mevcut yapıda tek elde toplanmış arz — çöküş anında satan taraf
     ev = (signals.get("supply_whale") or {}).get("evidence") or {}
     top_owner = ev.get("top_owner")
     top_share = ev.get("top_share") or 0
     if top_owner and top_share >= 15 and ev.get("top_tag") in (None, "", "unknown"):
-        reasons.append(
+        reasons.append((
             f"tek cüzdan ({_short_addr(top_owner)}) çöküşten önce dolaşan arzın "
-            f"%{top_share:.0f}'ini biriktirmişti — büyük olasılıkla satışı yapan taraf"
-        )
+            f"%{top_share:.0f}'ini biriktirmişti — büyük olasılıkla satışı yapan taraf",
+            f"one wallet ({_short_addr(top_owner)}) had accumulated {top_share:.0f}% "
+            f"of circulating supply before the crash — most likely the seller",
+        ))
         suspects.add(top_owner)
 
-    return sorted(x for x in suspects if x), "; ".join(reasons)
+    return (
+        sorted(x for x in suspects if x),
+        "; ".join(r[0] for r in reasons),
+        "; ".join(r[1] for r in reasons),
+    )
 
 
 def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
@@ -296,6 +314,7 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
     sym = row.get("symbol") or mint[:6]
     verdict_was = row.get("verdict") or "?"
     pct = f"%{drop * 100:.0f}"
+    pct_en = f"{drop * 100:.0f}%"
     win_h = max(1, round(TRACK_WINDOW / 3600))
 
     scan = cache.scan_payload(mint)
@@ -310,10 +329,16 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
                 f"verisi artık saklı olmadığı için geriye dönük cüzdan analizi "
                 f"yapılamadı — kimse kara listeye eklenmedi."
             ),
+            detail_en=(
+                f"{sym}: first scanned as '{verdict_was}', then market cap dropped "
+                f"{pct_en} over the next {win_h} hours. That scan's raw data is no "
+                f"longer stored, so no retroactive wallet analysis was possible — "
+                f"nobody was blacklisted."
+            ),
         )
         return
 
-    suspects, why = _cluster_evidence(scan)
+    suspects, why, why_en = _cluster_evidence(scan)
     deployer = ((scan.get("launch") or {}).get("deployer") or {}).get("address")
 
     note = (
@@ -338,21 +363,36 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
         f"{sym}: ilk taramada '{verdict_was}' kararı verildi; sonraki {win_h} "
         f"saatte piyasa değeri {pct} düştü (sert çöküş)."
     )
+    head_en = (
+        f"{sym}: first scanned as '{verdict_was}'; over the next {win_h} hours "
+        f"its market cap dropped {pct_en} (hard crash)."
+    )
     if why:
         detail = (
             f"{head} Kayıtlı tarama verisi geriye dönük incelendi ve şu "
             f"organize dağıtım izleri bulundu: {why}."
         )
+        detail_en = (
+            f"{head_en} The saved scan data was re-examined and these "
+            f"coordinated-distribution traces were found: {why_en}."
+        )
         if flagged_n:
-            who = []
+            who, who_en = [], []
             if flagged_wallets:
                 who.append(f"{len(flagged_wallets)} cüzdan")
+                who_en.append(f"{len(flagged_wallets)} wallet(s)")
             if dep_flagged:
                 who.append("deployer")
+                who_en.append("the deployer")
             detail += (
                 f" {' + '.join(who)} kara listeye eklendi; bundan sonra bu "
                 f"adreslerin geçtiği her taramada 'Daha önce işaretlenmiş "
                 f"cüzdanlar' sinyali tetiklenip karar sertleşecek."
+            )
+            detail_en += (
+                f" {' + '.join(who_en)} added to the permanent blacklist — from "
+                f"now on every scan these addresses appear in triggers the "
+                f"'previously flagged wallets' signal and hardens the verdict."
             )
     else:
         detail = (
@@ -362,12 +402,19 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
             f"piyasa/likidite çöküşü, koordineli bir rug değil. Masum "
             f"cüzdanları cezalandırmamak için hiçbir adres işaretlenmedi."
         )
+        detail_en = (
+            f"{head_en} No coordinated-distribution trace (shared funder, hidden "
+            f"funding tree, fresh-wallet cluster, single-wallet supply) was found "
+            f"in the saved scan data — this was most likely a general "
+            f"market/liquidity crash, not a coordinated rug. No addresses were "
+            f"flagged, so innocent wallets are not punished."
+        )
 
     cache.add_lesson(
         mint=mint, symbol=row.get("symbol"), verdict_was=verdict_was,
         outcome="miss", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
         learned_at=int(time.time()), wallets_flagged=flagged_n, deployer=deployer,
-        detail=detail,
+        detail=detail, detail_en=detail_en,
     )
     log.info(
         "DERS: %s (%s, -%s) · %s işaretlendi · %s",
@@ -387,6 +434,7 @@ def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> 
     verdict_was = row.get("verdict") or "?"
     drop = 1.0 - (liq_now / liq0) if liq0 else 1.0
     pct = f"%{drop * 100:.0f}"
+    pct_en = f"{drop * 100:.0f}%"
     age_h = max(1, round((int(time.time()) - row["scored_at"]) / 3600))
 
     creator = row.get("creator")
@@ -419,11 +467,25 @@ def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> 
             f"bu adresin bastığı her token 'Deployer geçmişi' ve 'Daha önce "
             f"işaretlenmiş cüzdanlar' sinyallerini anında tetikleyecek."
         )
+        detail_en = (
+            f"{sym}: first scanned as '{verdict_was}'. {age_h} hours after the scan "
+            f"the pool's liquidity fell from ${liq0:,.0f} to ${liq_now:,.0f} "
+            f"({pct_en} pulled) — the token's creator pulled liquidity (rug). The "
+            f"creator ({_short_addr(creator)}) was added to the permanent "
+            f"blacklist; from now on every token they deploy instantly triggers "
+            f"the 'deployer history' and 'previously flagged wallets' signals."
+        )
     else:
         detail = (
             f"{sym}: taramadan {age_h} saat sonra havuz likiditesi {pct} çekildi "
             f"(${liq0:,.0f} → ${liq_now:,.0f}) — rug. Ancak havuzu açan cüzdan "
             f"çözülemedi (ör. desteklenmeyen AMM), bu yüzden kimse işaretlenemedi."
+        )
+        detail_en = (
+            f"{sym}: {age_h} hours after the scan the pool's liquidity was pulled "
+            f"{pct_en} (${liq0:,.0f} → ${liq_now:,.0f}) — rug. The wallet that "
+            f"opened the pool could not be resolved (e.g. an unsupported AMM), so "
+            f"nobody could be flagged."
         )
 
     cache.add_lesson(
@@ -431,7 +493,7 @@ def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> 
         outcome="rug", drop_pct=round(drop, 3), scored_at=row.get("scored_at"),
         learned_at=int(time.time()),
         wallets_flagged=1 if flagged_creator else 0,
-        deployer=creator, detail=detail,
+        deployer=creator, detail=detail, detail_en=detail_en,
     )
     log.info(
         "RUG: %s (%s) · likidite %s çekildi · yaratıcı %s",

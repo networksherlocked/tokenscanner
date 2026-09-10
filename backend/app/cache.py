@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS lessons (
     id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, symbol TEXT,
     verdict_was TEXT, outcome TEXT, drop_pct REAL, scored_at INTEGER,
     learned_at INTEGER NOT NULL, wallets_flagged INTEGER NOT NULL DEFAULT 0,
-    deployer TEXT, detail TEXT
+    deployer TEXT, detail TEXT, detail_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 
@@ -174,7 +174,8 @@ CREATE TABLE IF NOT EXISTS lessons (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
     symbol TEXT, verdict_was TEXT, outcome TEXT, drop_pct DOUBLE PRECISION,
     scored_at BIGINT, learned_at BIGINT NOT NULL,
-    wallets_flagged INTEGER NOT NULL DEFAULT 0, deployer TEXT, detail TEXT
+    wallets_flagged INTEGER NOT NULL DEFAULT 0, deployer TEXT, detail TEXT,
+    detail_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_learned ON lessons(learned_at DESC);
 
@@ -261,6 +262,7 @@ class ScanCache:
             "ALTER TABLE track ADD COLUMN liq_min REAL",
             "ALTER TABLE track ADD COLUMN creator TEXT",
             "ALTER TABLE track ADD COLUMN rug_flagged INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE lessons ADD COLUMN detail_en TEXT",
         ):
             try:
                 self._write(stmt)
@@ -750,8 +752,12 @@ class ScanCache:
         cols = (
             "mint", "symbol", "verdict_was", "outcome", "drop_pct",
             "scored_at", "learned_at", "wallets_flagged", "deployer", "detail",
+            "detail_en",
         )
-        vals = tuple(kw.get(c) for c in cols[:-1]) + ((kw.get("detail") or "")[:2000],)
+        vals = tuple(kw.get(c) for c in cols[:-2]) + (
+            (kw.get("detail") or "")[:2000],
+            ((kw.get("detail_en") or "")[:2000]) or None,
+        )
         ph = ", ".join("?" for _ in cols)
         if self.pg:
             with self.pool.connection() as c, c.cursor() as cur:
