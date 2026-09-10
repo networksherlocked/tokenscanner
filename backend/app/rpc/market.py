@@ -44,7 +44,7 @@ class MarketSnapshot:
     pair_address: str | None = None
     buys_24h: int | None = None
     sells_24h: int | None = None
-    socials: list[str] = field(default_factory=list)
+    socials: list[dict] = field(default_factory=list)  # [{"type": "twitter"|"telegram"|"website"|…, "url": …}]
     image_url: str | None = None        # token logosu (DexScreener CDN)
 
     @property
@@ -105,9 +105,16 @@ async def fetch_market(mint: str, timeout: float = 12.0) -> MarketSnapshot:
     img = info.get("imageUrl") or info.get("openGraph")
     if isinstance(img, str) and img.startswith("http"):
         snap.image_url = img
-    snap.socials = [
-        s.get("url") for s in (info.get("socials") or []) if s.get("url")
-    ] + [w.get("url") for w in (info.get("websites") or []) if w.get("url")]
+    socials: list[dict] = []
+    for s in info.get("socials") or []:
+        url = s.get("url")
+        if url:
+            socials.append({"type": (s.get("type") or "social").lower(), "url": url})
+    for w in info.get("websites") or []:
+        url = w.get("url")
+        if url:
+            socials.append({"type": "website", "url": url})
+    snap.socials = socials
 
     return snap
 
