@@ -399,15 +399,20 @@ class ScanCache:
     ) -> None:
         # symbol/image yalnızca boşsa doldurulur (eski kayıtlarda sık sık NULL).
         # liq_min çağıran tarafından hesaplanır (Python min); None ise dokunma.
+        # mcap_at_scan da aynı şekilde: taramada piyasa verisi çekilemediyse
+        # (ör. DexScreener o an düşmüştü) NULL kalmış olabilir — "önceki değer"
+        # sonsuza dek "—" göstermesin ve çöküş yüzdesi (base=None→%0 varsayımı)
+        # yanlış "temiz" sonuca düşmesin diye ilk başarılı okumayla dolduruyoruz.
         # NOT: "CASE WHEN ? IS NULL" gibi çıplak parametreler Postgres'te tip
         # çıkarımı hatası verir (IndeterminateDatatype) — COALESCE kullan.
         self._write(
             "UPDATE track SET mcap_latest = ?, mcap_min = ?, latest_at = ?, "
             "mcap_max = ?, "
+            "mcap_at_scan = COALESCE(mcap_at_scan, ?), "
             "liq_min = COALESCE(?, liq_min), "
             "symbol = COALESCE(NULLIF(symbol, ''), ?), "
             "image = COALESCE(NULLIF(image, ''), ?) WHERE mint = ?",
-            (mcap_latest, mcap_min, at, mcap_max, liq_min, symbol, image, mint),
+            (mcap_latest, mcap_min, at, mcap_max, mcap_latest, liq_min, symbol, image, mint),
         )
 
     def track_mark_rug(self, mint: str, outcome: str = "rug") -> None:
