@@ -7,6 +7,7 @@ ilgili sinyaller "veri yok" durumuna geçmeli.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 
@@ -15,6 +16,18 @@ import httpx
 log = logging.getLogger(__name__)
 
 DEXSCREENER = "https://api.dexscreener.com/latest/dex/tokens/{mint}"
+
+# Varsayılan httpx User-Agent'ı ("python-httpx/x.y") Cloudflare arkasındaki
+# API'lerde bot imzası olarak damgalanıp paylaşılan barındırma IP'lerinden
+# (Render gibi) sessizce reddedilebiliyor — tarayıcı gibi görünen başlıklar
+# bunu önler. DexScreener anahtarsız/herkese açık; bu sahtecilik değil.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
 
 
 @dataclass
@@ -44,13 +57,23 @@ class MarketSnapshot:
 
 async def fetch_market(mint: str, timeout: float = 12.0) -> MarketSnapshot:
     snap = MarketSnapshot()
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(DEXSCREENER.format(mint=mint))
-            resp.raise_for_status()
-            data = resp.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        log.warning("Piyasa verisi alınamadı %s: %s", mint, exc)
+    data = None
+    last_exc: Exception | None = None
+    # Bir kez tekrar dene — geçici ağ hatası/429'da tüm taramayı "piyasa verisi
+    # yok" durumuna düşürmeyelim.
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
+                resp = await client.get(DEXSCREENER.format(mint=mint))
+                resp.raise_for_status()
+                data = resp.json()
+            break
+        except (httpx.HTTPError, ValueError) as exc:
+            last_exc = exc
+            if attempt == 0:
+                await asyncio.sleep(0.6)
+    if data is None:
+        log.warning("Piyasa verisi alınamadı %s: %s", mint, last_exc)
         return snap
 
     pairs = data.get("pairs") or []
