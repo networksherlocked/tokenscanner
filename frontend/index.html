@@ -865,17 +865,13 @@ const STR = {
     shareHead:'Share this determination',
     shareCopy:'Copy link', shareX:'Post on X', shareEmbed:'Embed badge', shareAppeal:'Appeal',
     copied:'Copied', copyMint:'Click to copy mint address',
-    shareTweetFull: (sym, mint, mcap, n, kind) => {
+    shareTweetFull: (sym, mint, mcap, n, kind, extra) => {
       const lbl = { bundled:'BUNDLED', cabaled:'CABALED', organic:'ORGANIC',
         inconclusive:'INCONCLUSIVE' }[kind] || (kind||'').toUpperCase();
-      const note = {
-        organic:'No coordinated distribution pattern — supply looks organic. Not a safety guarantee; DYOR.',
-        bundled:'Looks manufactured — several hard signals point to coordinated buying at launch. Be careful.',
-        cabaled:'Distribution is insider-heavy / unusual, without a clean bundle signature. Look closer before you ape.',
-        inconclusive:'Not enough on-chain data for a firm call on how supply was distributed.',
-      }[kind] || '';
+      const tail = kind === 'organic' ? ' Not a guarantee — DYOR.' : '';
       return `$${sym} · MC ${mcap}\n${mint}\n\n`
-        + `We scanned this for you with ${n} on-chain algorithms → ${lbl}.\n${note}`;
+        + `We scanned this for you with ${n} on-chain algorithms → ${lbl}.`
+        + (extra ? `\nWhat we saw: ${extra}` : '') + tail;
     },
     appealIntro:'Think this verdict is wrong? Tell us why — reviewed manually.',
     appealContact:'Contact (optional — email or @handle)',
@@ -974,17 +970,13 @@ const STR = {
     shareHead:'Bu kararı paylaş',
     shareCopy:'Bağlantıyı kopyala', shareX:'X\'te paylaş', shareEmbed:'Rozet göm', shareAppeal:'İtiraz et',
     copied:'Kopyalandı', copyMint:'Kopyalamak için tıkla',
-    shareTweetFull: (sym, mint, mcap, n, kind) => {
+    shareTweetFull: (sym, mint, mcap, n, kind, extra) => {
       const lbl = { bundled:'PAKETLİ', cabaled:'KABAL', organic:'ORGANİK',
         inconclusive:'BELİRSİZ' }[kind] || (kind||'').toUpperCase();
-      const note = {
-        organic:'Koordineli dağıtım deseni yok — arz organik görünüyor. Garanti değil; kendin araştır.',
-        bundled:'Üretilmiş görünüyor — sert sinyaller lansmanda koordineli alıma işaret ediyor. Dikkatli ol.',
-        cabaled:'Dağıtım insider ağırlıklı / olağandışı; net bir paket imzası yok. Almadan önce iyi bak.',
-        inconclusive:'Arzın nasıl dağıtıldığına dair kesin karar için yeterli zincir verisi yok.',
-      }[kind] || '';
+      const tail = kind === 'organic' ? ' Garanti değil, araştır.' : '';
       return `$${sym} · MC ${mcap}\n${mint}\n\n`
-        + `Bu tokenı senin için ${n} zincir algoritmasıyla taradık → ${lbl}.\n${note}`;
+        + `Bu tokenı senin için ${n} zincir algoritmasıyla taradık → ${lbl}.`
+        + (extra ? `\nGördüklerimiz: ${extra}` : '') + tail;
     },
     appealIntro:'Bu kararın yanlış olduğunu mu düşünüyorsun? Nedenini yaz — elle inceleniyor.',
     appealContact:'İletişim (opsiyonel — e-posta veya @kullanıcı)',
@@ -1104,6 +1096,48 @@ const SUMMARY_EN = {
   organic:'No coordinated distribution pattern found. This does not mean "safe".',
   inconclusive:'Not enough on-chain data was collected to make a call — result is inconclusive.',
 };
+// X paylaşımı için kısa "ne yakalandı" ifadeleri. f_ = sinyal tetiklendi,
+// c_ = temiz çıktı (organic paylaşımında kullanılır). null = o durum için ifade yok.
+const SIG_HINT = {
+  common_funder:{f_en:'multiple launch buyers were funded by one wallet',f_tr:'birden çok lansman alıcısı tek cüzdandan fonlanmış',
+    c_en:'launch buyers were funded independently',c_tr:'lansman alıcıları bağımsız fonlanmış'},
+  funding_tree:{f_en:"buyers' funds trace back to one wallet a few hops back",f_tr:'alıcıların parası birkaç adım geride tek cüzdana çıkıyor',
+    c_en:'funding traces to separate sources',c_tr:'fonlama ayrı kaynaklara çıkıyor'},
+  same_slot_entry:{f_en:'several wallets bought in the same block',f_tr:'birkaç cüzdan aynı blokta almış',c_en:null,c_tr:null},
+  identical_balances:{f_en:'launch buys are suspiciously uniform in size',f_tr:'lansman alımları şüpheli biçimde eşit büyüklükte',c_en:null,c_tr:null},
+  fee_fingerprint:{f_en:'an identical priority-fee fingerprint across buyers',f_tr:'alıcılarda aynı öncelik-ücreti parmak izi',c_en:null,c_tr:null},
+  fresh_wallets:{f_en:'a cluster of brand-new wallets bought at launch',f_tr:'lansmanda bir grup sıfır geçmişli cüzdan almış',
+    c_en:'buyers have real prior history',c_tr:'alıcıların gerçek bir geçmişi var'},
+  wallet_age_cluster:{f_en:'many buyer wallets were created in the same short window',f_tr:'birçok alıcı cüzdanı aynı kısa aralıkta açılmış',c_en:null,c_tr:null},
+  wallet_age_batch:{f_en:'launch wallets look batch-prepared',f_tr:'lansman cüzdanları toplu hazırlanmış görünüyor',c_en:null,c_tr:null},
+  wallet_age_diversity:{f_en:'wallet ages are unusually clustered',f_tr:'cüzdan yaşları alışılmadık biçimde kümelenmiş',
+    c_en:'wallet ages are spread out naturally',c_tr:'cüzdan yaşları doğal biçimde dağılmış'},
+  deployer_history:{f_en:'the deployer has prior tokens on record',f_tr:"deployer'ın kayıtlı önceki tokenları var",
+    c_en:'the deployer has no prior-token history',c_tr:"deployer'ın önceki token geçmişi yok"},
+  flagged_wallets:{f_en:'wallets here are on our blacklist from an earlier rug',f_tr:'buradaki cüzdanlar önceki bir rugdan kara listemizde',c_en:null,c_tr:null},
+  supply_whale:{f_en:'one wallet holds a dominant slice of supply',f_tr:'tek cüzdan arzın baskın bir dilimini tutuyor',
+    c_en:'no single wallet dominates supply',c_tr:'tek bir cüzdan arza hakim değil'},
+  launch_dominance:{f_en:'one wallet took a dominant slice at launch',f_tr:'tek cüzdan lansmanda baskın bir pay almış',c_en:null,c_tr:null},
+  top10_concentration:{f_en:'the top-10 wallets hold a large share',f_tr:'ilk 10 cüzdan büyük bir pay tutuyor',
+    c_en:'supply is fairly spread across holders',c_tr:"arz holder'lara makul dağılmış"},
+  funding_profile:{f_en:"funding sources don't match a known exchange",f_tr:'fonlama kaynakları bilinen bir borsayla eşleşmiyor',
+    c_en:'buyers were funded from known exchanges',c_tr:'alıcılar bilinen borsalardan fonlanmış'},
+  mint_authority:{f_en:'mint/freeze authority is still live',f_tr:'mint/freeze yetkisi hâlâ açık',
+    c_en:'mint & freeze authority are revoked',c_tr:'mint ve freeze yetkisi devredilmiş'},
+  lp_lock:{f_en:"LP isn't verifiably locked or burned",f_tr:'LP doğrulanabilir şekilde kilitli/yakılmış değil',
+    c_en:'LP looks locked or burned',c_tr:'LP kilitli/yakılmış görünüyor'},
+  liquidity_health:{f_en:'liquidity is thin versus market cap',f_tr:"likidite market cap'e göre ince",
+    c_en:'liquidity depth looks healthy',c_tr:'likidite derinliği sağlıklı görünüyor'},
+};
+const RF_HINT = {
+  lp:{en:'the LP can still be pulled',tr:'LP hâlâ çekilebilir'},
+  authority:{en:'mint/freeze authority is live',tr:'mint/freeze yetkisi açık'},
+  liquidity:{en:'liquidity is thin',tr:'likidite ince'},
+  deployer:{en:'the deployer has a rug / serial-launch history',tr:"deployer'ın rug / seri-lansman geçmişi var"},
+  flagged:{en:'blacklisted wallets are present',tr:'kara listedeki cüzdanlar mevcut'},
+};
+const RF_SIG = { lp:'lp_lock', authority:'mint_authority', liquidity:'liquidity_health', deployer:'deployer_history', flagged:'flagged_wallets' };
+
 // Risk bayrakları — karara girmez. EN metinleri (belirli sayılar sinyal ızgarasında).
 const RF_EN = {
   lp:{ label:'Liquidity can be pulled',
@@ -1994,6 +2028,59 @@ function renderChart(pool){
 }
 
 /* ---------------- paylaşım / rozet / itiraz ---------------- */
+/* X paylaşımına "ne yakaladık" ek bilgisi — gerçek durumlardan 1-2'sini
+   rastgele seçip tek cümlede toplar. Tüm karar türlerinde çalışır. */
+function shareFindings(d){
+  const v = d.verdict || {}, kind = v.kind;
+  const sigs = d.signals || [], rf = v.risk_flags || [];
+  const en = lang === 'en';
+  const pool = [], cats = new Set();
+
+  const hint = (key, fired) => {
+    const h = SIG_HINT[key];
+    if(h) return fired ? (en ? h.f_en : h.f_tr) : (en ? h.c_en : h.c_tr);
+    if(!fired) return null;
+    const lab = (en && SIG_EN[key]) || (sigs.find(s=>s.key===key)||{}).label || key;
+    return (en ? `${lab.toLowerCase()} flagged` : `${lab.toLowerCase()} işaretlendi`);
+  };
+
+  if(kind === 'organic'){
+    sigs.filter(s => !s.fired && s.data_available).forEach(s=>{
+      const t = hint(s.key, false); if(t){ pool.push(t); cats.add(s.key); }
+    });
+  }else{
+    sigs.filter(s => s.fired).forEach(s=>{
+      const t = hint(s.key, true); if(t){ pool.push(t); cats.add(s.key); }
+    });
+    if(kind === 'inconclusive'){
+      const miss = sigs.filter(s => !s.data_available)
+        .map(s => ((en && SIG_EN[s.key]) || s.label || s.key).replace(/_/g, ' ').toLowerCase())
+        .slice(0, 3);
+      if(miss.length) pool.push(en ? `couldn't retrieve ${miss.join(', ')}` : `${miss.join(', ')} çekilemedi`);
+    }
+  }
+  // risk bayrakları — aynı kategori zaten yoksa
+  rf.forEach(f=>{
+    if(cats.has(RF_SIG[f.key])) return;
+    const t = RF_HINT[f.key]; if(t) pool.push(en ? t.en : t.tr);
+  });
+  if(d.momentum && d.momentum.hit) pool.push(en
+    ? 'early wallets here also appeared in tokens that later ran up'
+    : 'buradaki erken cüzdanlar sonradan yükselen tokenlarda da vardı');
+
+  if(!pool.length) return '';
+  for(let i = pool.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  let pick = pool.slice(0, 2);
+  const budget = kind === 'organic' ? 66 : 92;   // organic'te ekstra "DYOR" kuyruğu var
+  if(pick.join('; ').length > budget) pick = pick.slice(0, 1);
+  let s = pick.join('; ');
+  s = s.charAt(0).toUpperCase() + s.slice(1);
+  return /[.!?]$/.test(s) ? s : s + '.';
+}
+
 function wireShare(d){
   const box = $('shareBox'); box.hidden = false;
   const origin = location.origin;
@@ -2007,7 +2094,7 @@ function wireShare(d){
   const sym = tk.symbol || tk.name || short(d.mint);
   const mcap = mcapShort(tk.market_cap);
   const nAlgos = (d.signals && d.signals.length) || SIGNALS_N;
-  const tweet = L('shareTweetFull', sym, d.mint, mcap, nAlgos, v.kind)
+  const tweet = L('shareTweetFull', sym, d.mint, mcap, nAlgos, v.kind, shareFindings(d))
     + '\n\n' + (lang === 'en' ? 'Full scan → ' : 'Tam sonuç → ') + url;
   $('shareX').href =
     `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}`;
