@@ -1,13 +1,20 @@
 """
-Piyasa verisi — DexScreener (anahtarsız, ücretsiz, ~300 istek/dk).
+Piyasa verisi — DexScreener (anahtarsız, ücretsiz, ~300 istek/dk), düşerse
+GeckoTerminal'e (anahtarsız, herkese açık) yedeklenir.
 
 Tek bağımlı olma: bir sağlayıcı düşerse tarama tamamen ölmemeli, sadece
 ilgili sinyaller "veri yok" durumuna geçmeli.
+
+NOT: DexScreener'ın kendisi çalışıyor (yerelden test edilip doğrulandı) ama
+Render'ın barındırma IP aralığından — tarayıcı gibi görünen başlıklarla
+denense bile — sık sık hızlı ve tutarlı biçimde reddediliyor; bu, IP
+itibarına dayalı bir engelleme gibi görünüyor (User-Agent'a değil). Tek
+sağlayıcıya bağlı kalmamak için farklı bir barındırma/Cloudflare
+itibarına sahip GeckoTerminal'e yedeklendi.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 
@@ -16,6 +23,7 @@ import httpx
 log = logging.getLogger(__name__)
 
 DEXSCREENER = "https://api.dexscreener.com/latest/dex/tokens/{mint}"
+GECKOTERMINAL_TOKEN = "https://api.geckoterminal.com/api/v2/networks/solana/tokens/{mint}"
 
 # Varsayılan httpx User-Agent'ı ("python-httpx/x.y") Cloudflare arkasındaki
 # API'lerde bot imzası olarak damgalanıp paylaşılan barındırma IP'lerinden
@@ -56,24 +64,26 @@ class MarketSnapshot:
 
 
 async def fetch_market(mint: str, timeout: float = 12.0) -> MarketSnapshot:
+    snap = await _fetch_dexscreener(mint, min(timeout, 8.0))
+    if snap.available:
+        return snap
+    # DexScreener boş/düştü — GeckoTerminal'e yedeklen. Farklı host, farklı
+    # Cloudflare itibarı; DexScreener'ı engelleyen IP kısıtı burada geçerli
+    # olmayabilir. Tek deneme yeterli — asıl yedeklilik artık iki farklı
+    # sağlayıcı arasında, aynı sağlayıcıyı tekrar tekrar denemekte değil.
+    gt = await _fetch_geckoterminal(mint, min(timeout, 8.0))
+    return gt if gt.available else snap
+
+
+async def _fetch_dexscreener(mint: str, timeout: float) -> MarketSnapshot:
     snap = MarketSnapshot()
-    data = None
-    last_exc: Exception | None = None
-    # Bir kez tekrar dene — geçici ağ hatası/429'da tüm taramayı "piyasa verisi
-    # yok" durumuna düşürmeyelim.
-    for attempt in range(2):
-        try:
-            async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
-                resp = await client.get(DEXSCREENER.format(mint=mint))
-                resp.raise_for_status()
-                data = resp.json()
-            break
-        except (httpx.HTTPError, ValueError) as exc:
-            last_exc = exc
-            if attempt == 0:
-                await asyncio.sleep(0.6)
-    if data is None:
-        log.warning("Piyasa verisi alınamadı %s: %s", mint, last_exc)
+    try:
+        async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
+            resp = await client.get(DEXSCREENER.format(mint=mint))
+            resp.raise_for_status()
+            data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        log.warning("DexScreener piyasa verisi alınamadı %s: %s", mint, exc)
         return snap
 
     pairs = data.get("pairs") or []
@@ -115,6 +125,44 @@ async def fetch_market(mint: str, timeout: float = 12.0) -> MarketSnapshot:
         if url:
             socials.append({"type": "website", "url": url})
     snap.socials = socials
+
+    return snap
+
+
+async def _fetch_geckoterminal(mint: str, timeout: float) -> MarketSnapshot:
+    """DexScreener yedeği. Tek çağrıda ad/sembol/fiyat/mcap/likidite/hacim +
+    havuz adresi (top_pools[0]) verir — sosyal linkler yok (DexScreener'da
+    varsa zaten dolduruldu, burada eklemeye çalışmıyoruz)."""
+    snap = MarketSnapshot()
+    try:
+        async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
+            resp = await client.get(GECKOTERMINAL_TOKEN.format(mint=mint))
+            resp.raise_for_status()
+            data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        log.warning("GeckoTerminal yedek piyasa verisi de alınamadı %s: %s", mint, exc)
+        return snap
+
+    attrs = ((data or {}).get("data") or {}).get("attributes") or {}
+    if not attrs or not attrs.get("symbol"):
+        return snap
+
+    snap.available = True
+    snap.name = attrs.get("name")
+    snap.symbol = attrs.get("symbol")
+    snap.price_usd = _f(attrs.get("price_usd"))
+    snap.market_cap = _f(attrs.get("market_cap_usd")) or _f(attrs.get("fdv_usd"))
+    snap.liquidity_usd = _f(attrs.get("total_reserve_in_usd"))
+    snap.volume_24h = _f((attrs.get("volume_usd") or {}).get("h24"))
+    img = attrs.get("image_url")
+    if isinstance(img, str) and img.startswith("http"):
+        snap.image_url = img
+
+    pools = (((data or {}).get("data") or {}).get("relationships") or {}).get("top_pools") or {}
+    ids = [p.get("id") for p in (pools.get("data") or []) if p.get("id")]
+    if ids:
+        # id biçimi "solana_<havuz adresi>"
+        snap.pair_address = ids[0].split("_", 1)[-1]
 
     return snap
 
