@@ -67,6 +67,15 @@ CREATE TABLE IF NOT EXISTS gain_hits (
 );
 CREATE INDEX IF NOT EXISTS idx_gain_hits_at ON gain_hits(scanned_at DESC);
 
+-- Kara listeye sonradan alınan bir cüzdanın, ZATEN izlenen başka tokenlarda
+-- zarar verecek büyüklükte pay/ilişkisi bulunduğunda o tokenlar buraya yazılır.
+CREATE TABLE IF NOT EXISTS risk_tokens (
+    mint TEXT PRIMARY KEY, symbol TEXT, image TEXT, verdict_was TEXT,
+    address TEXT, role TEXT, share REAL, detail TEXT, detail_en TEXT,
+    found_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_risk_found ON risk_tokens(found_at DESC);
+
 CREATE TABLE IF NOT EXISTS appeals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, verdict TEXT,
     contact TEXT, body TEXT NOT NULL, created_at INTEGER NOT NULL,
@@ -163,6 +172,13 @@ CREATE TABLE IF NOT EXISTS gain_hits (
     detail TEXT, scanned_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_gain_hits_at ON gain_hits(scanned_at DESC);
+
+CREATE TABLE IF NOT EXISTS risk_tokens (
+    mint TEXT PRIMARY KEY, symbol TEXT, image TEXT, verdict_was TEXT,
+    address TEXT, role TEXT, share DOUBLE PRECISION, detail TEXT, detail_en TEXT,
+    found_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_risk_found ON risk_tokens(found_at DESC);
 
 CREATE TABLE IF NOT EXISTS appeals (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
@@ -610,6 +626,35 @@ class ScanCache:
             "SELECT 1 AS x FROM flagged WHERE address = ?", (address,)
         ) is not None
 
+    # ---- AI tespitli riskli tokenlar ---------------------------------
+
+    def risk_add(self, **kw) -> None:
+        cols = ("mint", "symbol", "image", "verdict_was", "address", "role",
+                "share", "detail", "detail_en", "found_at")
+        vals = tuple(kw.get(c) for c in cols)
+        upd = ", ".join(f"{c}=excluded.{c}" for c in cols[1:])
+        self._write(
+            f"INSERT INTO risk_tokens ({', '.join(cols)}) "
+            f"VALUES ({', '.join('?' for _ in cols)}) "
+            f"ON CONFLICT(mint) DO UPDATE SET {upd}",
+            vals,
+        )
+
+    def risk_list(self, limit: int = 30) -> list[dict]:
+        return self._rows(
+            "SELECT * FROM risk_tokens ORDER BY found_at DESC LIMIT ?", (limit,)
+        )
+
+    def risk_remove_by_address(self, address: str) -> int:
+        rows = self._rows(
+            "SELECT mint FROM risk_tokens WHERE address = ?", (address,)
+        )
+        self._write("DELETE FROM risk_tokens WHERE address = ?", (address,))
+        return len(rows)
+
+    def risk_remove(self, mint: str) -> None:
+        self._write("DELETE FROM risk_tokens WHERE mint = ?", (mint,))
+
     # ---- config (k/v) -------------------------------------------------
 
     def config_get(self, key: str) -> str | None:
@@ -799,6 +844,10 @@ class ScanCache:
         )
         self._write("DELETE FROM flagged WHERE via = ?", (mint,))
         self._write("DELETE FROM lessons WHERE mint = ?", (mint,))
+        for r in rows:
+            self._write(
+                "DELETE FROM risk_tokens WHERE address = ?", (r["address"],)
+            )
         return len(rows)
 
     # ---- yükseliş öğrenmesi ------------------------------------------
@@ -1011,6 +1060,7 @@ class ScanCache:
             "lessons": n("SELECT COUNT(*) FROM lessons"),
             "gainers": n("SELECT COUNT(*) FROM gainers WHERE hits >= 2"),
             "gain_lessons": n("SELECT COUNT(*) FROM gain_lessons"),
+            "risk_tokens": n("SELECT COUNT(*) FROM risk_tokens"),
             "backend": "postgres" if self.pg else "sqlite",
             "scans_24h": n("SELECT COUNT(*) FROM scan_history WHERE created_at >= ?", (day_ago,)),
             "rugs_caught": n("SELECT COUNT(*) FROM track WHERE rug_flagged = 1"),

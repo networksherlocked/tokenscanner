@@ -83,6 +83,14 @@ RUG_MIN_LIQ_AT_SCAN = float(os.getenv("RUG_MIN_LIQ_AT_SCAN", "2000"))  # $ — a
 RUG_DROP_FRAC = float(os.getenv("RUG_DROP_FRAC", "0.85"))   # likidite bu oranda düştüyse
 RUG_FLOOR_USD = float(os.getenv("RUG_FLOOR_USD", "800"))    # ya da mutlak bu eşiğin altı
 
+# --- Kara liste yayılımı: bir cüzdan kara listeye alınınca, ZATEN izlenen
+#     tokenlarda o cüzdanın payı/ilişkisi bu eşiği geçiyorsa token "AI tespitli
+#     riskli" olarak işaretlenir (ana sayfada ayrı bölüm). RPC harcamaz —
+#     kayıtlı tarama verisinden bakar. ---
+RISK_ENABLED = os.getenv("RISK_ENABLED", "1") != "0"
+RISK_MIN_SHARE = float(os.getenv("RISK_MIN_SHARE", "8"))    # % pay — bu kadarı başkalarına zarar verebilir
+RISK_MAX_TOKENS = int(os.getenv("RISK_MAX_TOKENS", "120"))  # kaç izlenen token kontrol edilsin
+
 # --- Yükseliş öğrenmesi: organic/cabaled/inconclusive denip sonradan sert
 #     YÜKSELEN tokenlardan tekrar eden erken cüzdan/fonlayıcı/deployer çıkar --
 GAIN_ENABLED = os.getenv("GAIN_ENABLED", "1") != "0"
@@ -219,6 +227,102 @@ async def _refresh_track_row(cache, row: dict, now: int) -> None:
 
 def _short_addr(a: str | None) -> str:
     return f"{a[:4]}…{a[-4:]}" if a and len(a) > 12 else (a or "?")
+
+
+_ROLE_TR = {
+    "holder": "büyük holder",
+    "launch_buyer": "lansman alıcısı",
+    "funder": "fonlayıcı (beslediği cüzdanlarla)",
+    "deployer": "deployer",
+}
+_ROLE_EN = {
+    "holder": "large holder",
+    "launch_buyer": "launch buyer",
+    "funder": "funder (via the wallets it funded)",
+    "deployer": "deployer",
+}
+
+
+def _wallet_impact(scan: dict, addr: str) -> tuple[str, float]:
+    """addr'in bu tokendaki en yüksek etkisi → (rol, pay%).
+
+    RPC yok — kayıtlı taramadaki holder payları (arz %'si), lansman alıcısı
+    payları ve fonlanan küme payına bakar.
+    """
+    launch = scan.get("launch") or {}
+    buyers = launch.get("buyers") or []
+    holders = scan.get("holders") or []
+    dep = (launch.get("deployer") or {}).get("address")
+
+    role, best = "", 0.0
+    for h in holders:
+        if h.get("owner") == addr:
+            s = float(h.get("share") or 0)
+            if s > best:
+                role, best = "holder", s
+    for b in buyers:
+        if b.get("owner") == addr:
+            s = float(b.get("share") or 0)
+            if s > best:
+                role, best = "launch_buyer", s
+    funded = sum(float(b.get("share") or 0) for b in buyers if b.get("funder") == addr)
+    if funded > best:
+        role, best = "funder", funded
+    # deployer, payı küçük olsa da kontratı elinde tuttuğu için anlamlı sayılır
+    if addr and addr == dep and best < RISK_MIN_SHARE:
+        role, best = "deployer", RISK_MIN_SHARE
+    return role, round(best, 2)
+
+
+def recheck_flagged_impact(cache: ScanCache, addresses) -> int:
+    """Yeni kara listeye alınan cüzdan(lar), zaten izlenen tokenlarda zarar
+    verecek büyüklükte pay tutuyorsa o tokenları `risk_tokens`'a yazar."""
+    if not RISK_ENABLED:
+        return 0
+    addrs = [
+        a for a in dict.fromkeys(addresses)
+        if a and not registry.is_infrastructure(a)
+    ]
+    if not addrs:
+        return 0
+    found = 0
+    for row in cache.track_list(RISK_MAX_TOKENS):
+        vw = row.get("verdict") or "?"
+        if vw == "bundled" or row.get("outcome") in ("miss", "hit", "rug"):
+            continue  # zaten kötü biliniyor
+        mint = row["mint"]
+        scan = cache.scan_payload(mint)
+        if not scan:
+            continue
+        for addr in addrs:
+            role, share = _wallet_impact(scan, addr)
+            if not role or share < RISK_MIN_SHARE:
+                continue
+            sym = row.get("symbol") or mint[:6]
+            of_tr = "arzın" if role in ("holder", "deployer") else "lansman alımının"
+            of_en = "of supply" if role in ("holder", "deployer") else "of the launch buy"
+            cache.risk_add(
+                mint=mint, symbol=row.get("symbol"), image=row.get("image"),
+                verdict_was=vw, address=addr, role=role, share=share,
+                found_at=int(time.time()),
+                detail=(
+                    f"{sym}: bu token taramada '{vw}' çıktı. Sonradan kara listeye "
+                    f"alınan {_short_addr(addr)}, burada {_ROLE_TR.get(role, role)} "
+                    f"olarak {of_tr} ~%{share:.0f}'ini kontrol ediyor — başkalarına "
+                    f"zarar verecek büyüklükte. Token yeniden riskli işaretlendi."
+                ),
+                detail_en=(
+                    f"{sym}: scanned as '{vw}'. {_short_addr(addr)}, later "
+                    f"blacklisted, controls ~{share:.0f}% {of_en} here as "
+                    f"{_ROLE_EN.get(role, role)} — large enough to hurt others. "
+                    f"Token re-flagged as risky."
+                ),
+            )
+            found += 1
+            break
+    if found:
+        log.info("RİSK YAYILIMI: %s izlenen token yeniden riskli işaretlendi", found)
+    return found
 
 
 def _cluster_evidence(scan: dict) -> tuple[list[str], str, str]:
@@ -370,6 +474,13 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
         )
     if flagged_wallets or dep_flagged:
         _reload_flagged()
+        try:
+            recheck_flagged_impact(
+                cache,
+                flagged_wallets + ([deployer] if dep_flagged else []),
+            )
+        except Exception:  # noqa: BLE001
+            log.exception("Risk yayılımı kontrolü düştü: %s", mint)
     flagged_n = len(flagged_wallets) + (1 if dep_flagged else 0)
 
     head = (
@@ -468,6 +579,10 @@ def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> 
         cache.flagged_add(creator, note + " · yaratıcı", via=mint, kind="deployer", bump=True)
         flagged_creator = True
         _reload_flagged()
+        try:
+            recheck_flagged_impact(cache, [creator])
+        except Exception:  # noqa: BLE001
+            log.exception("Risk yayılımı kontrolü düştü: %s", mint)
 
     cache.track_mark_rug(mint, "rug")
 
@@ -1037,10 +1152,16 @@ async def track(limit: int = 20):
         asyncio.create_task(refresh_track())
     await _backfill_track_symbols(limit=min(limit, 50))
     return {
-        "records": state["cache"].track_list(min(limit, 50)),
+        "records": state["cache"].track_list(min(limit, 120)),
         "window_sec": TRACK_WINDOW,
         "drop_pct": TRACK_DROP,
     }
+
+
+@app.get("/api/risk")
+async def risk_list(limit: int = 24):
+    """AI tarafından tespit edilen riskli tokenlar (kara liste yayılımı)."""
+    return {"tokens": state["cache"].risk_list(min(limit, 48))}
 
 
 @app.get("/api/health")
@@ -1322,12 +1443,18 @@ async def admin_flagged_add(payload: dict = Body(...)):
         raise HTTPException(422, "Geçersiz Solana adresi.")
     state["cache"].flagged_add(addr, payload.get("note"))
     _reload_flagged()
-    return {"ok": True}
+    # izlenen tokenlarda bu cüzdanın etkisini yeniden değerlendir (arka planda)
+    found = await asyncio.to_thread(
+        recheck_flagged_impact, state["cache"], [addr]
+    )
+    return {"ok": True, "risk_tokens": found}
 
 
 @app.delete("/api/admin/flagged/{address}", dependencies=[Depends(_admin)])
 async def admin_flagged_remove(address: str):
-    state["cache"].flagged_remove(address.strip())
+    addr = address.strip()
+    state["cache"].flagged_remove(addr)
+    state["cache"].risk_remove_by_address(addr)
     _reload_flagged()
     return {"ok": True}
 
