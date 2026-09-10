@@ -15,7 +15,9 @@ itibarına sahip GeckoTerminal'e yedeklendi.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 
 import httpx
@@ -24,6 +26,23 @@ log = logging.getLogger(__name__)
 
 DEXSCREENER = "https://api.dexscreener.com/latest/dex/tokens/{mint}"
 GECKOTERMINAL_TOKEN = "https://api.geckoterminal.com/api/v2/networks/solana/tokens/{mint}"
+
+# --- Süreç-içi önbellek + eşzamanlı istek birleştirme + GeckoTerminal kısıtı ---
+#
+# DexScreener Render IP'sinden neredeyse her zaman reddediliyor; her çağrı
+# GeckoTerminal'e düşüyor. GeckoTerminal'in ücretsiz API'si çok sıkı kısıtlı
+# (~5 art arda istekte 429). Bir tarama + karne yenilemesi + deployer geçmişi
+# kontrolü aynı mint'i defalarca çekince limit hemen doluyor ve "piyasa verisi
+# yok" çıkıyordu. Çözüm: kısa ömürlü önbellek + aynı mint için tek uçuş +
+# GeckoTerminal çağrıları arasında minimum aralık.
+_CACHE_OK_TTL = 120.0       # başarılı sonuç bu kadar saniye taze sayılır
+_CACHE_FAIL_TTL = 40.0      # başarısız sonuç da kısa süre önbelleklenir (hammer'ı önler)
+_GT_MIN_INTERVAL = 2.1      # GeckoTerminal çağrıları arası en az bu kadar sn (~28/dk, ücretsiz limit 30/dk)
+
+_market_cache: dict[str, tuple[float, "MarketSnapshot"]] = {}
+_inflight: dict[str, asyncio.Task] = {}
+_gt_lock = asyncio.Lock()
+_gt_last = 0.0
 
 # Varsayılan httpx User-Agent'ı ("python-httpx/x.y") Cloudflare arkasındaki
 # API'lerde bot imzası olarak damgalanıp paylaşılan barındırma IP'lerinden
@@ -64,6 +83,31 @@ class MarketSnapshot:
 
 
 async def fetch_market(mint: str, timeout: float = 12.0) -> MarketSnapshot:
+    now = time.monotonic()
+    hit = _market_cache.get(mint)
+    if hit and now < hit[0]:
+        return hit[1]
+    # Aynı mint için zaten bir istek uçuyorsa ona bağlan (birden çok tarama /
+    # backfill / deployer kontrolü aynı anda aynı mint'i çekmesin).
+    task = _inflight.get(mint)
+    if task is None:
+        task = asyncio.ensure_future(_fetch_market_uncached(mint, timeout))
+        _inflight[mint] = task
+        try:
+            snap = await task
+        finally:
+            _inflight.pop(mint, None)
+        ttl = _CACHE_OK_TTL if snap.available else _CACHE_FAIL_TTL
+        _market_cache[mint] = (time.monotonic() + ttl, snap)
+        if len(_market_cache) > 800:
+            cut = time.monotonic()
+            for k in [k for k, (exp, _) in _market_cache.items() if exp < cut]:
+                _market_cache.pop(k, None)
+        return snap
+    return await asyncio.shield(task)
+
+
+async def _fetch_market_uncached(mint: str, timeout: float) -> MarketSnapshot:
     snap = await _fetch_dexscreener(mint, min(timeout, 8.0))
     if snap.available:
         return snap
@@ -132,16 +176,27 @@ async def _fetch_dexscreener(mint: str, timeout: float) -> MarketSnapshot:
 async def _fetch_geckoterminal(mint: str, timeout: float) -> MarketSnapshot:
     """DexScreener yedeği. Tek çağrıda ad/sembol/fiyat/mcap/likidite/hacim +
     havuz adresi (top_pools[0]) verir — sosyal linkler yok (DexScreener'da
-    varsa zaten dolduruldu, burada eklemeye çalışmıyoruz)."""
+    varsa zaten dolduruldu, burada eklemeye çalışmıyoruz).
+
+    GeckoTerminal ücretsiz API'si art arda ~5 istekte 429 veriyor — çağrılar
+    arasında en az `_GT_MIN_INTERVAL` sn bekleyerek global bir kuyruk kuruyoruz.
+    """
+    global _gt_last
     snap = MarketSnapshot()
-    try:
-        async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
-            resp = await client.get(GECKOTERMINAL_TOKEN.format(mint=mint))
-            resp.raise_for_status()
-            data = resp.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        log.warning("GeckoTerminal yedek piyasa verisi de alınamadı %s: %s", mint, exc)
-        return snap
+    async with _gt_lock:
+        wait = _GT_MIN_INTERVAL - (time.monotonic() - _gt_last)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
+                resp = await client.get(GECKOTERMINAL_TOKEN.format(mint=mint))
+                resp.raise_for_status()
+                data = resp.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            log.warning("GeckoTerminal yedek piyasa verisi de alınamadı %s: %s", mint, exc)
+            return snap
+        finally:
+            _gt_last = time.monotonic()
 
     attrs = ((data or {}).get("data") or {}).get("attributes") or {}
     if not attrs or not attrs.get("symbol"):

@@ -406,22 +406,30 @@ async def analyze_deployer(
     # Geçmiş tokenların kaçı ölmüş/rug? DexScreener (anahtarsız) ile bak.
     from .market import fetch_market
 
-    sample = list(ids)[:12]
+    sample = list(ids)[:10]
     if sample:
-        # 6 eşzamanlı DexScreener isteği tek IP'den burst'e yol açıp bazen
-        # taramanın kendi piyasa verisi çekimini de etkiliyordu — 3'e indirildi.
         sem = asyncio.Semaphore(3)
+        seen: dict[str, bool] = {}
 
-        async def check(tid: str) -> bool:
+        async def check(tid: str) -> None:
             async with sem:
                 try:
                     m = await fetch_market(tid, timeout=8.0)
                 except Exception:  # noqa: BLE001
-                    return False
+                    return
                 # çift yok ya da likidite $1k altı = pratikte ölü
-                return not m.available or (m.liquidity_usd or 0) < 1000
+                seen[tid] = (not m.available) or (m.liquidity_usd or 0) < 1000
 
-        results = await asyncio.gather(*(check(t) for t in sample))
-        info.checked_tokens = len(results)
-        info.dead_tokens = sum(1 for r in results if r)
+        # market.py artık piyasa verisini önbellekliyor + GeckoTerminal
+        # çağrılarını global bir kuyruğa alıyor (DexScreener Render'dan bloklu).
+        # Bu, taramayı çok yavaşlatabilir — toplam süreyi sınırla, ne kadarı
+        # dönerse o kadar; deployer geçmişi ikincil bir sinyal.
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*(check(t) for t in sample)), timeout=9.0
+            )
+        except asyncio.TimeoutError:
+            pass
+        info.checked_tokens = len(seen)
+        info.dead_tokens = sum(1 for v in seen.values() if v)
     return info

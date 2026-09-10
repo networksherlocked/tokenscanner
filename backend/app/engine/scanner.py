@@ -30,7 +30,11 @@ from ..rpc.liquidity import analyze_lp_lock
 from ..rpc.market import fetch_market
 from ..rpc.pool import RpcPool
 from ..rpc.pumpfun import fetch_pumpfun, meta_from_dict, meta_to_dict
-from ..rpc.solana import collect_chain_snapshot, resolve_mint_creator
+from ..rpc.solana import (
+    collect_chain_snapshot,
+    resolve_mint_creator,
+    resolve_token_meta,
+)
 from ..rpc.trades import (
     available as early_trades_available,
     fetch_early_trades,
@@ -136,6 +140,18 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
 
     # 1) Piyasa + pump.fun meta (ikisi de anahtarsız, ucuz).
     market = await fetch_market(mint)
+    # Piyasa API'si ad/sembol veremediyse (DexScreener Render'dan bloklu,
+    # GeckoTerminal kısıtı dolabiliyor) zincir-üstü Metaplex metadata'dan
+    # doldur — sonuç ekranı en azından tokenın adını gösterebilsin.
+    if not market.symbol or not market.name:
+        try:
+            meta = await resolve_token_meta(pool, mint)
+            market.name = market.name or meta.get("name")
+            market.symbol = market.symbol or meta.get("symbol")
+            market.image_url = market.image_url or meta.get("image")
+        except Exception:  # noqa: BLE001
+            log.info("token metadata çözülemedi: %s", mint)
+
     floor = _min_market_cap
     if (market.market_cap or 0) < floor:
         seen = f"${market.market_cap:,.0f}" if market.market_cap else "unknown"

@@ -336,6 +336,33 @@ async def resolve_mint_creator(pool: RpcPool, mint: str) -> str | None:
     return k0 if isinstance(k0, str) else None
 
 
+async def resolve_token_meta(pool: RpcPool, mint: str) -> dict:
+    """Token adı / sembolü / logosu — Helius DAS `getAsset` ile (zincir-üstü
+    Metaplex metadata). DexScreener Render IP'sinden bloklu ve GeckoTerminal
+    ücretsiz kısıtı sık dolduğu için piyasa API'leri düşse bile ad/sembol
+    gösterebilelim diye. DAS uç noktası yoksa boş döner (tek RPC çağrısı)."""
+    if not getattr(pool, "has_das", False):
+        return {}
+    try:
+        res = await pool.das("getAsset", {"id": mint})
+    except Exception as exc:  # noqa: BLE001
+        log.info("getAsset düştü %s: %s", mint, exc)
+        return {}
+    content = (res or {}).get("content") or {}
+    meta = content.get("metadata") or {}
+    out: dict = {}
+    name = (meta.get("name") or "").strip()
+    sym = (meta.get("symbol") or "").strip()
+    if name:
+        out["name"] = name
+    if sym:
+        out["symbol"] = sym
+    img = (content.get("links") or {}).get("image")
+    if isinstance(img, str) and img.startswith("http"):
+        out["image"] = img
+    return out
+
+
 async def fetch_entry_fees(
     pool: RpcPool, holders: list[HolderRecord], concurrency: int = 6
 ) -> None:
