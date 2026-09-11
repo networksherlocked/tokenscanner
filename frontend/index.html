@@ -110,6 +110,10 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.6vw,42px);l
 
 .split{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:start}
 @media(max-width:820px){.split{grid-template-columns:1fr}}
+.verdict{grid-column:1;grid-row:1}
+.risk-context{grid-column:1;grid-row:2}
+.scol{grid-column:2;grid-row:1/span 2}
+@media(max-width:820px){.verdict,.risk-context,.scol{grid-column:1;grid-row:auto}}
 
 .verdict{border:1px solid var(--gold-dim);background:
   linear-gradient(180deg,var(--panel-2),var(--panel));
@@ -237,12 +241,16 @@ td.addr{color:var(--text)}
 .pill.flagged{color:var(--bundled);border-color:rgba(213,67,63,.45)}
 
 .livewrap{margin-top:8px}
-.livebtn{display:inline-block;cursor:pointer;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--gold);border-bottom:1px dotted var(--gold)}
-.livebtn:hover{color:var(--text)}
 .liveresult{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.5}
+.liveresult.loading{font-style:italic;color:var(--dim)}
 .liverow{margin-bottom:4px}
 .liverow code{color:var(--text)}
+
+.risk-context{border:1px solid rgba(213,67,63,.45);background:rgba(213,67,63,.07);
+  padding:16px 18px;border-radius:2px;font-size:12px;color:var(--muted);line-height:1.5}
+.risk-context b{display:block;margin-bottom:8px;font-family:var(--display);font-weight:700;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--bundled)}
+.risk-context .liveresult{margin-top:10px;padding-top:9px;border-top:1px solid rgba(213,67,63,.25)}
 
 .caveats{margin-top:26px;border-left:2px solid var(--cabaled);background:rgba(213,147,47,.07);padding:14px 16px;font-size:12px;color:var(--muted)}
 .caveats b{color:var(--text);font-weight:500;display:block;margin-bottom:6px;letter-spacing:.1em;text-transform:uppercase;font-size:10px}
@@ -669,7 +677,8 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       </div>
       <div class="split">
         <aside class="verdict" id="verdict"></aside>
-        <div>
+        <div class="risk-context" id="riskContext" hidden></div>
+        <div class="scol">
           <div class="riskflags" id="riskFlags" hidden></div>
           <div class="section-label">
             <span data-i18n="sigGrid">Signal grid</span>
@@ -937,13 +946,13 @@ const STR = {
     determination:'Determination',
     lgFired:'fired', lgClean:'clean', lgNoData:'no data',
     whatLimits:'What limits this reading',
-    liveCheckBtn:'Check live on-chain status',
     liveChecking:'checking…',
     liveErr:'Could not check on-chain right now — try again.',
     liveGone:'No longer holds this token — may have sold it or moved it to other wallets.',
     liveDropped: (from, to) => `Held ~${from}% at scan time, now ~${to}% — reduced (may have sold or moved it).`,
     liveHolding: v => `Still holds ~${v}% — no meaningful drop since the scan.`,
     liveNow: v => `Currently holds ~${v}% of this token.`,
+    riskCtxTitle:'Why this is on the risky list',
     mmHead:'Rise signal',
     mmIntro: (n, c) => `${n} address${n>1?'es':''} from this launch also appeared early in tokens that later ran up hard${c?` — ${c} of them across two or more separate run-ups`:''}:`,
     mmRoleBuyer:'early buyer', mmRoleFunder:'funder', mmRoleDeployer:'deployer',
@@ -1048,13 +1057,13 @@ const STR = {
     determination:'Karar',
     lgFired:'tetiklendi', lgClean:'temiz', lgNoData:'veri yok',
     whatLimits:'Bu okumayı sınırlayanlar',
-    liveCheckBtn:'Canlı durumu kontrol et',
     liveChecking:'kontrol ediliyor…',
     liveErr:'Zincirden şu anda kontrol edilemedi — tekrar dene.',
     liveGone:'Artık bu tokende bakiyesi yok — satmış ya da başka cüzdanlara aktarmış olabilir.',
     liveDropped: (from, to) => `Taramada ~%${from} tutuyordu, şimdi ~%${to} — azaltmış (satmış ya da aktarmış olabilir).`,
     liveHolding: v => `Hâlâ ~%${v} tutuyor — taramadan bu yana anlamlı bir düşüş yok.`,
     liveNow: v => `Şu anda bu tokende ~%${v} tutuyor.`,
+    riskCtxTitle:'Neden riskli listede',
     mmHead:'Yükseliş sinyali',
     mmIntro: (n, c) => `Bu lansmandaki ${n} adres, daha önce sert yükselen tokenlarda da erkenden yer almıştı${c?` — ${c} tanesi iki ya da daha fazla ayrı yükselişte`:''}:`,
     mmRoleBuyer:'erken alıcı', mmRoleFunder:'fonlayıcı', mmRoleDeployer:'deployer',
@@ -1854,6 +1863,10 @@ function render(d){
   lastResult = d;
   const v = d.verdict, c = COLORS[v.kind] || COLORS.cabaled;
   $('result').classList.add('on');
+  // önbellekten anında dönen taramalarda (liste kartına tıklama gibi)
+  // scanStart()'ın 180ms'lik "reveal" zamanlayıcısı yetişmeden bitebiliyor —
+  // o yüzden sonuç her render edildiğinde ayrıca buraya da kaydırıyoruz.
+  $('result').scrollIntoView({ behavior:'smooth', block:'start' });
 
   const summary = lang === 'en' ? (SUMMARY_EN[v.kind] || v.summary) : v.summary;
   const confLbl = lang === 'en' ? (CONF_EN[v.confidence_label] || v.confidence_label) : v.confidence_label;
@@ -1893,6 +1906,22 @@ function render(d){
     rfBox.hidden = false;
   } else {
     rfBox.hidden = true;
+  }
+
+  // --- riskli-token bağlamı: bu mint ana sayfadaki "AI tespitli riskli
+  // tokenlar" listesindeyse (lastRisk), sol dikey çerçevenin altında ayrı
+  // bir pencerede neden orada olduğunu ve işaretli cüzdanın şu anki
+  // durumunu göster.
+  const riskHit = (lastRisk || []).find(t => t.mint === d.mint);
+  const rcBox = $('riskContext');
+  if(riskHit){
+    const why = (lang === 'en' ? riskHit.detail_en : riskHit.detail) || riskHit.detail || '';
+    rcBox.hidden = false;
+    rcBox.innerHTML = `<b>${L('riskCtxTitle')}</b><div>${esc(why)}</div>${liveWalletHtml()}`;
+    loadLiveWallet(rcBox, d.mint, [riskHit.address]);
+  } else {
+    rcBox.hidden = true;
+    rcBox.innerHTML = '';
   }
 
   // --- tarama zamanı + yenile ---
@@ -1972,7 +2001,7 @@ function render(d){
     setTimeout(()=>{
       el.classList.add('in');
       el.querySelector('.bar span').style.width = (s.fired ? s.strength*100 : 0)+'%';
-      if(flaggedAddrs.length) wireLiveWallet(el, d.mint, flaggedAddrs);
+      if(flaggedAddrs.length) loadLiveWallet(el, d.mint, flaggedAddrs);
     }, 60*i);
   });
 
@@ -2171,8 +2200,8 @@ function evidenceHtml(e){
 
 /* ---------------- işaretli cüzdan: canlı durum ---------------- */
 // "flagged_wallets"/"deployer_history" tetiklendiğinde, taramada gösterilen
-// işaretli cüzdan(lar)ın bu tokende ŞU AN ne kadar tuttuğunu (RPC ile, talep
-// üzerine) göstermek için adresleri sinyal evidence'ından çıkarır.
+// işaretli cüzdan(lar)ın bu tokende ŞU AN ne kadar tuttuğunu göstermek için
+// adresleri sinyal evidence'ından çıkarır. Buton yok — otomatik yüklenir.
 function flaggedAddrsFor(s){
   if(!s.fired) return [];
   if(s.key === 'flagged_wallets') return (s.evidence && s.evidence.hits) || [];
@@ -2182,10 +2211,7 @@ function flaggedAddrsFor(s){
   return [];
 }
 function liveWalletHtml(){
-  return `<div class="livewrap">
-    <span class="livebtn" role="button" tabindex="0">${L('liveCheckBtn')}</span>
-    <div class="liveresult" hidden></div>
-  </div>`;
+  return `<div class="livewrap"><div class="liveresult loading">${L('liveChecking')}</div></div>`;
 }
 function liveNoteFor(w){
   if(w.live_share == null) return L('liveErr');
@@ -2195,38 +2221,25 @@ function liveNoteFor(w){
   }
   return w.role ? L('liveHolding', w.live_share.toFixed(1)) : L('liveNow', w.live_share.toFixed(1));
 }
-function wireLiveWallet(el, mint, addrs){
-  const btn = el.querySelector('.livebtn');
+// el içindeki .liveresult kutusunu, mint'teki addrs listesinin ŞU ANKİ
+// durumuyla otomatik doldurur — tıklama gerekmez (hem sinyal hücreleri hem
+// de riskli-token bağlam paneli bunu paylaşır).
+async function loadLiveWallet(el, mint, addrs){
   const out = el.querySelector('.liveresult');
-  if(!btn) return;
-  const trigger = async ev=>{
-    ev.stopPropagation();
-    if(btn.dataset.busy) return;
-    btn.dataset.busy = '1';
-    const orig = btn.textContent;
-    btn.textContent = L('liveChecking');
-    try{
-      const qs = addrs.map(a=>`address=${encodeURIComponent(a)}`).join('&');
-      const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}/wallet-status?${qs}`);
-      const body = await r.json();
-      if(!r.ok) throw new Error(body.detail || L('liveErr'));
-      out.innerHTML = (body.wallets || []).map(w=>
-        `<div class="liverow"><code>${short(w.address)}</code> — ${liveNoteFor(w)}</div>`
-      ).join('');
-      out.hidden = false;
-      btn.hidden = true;
-    }catch(e){
-      out.innerHTML = `<div class="liverow">${L('liveErr')}</div>`;
-      out.hidden = false;
-    }finally{
-      delete btn.dataset.busy;
-      btn.textContent = orig;
-    }
-  };
-  btn.addEventListener('click', trigger);
-  btn.addEventListener('keydown', e=>{
-    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); trigger(e); }
-  });
+  if(!out || !addrs.length) return;
+  try{
+    const qs = addrs.map(a=>`address=${encodeURIComponent(a)}`).join('&');
+    const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}/wallet-status?${qs}`);
+    const body = await r.json();
+    if(!r.ok) throw new Error(body.detail || L('liveErr'));
+    out.classList.remove('loading');
+    out.innerHTML = (body.wallets || []).map(w=>
+      `<div class="liverow"><code>${short(w.address)}</code> — ${liveNoteFor(w)}</div>`
+    ).join('');
+  }catch(e){
+    out.classList.remove('loading');
+    out.innerHTML = `<div class="liverow">${L('liveErr')}</div>`;
+  }
 }
 
 /* ---------------- görünüm geçişi ---------------- */
