@@ -255,6 +255,45 @@ _ROLE_EN = {
 }
 
 
+def _risk_detail(role: str, sym: str, addr: str, share: float, vw: str) -> tuple[str, str]:
+    """risk_tokens.detail/detail_en metnini üretir.
+
+    "deployer" özel: gerçek bir bakiye/pay yüzdesi DEĞİL (bkz. _wallet_impact
+    — deployer'a payı ne olursa olsun sabit RISK_MIN_SHARE atanıyor), o yüzden
+    "arzın %X'ini kontrol ediyor" demek yanıltıcı olur; kullanıcı holder
+    listesinde arayıp bulamaz. Onun yerine kontratı bastığı (mint/freeze
+    yetkisi, geçmiş rug kaydı) için riskli olduğunu açıkça yazıyoruz.
+    """
+    if role == "deployer":
+        detail = (
+            f"{sym}: bu token taramada '{vw}' çıktı. Sonradan kara listeye alınan "
+            f"{_short_addr(addr)}, bu kontratın deployer'ı — bakiyesi düşük/sıfır "
+            f"olsa bile kontratı bastığı için (mint/freeze yetkisi, geçmiş rug "
+            f"kaydı vb.) tehlikeli sayılıyor. Token yeniden riskli işaretlendi."
+        )
+        detail_en = (
+            f"{sym}: scanned as '{vw}'. {_short_addr(addr)}, later blacklisted, "
+            f"is this contract's deployer — considered dangerous regardless of "
+            f"its current balance (mint/freeze authority, prior rug history, "
+            f"etc.). Token re-flagged as risky."
+        )
+        return detail, detail_en
+    of_tr = "arzın" if role == "holder" else "lansman alımının"
+    of_en = "of supply" if role == "holder" else "of the launch buy"
+    detail = (
+        f"{sym}: bu token taramada '{vw}' çıktı. Sonradan kara listeye alınan "
+        f"{_short_addr(addr)}, burada {_ROLE_TR.get(role, role)} olarak {of_tr} "
+        f"~%{share:.0f}'ini kontrol ediyor — başkalarına zarar verecek "
+        f"büyüklükte. Token yeniden riskli işaretlendi."
+    )
+    detail_en = (
+        f"{sym}: scanned as '{vw}'. {_short_addr(addr)}, later blacklisted, "
+        f"controls ~{share:.0f}% {of_en} here as {_ROLE_EN.get(role, role)} — "
+        f"large enough to hurt others. Token re-flagged as risky."
+    )
+    return detail, detail_en
+
+
 def _wallet_impact(scan: dict, addr: str) -> tuple[str, float]:
     """addr'in bu tokendaki en yüksek etkisi → (rol, pay%).
 
@@ -311,24 +350,12 @@ def recheck_flagged_impact(cache: ScanCache, addresses) -> int:
             if not role or share < RISK_MIN_SHARE:
                 continue
             sym = row.get("symbol") or mint[:6]
-            of_tr = "arzın" if role in ("holder", "deployer") else "lansman alımının"
-            of_en = "of supply" if role in ("holder", "deployer") else "of the launch buy"
+            detail, detail_en = _risk_detail(role, sym, addr, share, vw)
             cache.risk_add(
                 mint=mint, symbol=row.get("symbol"), image=row.get("image"),
                 verdict_was=vw, address=addr, role=role, share=share,
                 found_at=int(time.time()),
-                detail=(
-                    f"{sym}: bu token taramada '{vw}' çıktı. Sonradan kara listeye "
-                    f"alınan {_short_addr(addr)}, burada {_ROLE_TR.get(role, role)} "
-                    f"olarak {of_tr} ~%{share:.0f}'ini kontrol ediyor — başkalarına "
-                    f"zarar verecek büyüklükte. Token yeniden riskli işaretlendi."
-                ),
-                detail_en=(
-                    f"{sym}: scanned as '{vw}'. {_short_addr(addr)}, later "
-                    f"blacklisted, controls ~{share:.0f}% {of_en} here as "
-                    f"{_ROLE_EN.get(role, role)} — large enough to hurt others. "
-                    f"Token re-flagged as risky."
-                ),
+                detail=detail, detail_en=detail_en,
             )
             found += 1
             break
@@ -353,7 +380,28 @@ async def risk_recheck(cache: ScanCache, pool: RpcPool) -> int:
     sona erer. RPC hatasında (None) temkinli davranılır, kayıt kalır."""
     if not RISK_ENABLED:
         return 0
-    rows = [r for r in cache.risk_list(500) if r.get("role") in _RISK_RECHECKABLE_ROLES]
+    all_rows = cache.risk_list(500)
+
+    # "deployer" kayıtları RPC ile yeniden kontrol edilmiyor (kalıcı rol,
+    # bkz. _RISK_RECHECKABLE_ROLES) ama metni eski/yanıltıcı şablonla
+    # yazılmış olabilir (ör. "arzın %8'ini kontrol ediyor" — gerçekte %0
+    # tutan bir deployer için). RPC gerekmeden, güncel şablonla tazele.
+    for row in all_rows:
+        if row.get("role") != "deployer":
+            continue
+        detail, detail_en = _risk_detail(
+            "deployer", row.get("symbol") or row["mint"][:6], row["address"],
+            float(row.get("share") or 0), row.get("verdict_was") or "?",
+        )
+        if row.get("detail") != detail or row.get("detail_en") != detail_en:
+            cache.risk_add(
+                mint=row["mint"], symbol=row.get("symbol"), image=row.get("image"),
+                verdict_was=row.get("verdict_was"), address=row["address"],
+                role="deployer", share=row.get("share"), found_at=row.get("found_at"),
+                detail=detail, detail_en=detail_en,
+            )
+
+    rows = [r for r in all_rows if r.get("role") in _RISK_RECHECKABLE_ROLES]
     if not rows:
         return 0
     sem = asyncio.Semaphore(4)
