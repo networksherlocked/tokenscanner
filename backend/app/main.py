@@ -25,7 +25,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -1178,6 +1178,38 @@ async def rescan(mint: str, request: Request):
         raise HTTPException(404, str(exc)) from exc
     except RpcError as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+@app.get("/api/scan/{mint}/wallet-status")
+async def scan_wallet_status(
+    mint: str, request: Request, address: list[str] = Query(...)
+):
+    """Tarama sonucunda işaretli/riskli gösterilen bir cüzdanın bu tokendeki
+    ŞU ANKİ payını zincirden çeker (tarama anındaki payla karşılaştırılabilsin
+    diye ikisi de dönüyor). Kamuya açık ama RPC tetiklediği için rate-limit'li."""
+    mint = _validate(mint)
+    _check_rate(request)
+    scan = state["cache"].scan_payload(mint)
+    if not scan:
+        raise HTTPException(404, "Bu token için kayıtlı tarama yok.")
+    pool = state.get("pool")
+    addrs = [a.strip() for a in address if a and BASE58.match(a.strip())]
+    addrs = list(dict.fromkeys(addrs))[:8]
+    if not addrs:
+        raise HTTPException(400, "Geçerli adres verilmedi.")
+
+    async def one(addr: str) -> dict:
+        role, scan_share = _wallet_impact(scan, addr)
+        live_share = await wallet_token_share(pool, addr, mint) if pool else None
+        return {
+            "address": addr,
+            "role": role or None,
+            "scan_share": scan_share,
+            "live_share": live_share,
+        }
+
+    results = await asyncio.gather(*(one(a) for a in addrs))
+    return {"wallets": results}
 
 
 @app.get("/api/history/{mint}")

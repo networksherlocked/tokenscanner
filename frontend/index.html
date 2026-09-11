@@ -236,6 +236,14 @@ td.addr{color:var(--text)}
 .pill.protocol,.pill.burn{color:var(--muted)}
 .pill.flagged{color:var(--bundled);border-color:rgba(213,67,63,.45)}
 
+.livewrap{margin-top:8px}
+.livebtn{display:inline-block;cursor:pointer;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--gold);border-bottom:1px dotted var(--gold)}
+.livebtn:hover{color:var(--text)}
+.liveresult{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.5}
+.liverow{margin-bottom:4px}
+.liverow code{color:var(--text)}
+
 .caveats{margin-top:26px;border-left:2px solid var(--cabaled);background:rgba(213,147,47,.07);padding:14px 16px;font-size:12px;color:var(--muted)}
 .caveats b{color:var(--text);font-weight:500;display:block;margin-bottom:6px;letter-spacing:.1em;text-transform:uppercase;font-size:10px}
 .caveats li{margin-bottom:4px}
@@ -929,6 +937,13 @@ const STR = {
     determination:'Determination',
     lgFired:'fired', lgClean:'clean', lgNoData:'no data',
     whatLimits:'What limits this reading',
+    liveCheckBtn:'Check live on-chain status',
+    liveChecking:'checking…',
+    liveErr:'Could not check on-chain right now — try again.',
+    liveGone:'No longer holds this token — may have sold it or moved it to other wallets.',
+    liveDropped: (from, to) => `Held ~${from}% at scan time, now ~${to}% — reduced (may have sold or moved it).`,
+    liveHolding: v => `Still holds ~${v}% — no meaningful drop since the scan.`,
+    liveNow: v => `Currently holds ~${v}% of this token.`,
     mmHead:'Rise signal',
     mmIntro: (n, c) => `${n} address${n>1?'es':''} from this launch also appeared early in tokens that later ran up hard${c?` — ${c} of them across two or more separate run-ups`:''}:`,
     mmRoleBuyer:'early buyer', mmRoleFunder:'funder', mmRoleDeployer:'deployer',
@@ -1033,6 +1048,13 @@ const STR = {
     determination:'Karar',
     lgFired:'tetiklendi', lgClean:'temiz', lgNoData:'veri yok',
     whatLimits:'Bu okumayı sınırlayanlar',
+    liveCheckBtn:'Canlı durumu kontrol et',
+    liveChecking:'kontrol ediliyor…',
+    liveErr:'Zincirden şu anda kontrol edilemedi — tekrar dene.',
+    liveGone:'Artık bu tokende bakiyesi yok — satmış ya da başka cüzdanlara aktarmış olabilir.',
+    liveDropped: (from, to) => `Taramada ~%${from} tutuyordu, şimdi ~%${to} — azaltmış (satmış ya da aktarmış olabilir).`,
+    liveHolding: v => `Hâlâ ~%${v} tutuyor — taramadan bu yana anlamlı bir düşüş yok.`,
+    liveNow: v => `Şu anda bu tokende ~%${v} tutuyor.`,
     mmHead:'Yükseliş sinyali',
     mmIntro: (n, c) => `Bu lansmandaki ${n} adres, daha önce sert yükselen tokenlarda da erkenden yer almıştı${c?` — ${c} tanesi iki ya da daha fazla ayrı yükselişte`:''}:`,
     mmRoleBuyer:'erken alıcı', mmRoleFunder:'fonlayıcı', mmRoleDeployer:'deployer',
@@ -1933,13 +1955,15 @@ function render(d){
     el.setAttribute('aria-expanded','false');
     const kText = s.fired ? s.direction
       : (s.data_available ? `<span class="tick">✓</span> ${L('clean')}` : L('noDataShort'));
+    const flaggedAddrs = flaggedAddrsFor(s);
     el.innerHTML = `
       <div class="k"><span>${kText}</span>
         <span>${s.fired ? Math.round(s.strength*100)+'%' : ''}</span></div>
       <div class="n">${sigLabel}</div>
       <div class="bar"><span></span></div>
       <div class="why">${s.detail || L('noSignalData')}
-        ${evidenceHtml(s.evidence)}</div>`;
+        ${evidenceHtml(s.evidence)}
+        ${flaggedAddrs.length ? liveWalletHtml() : ''}</div>`;
     el.onclick = ()=>{
       el.classList.toggle('open');
       el.setAttribute('aria-expanded', el.classList.contains('open'));
@@ -1948,6 +1972,7 @@ function render(d){
     setTimeout(()=>{
       el.classList.add('in');
       el.querySelector('.bar span').style.width = (s.fired ? s.strength*100 : 0)+'%';
+      if(flaggedAddrs.length) wireLiveWallet(el, d.mint, flaggedAddrs);
     }, 60*i);
   });
 
@@ -2142,6 +2167,66 @@ function evidenceHtml(e){
     .filter(([,v]) => v!=null && v!=='' && !(Array.isArray(v)&&!v.length))
     .map(([k,v])=>`${k}: <code>${typeof v==='object'?JSON.stringify(v):v}</code>`);
   return rows.length ? `<div style="margin-top:8px;font-size:11px;color:var(--dim)">${rows.join('<br>')}</div>` : '';
+}
+
+/* ---------------- işaretli cüzdan: canlı durum ---------------- */
+// "flagged_wallets"/"deployer_history" tetiklendiğinde, taramada gösterilen
+// işaretli cüzdan(lar)ın bu tokende ŞU AN ne kadar tuttuğunu (RPC ile, talep
+// üzerine) göstermek için adresleri sinyal evidence'ından çıkarır.
+function flaggedAddrsFor(s){
+  if(!s.fired) return [];
+  if(s.key === 'flagged_wallets') return (s.evidence && s.evidence.hits) || [];
+  if(s.key === 'deployer_history' && s.evidence && s.evidence.flagged && s.evidence.deployer) {
+    return [s.evidence.deployer];
+  }
+  return [];
+}
+function liveWalletHtml(){
+  return `<div class="livewrap">
+    <span class="livebtn" role="button" tabindex="0">${L('liveCheckBtn')}</span>
+    <div class="liveresult" hidden></div>
+  </div>`;
+}
+function liveNoteFor(w){
+  if(w.live_share == null) return L('liveErr');
+  if(w.live_share <= 0.01) return w.role ? L('liveGone') : L('liveNow', '0');
+  if(w.role && w.live_share < (w.scan_share||0) - 0.5){
+    return L('liveDropped', (w.scan_share||0).toFixed(1), w.live_share.toFixed(1));
+  }
+  return w.role ? L('liveHolding', w.live_share.toFixed(1)) : L('liveNow', w.live_share.toFixed(1));
+}
+function wireLiveWallet(el, mint, addrs){
+  const btn = el.querySelector('.livebtn');
+  const out = el.querySelector('.liveresult');
+  if(!btn) return;
+  const trigger = async ev=>{
+    ev.stopPropagation();
+    if(btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const orig = btn.textContent;
+    btn.textContent = L('liveChecking');
+    try{
+      const qs = addrs.map(a=>`address=${encodeURIComponent(a)}`).join('&');
+      const r = await fetch(`${API}/api/scan/${encodeURIComponent(mint)}/wallet-status?${qs}`);
+      const body = await r.json();
+      if(!r.ok) throw new Error(body.detail || L('liveErr'));
+      out.innerHTML = (body.wallets || []).map(w=>
+        `<div class="liverow"><code>${short(w.address)}</code> — ${liveNoteFor(w)}</div>`
+      ).join('');
+      out.hidden = false;
+      btn.hidden = true;
+    }catch(e){
+      out.innerHTML = `<div class="liverow">${L('liveErr')}</div>`;
+      out.hidden = false;
+    }finally{
+      delete btn.dataset.busy;
+      btn.textContent = orig;
+    }
+  };
+  btn.addEventListener('click', trigger);
+  btn.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); trigger(e); }
+  });
 }
 
 /* ---------------- görünüm geçişi ---------------- */
