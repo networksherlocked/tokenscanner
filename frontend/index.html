@@ -461,12 +461,6 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 /* ---------- tarama konsolu ---------- */
 .scanning{display:none;padding:30px 0 46px;border-bottom:1px solid var(--rule);position:relative;overflow:hidden}
 .scanning.on{display:block}
-.scanning::after{
-  content:"";position:absolute;left:0;right:0;top:0;height:120px;pointer-events:none;
-  background:linear-gradient(180deg,transparent,rgba(224,179,82,.06) 60%,rgba(224,179,82,.20));
-  animation:scanline 3.4s cubic-bezier(.5,0,.5,1) infinite;
-}
-@keyframes scanline{0%{transform:translateY(-120px)}100%{transform:translateY(400px)}}
 
 .scan-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .scan-title{display:flex;align-items:center;gap:12px;font-family:var(--display);font-weight:900;
@@ -518,9 +512,19 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   box-shadow:inset 0 0 0 1px rgba(200,164,92,.1), inset 0 0 90px rgba(0,0,0,.55);
   background:radial-gradient(140% 180% at 50% 40%,#172c4e,#080f1c 80%)}
 .scan-strip canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-/* kartal — tarama çizgisinin üzerinde, soldan sağa ilerler */
+/* sarı "dalga" — çerçeve içinde, kartalın arkasından, tam onun ilerlediği
+   kadar (--scan-p, JS'de ssDraw'da her karede güncellenir) soldan sağa açılır */
+.scan-strip{--scan-p:0}
+.scan-strip::after{
+  content:"";position:absolute;top:0;left:0;bottom:0;pointer-events:none;
+  width:calc(var(--scan-p) * 100%);
+  background:linear-gradient(90deg,rgba(224,179,82,.05),rgba(224,179,82,.14) 82%,rgba(224,179,82,.24));
+}
+/* kartal — tarama çizgisinin üzerinde, soldan sağa ilerler.
+   yeni görselde (eagle-scan.png) bayrak arka planı + boşluk payı var,
+   o yüzden kutu eskisinden biraz daha geniş (kartal-demo'daki ölçüyle aynı) */
 .ss-eagle{position:absolute;top:0;left:0;transform:translate(-50%,-50%);
-  width:clamp(90px,14vw,144px);pointer-events:none;z-index:4;will-change:transform;
+  width:clamp(120px,20vw,210px);pointer-events:none;z-index:4;will-change:transform;
   filter:drop-shadow(0 0 10px rgba(34,211,238,.45)) drop-shadow(0 0 20px rgba(224,179,82,.3))}
 .ss-eagle img{display:block;width:100%;height:auto}
 .ss-eagle .crest{width:74px;height:74px;color:var(--gold);display:none;margin:0 auto}
@@ -660,7 +664,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <canvas id="scanCanvas" aria-hidden="true"></canvas>
         <div class="ss-cap" id="scanSigCap"></div>
         <div class="ss-eagle" id="scanEagle">
-          <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+          <img src="/eagle-scan.png" alt="" onerror="eagleImgFail(this)">
           <svg class="crest" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="currentColor"/></svg>
         </div>
         <div class="ea-term" id="scanConsole"></div>
@@ -875,7 +879,7 @@ function socialsHtml(list){
   ).join('');
   return `<div class="socials">${links}</div>`;
 }
-// /eagle.png yoksa: kartal görselini gizle, kutuya .no-img ver (SVG arma devreye girer)
+// kartal görseli (eagle.png / eagle-scan.png) yüklenemezse: gizle, kutuya .no-img ver (SVG arma devreye girer)
 function eagleImgFail(img){ img.style.display='none'; const p=img.closest('.hero-eagle,.scan-strip'); if(p) p.classList.add('no-img'); }
 
 /* ---------------- i18n ---------------- */
@@ -1404,7 +1408,9 @@ function ssDraw(p, now){
 
   const n = SIGNALS_N, x1 = 8, x2 = w-8, lh = (h-10)/n;
   const sweepX = x1 + p*(x2-x1);
-  const eagleY = h/2 + Math.sin(now/420) * Math.min(7, h*0.03);
+  // kartal sol üstten sağ alta çapraz iner — ilerleme (p) hem X hem Y'yi sürüyor
+  const eyTop = 18, eyBot = 18;
+  const eagleY = eyTop + p*(h - eyTop - eyBot) + Math.sin(now/420) * Math.min(7, h*0.03);
 
   for(let i=0;i<n;i++){
     const cy = 5 + lh*(i+0.5);
@@ -1479,6 +1485,9 @@ function ssDraw(p, now){
   const cx = Math.max(78, Math.min(w-78, sweepX));
   $('scanEagle').style.transform = `translate(${ex.toFixed(1)}px,${eagleY.toFixed(1)}px) translate(-50%,-50%)`;
   $('scanSigCap').style.transform = `translate(${cx.toFixed(1)}px,${eagleY.toFixed(1)}px) translate(-50%,-50%)`;
+  // sarı "dalga" — kartalın arkasından, tam olarak onun ilerlediği kadar
+  // soldan sağa açılır (eskiden bağımsız/sonsuz döngüyle yukarıdan aşağı inerdi)
+  cv.parentElement.style.setProperty('--scan-p', p);
 }
 function ssFinish(){
   if(!SS.model) return;
@@ -1490,6 +1499,7 @@ function ssClear(){
   cancelAnimationFrame(SS.raf);
   SS.model = null; SS.forceEnd = false;
   if(SS.ctx && SS.cv) SS.ctx.clearRect(0,0,SS.cv.width,SS.cv.height);
+  if(SS.cv) SS.cv.parentElement.style.setProperty('--scan-p', 0);
   const c = $('scanSigCap'); if(c){ c.classList.remove('on'); c.style.transform = 'translate(-50%,-50%)'; }
   const l = $('scanSigLegend'); if(l) l.innerHTML = '';
   const e = $('scanEagle'); if(e){ e.style.transform = 'translate(-50%,-50%)'; }
