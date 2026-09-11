@@ -321,10 +321,20 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
                 "(sağlayıcı sınırı / çok aktif ya da eski token). Önceki taramanın "
                 "kararı gösteriliyor — bir tokenın lansman ve dağıtım geçmişi değişmez."
             )
+            note_en = (
+                "This rescan couldn't gather enough on-chain data to decide "
+                "(provider limit / very active or old token). Showing the "
+                "previous scan's verdict — a token's launch and distribution "
+                "history doesn't change."
+            )
             cav = list(pv.get("caveats") or [])
             if note not in cav:
                 cav.append(note)
+            cav_en = list(pv.get("caveats_en") or [])
+            if note_en not in cav_en:
+                cav_en.append(note_en)
             prev["verdict"]["caveats"] = cav
+            prev["verdict"]["caveats_en"] = cav_en
             prev["verdict"]["stale"] = True
             prev["restored_from_prev"] = True
             log.info(
@@ -339,6 +349,11 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             "bu sefer başlangıca ulaşamadı ve o değişmez kayıt yeniden kullanıldı "
             "(bir tokenın ilk alıcıları sonradan değişmez)."
         )
+        verdict.caveats_en.append(
+            "Launch data was cached on the first scan; this scan's live chain "
+            "read couldn't reach the start, so that immutable record was reused "
+            "(a token's first buyers don't change after the fact)."
+        )
 
     launch_provider = launch.source if launch_ok else ""
     if launch_ok and launch_provider not in ("bonding_curve", "pair"):
@@ -346,6 +361,11 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
             f"Lansman verisi 3. taraf indeksleyiciden ({launch_provider}) alındı; "
             "slot ve öncelik ücreti gelmeyebilir, bu yüzden 'eşzamanlı giriş' ve "
             "'ücret parmak izi' sinyalleri sınırlı çalışır."
+        )
+        verdict.caveats_en.append(
+            f"Launch data came from a 3rd-party indexer ({launch_provider}); slot "
+            "and priority-fee data may be missing, so 'simultaneous entry' and "
+            "'fee fingerprint' signals run with limited accuracy."
         )
 
     bundle_src = "launch" if launch_ok else "current_holders"

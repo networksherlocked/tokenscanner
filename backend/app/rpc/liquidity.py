@@ -48,6 +48,7 @@ class LpLockInfo:
     pool_creator: str | None = None    # havuzu açan cüzdan (PumpSwap parse'ından)
     source: str = ""              # pumpfun | raydium_api | pumpswap_pool | lp_mint_analysis
     detail: str = ""
+    detail_en: str = ""
 
     @property
     def locked_or_burned_pct(self) -> float:
@@ -66,6 +67,7 @@ class LpLockInfo:
             "pool_creator": self.pool_creator,
             "source": self.source,
             "detail": self.detail,
+            "detail_en": self.detail_en,
         }
 
 
@@ -84,15 +86,27 @@ def _classify(info: LpLockInfo) -> None:
             f"LP arzının ~%{info.burned_pct * 100:.0f}'i yakılmış — "
             "likidite kalıcı, çekilemez."
         )
+        info.detail_en = (
+            f"~{info.burned_pct * 100:.0f}% of the LP supply is burned — "
+            "liquidity is permanent, it cannot be pulled."
+        )
     elif lb >= LOCK_SAFE_PCT:
         prog = (
             registry.LP_LOCKER_PROGRAMS.get(info.holder_program)
             or (info.holder_program[:6] + "…" if info.holder_program else "bir kontrat")
         )
+        prog_en = (
+            registry.LP_LOCKER_PROGRAMS.get(info.holder_program)
+            or (info.holder_program[:6] + "…" if info.holder_program else "a contract")
+        )
         info.status = "locked"
         info.detail = (
             f"LP'nin ~%{lb * 100:.0f}'i kilitli ({prog}) — "
             "geliştirici likiditeyi çekemez."
+        )
+        info.detail_en = (
+            f"~{lb * 100:.0f}% of the LP is locked ({prog_en}) — "
+            "the developer cannot pull liquidity."
         )
     elif info.dev_held_pct >= DEV_HELD_WARN_PCT or (
         info.top_holder_pct >= DEV_HELD_WARN_PCT and info.locked_pct < 0.5
@@ -103,17 +117,29 @@ def _classify(info: LpLockInfo) -> None:
             f"LP tokenlarının ~%{pct * 100:.0f}'i tek bir düz cüzdanda — "
             "geliştirici likiditeyi istediği an çekebilir (rug riski)."
         )
+        info.detail_en = (
+            f"~{pct * 100:.0f}% of the LP tokens sit in a single plain wallet — "
+            "the developer can pull liquidity at any time (rug risk)."
+        )
     elif lb > 0.01:
         info.status = "partial"
         info.detail = (
             f"LP'nin ~%{lb * 100:.0f}'i yakılmış/kilitli, kalanı dağınık — "
             "kısmi koruma."
         )
+        info.detail_en = (
+            f"~{lb * 100:.0f}% of the LP is burned/locked, the rest is scattered — "
+            "partial protection."
+        )
     else:
         info.status = "unlocked"
         info.detail = (
             "LP'nin yakıldığına/kilitlendiğine dair kanıt yok — likidite "
             "çekilebilir (rug riski)."
+        )
+        info.detail_en = (
+            "No evidence the LP is burned or locked — liquidity can be "
+            "pulled (rug risk)."
         )
 
 
@@ -253,6 +279,10 @@ async def analyze_lp_lock(
             "Token hâlâ pump.fun bonding curve'ünde — likidite eğride, "
             "migration'a kadar geliştirici çekemez."
         )
+        info.detail_en = (
+            "Token is still on the pump.fun bonding curve — liquidity sits "
+            "in the curve, the developer can't pull it until migration."
+        )
         return info
 
     # 2) GERÇEK pump.fun mezunu — LP protokolce yakılır. Yalnızca pump.fun
@@ -266,6 +296,10 @@ async def analyze_lp_lock(
             "Token pump.fun'da mezun oldu — likidite PumpSwap'e taşınırken LP "
             "protokol tarafından yakıldı; geliştirici likiditeyi çekemez."
         )
+        info.detail_en = (
+            "Token graduated on pump.fun — the LP was burned by the protocol "
+            "when liquidity moved to PumpSwap; the developer can't pull it."
+        )
         return info
 
     if not pair:
@@ -273,6 +307,10 @@ async def analyze_lp_lock(
         info.detail = (
             "LP havuzu adresi bulunamadı — likidite kilit durumu doğrulanamadı. "
             "Kilitli olduğunu VARSAYMAYIN."
+        )
+        info.detail_en = (
+            "No LP pool address found — liquidity lock status could not be "
+            "verified. Do NOT assume it is locked."
         )
         return info
 
@@ -313,5 +351,13 @@ async def analyze_lp_lock(
         "çekilebilir olduğunu varsayın; token yaratıcısı likiditeyi çekerse "
         "token dağıtımından bağımsız olarak çöker. Sistem bu tokenı çekilme için "
         "izlemeye alır — çekilirse yaratıcısı kara listeye eklenir."
+    )
+    info.detail_en = (
+        f"LP lock status could not be verified automatically ({dex or 'this pool type'} — "
+        "e.g. Meteora / Orca concentrated liquidity, positions as NFTs). Assume "
+        "liquidity can be pulled; if the token's creator pulls it, the token "
+        "collapses regardless of how fair its distribution was. The system "
+        "keeps watching this token for a pull — if it happens, the creator "
+        "gets blacklisted."
     )
     return info

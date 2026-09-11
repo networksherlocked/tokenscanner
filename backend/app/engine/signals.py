@@ -58,6 +58,7 @@ class Signal:
     fired: bool = False
     strength: float = 0.0   # 0..1 — ne kadar güçlü tetiklendi
     detail: str = ""
+    detail_en: str = ""
     evidence: dict = field(default_factory=dict)
     data_ok: bool = True    # bu sinyali hesaplayacak veri var mıydı?
 
@@ -74,6 +75,7 @@ class Signal:
             "strength": round(self.strength, 3),
             "weight": self.weight,
             "detail": self.detail,
+            "detail_en": self.detail_en,
             "evidence": self.evidence,
             "data_available": self.data_ok,
         }
@@ -174,8 +176,10 @@ def sig_top10_concentration(ctx: SignalContext) -> Signal:
             SIGNAL_TUNING["top10_concentration_high"],
         )
         s.detail = f"Borsa ve LP dışı ilk 10 cüzdan arzın %{pct:.1f}'ini tutuyor."
+        s.detail_en = f"The top 10 non-exchange, non-LP wallets hold {pct:.1f}% of supply."
     else:
         s.detail = f"İlk 10 cüzdan arzın %{pct:.1f}'i — dağılım makul."
+        s.detail_en = f"Top 10 wallets hold {pct:.1f}% of supply — reasonable spread."
     return s
 
 
@@ -213,12 +217,18 @@ def sig_supply_whale(ctx: SignalContext) -> Signal:
             f"Tek bir borsa/LP dışı cüzdan ({top.owner[:6]}…{top.owner[-4:]}) "
             f"arzın %{top.share:.1f}'ini tutuyor — dağıtım tek elde toplanmış."
         )
+        s.detail_en = (
+            f"A single non-exchange, non-LP wallet ({top.owner[:6]}…{top.owner[-4:]}) "
+            f"holds {top.share:.1f}% of supply — distribution has piled up in one hand."
+        )
     elif top2 >= 30.0:
         s.fired = True
         s.strength = max(0.45, _ramp(top2, 30.0, 55.0))
         s.detail = f"En büyük iki cüzdan birlikte arzın %{top2:.1f}'ini tutuyor."
+        s.detail_en = f"The top two wallets together hold {top2:.1f}% of supply."
     else:
         s.detail = f"En büyük tekil cüzdan arzın %{top.share:.1f}'i — aşırı yoğunlaşma yok."
+        s.detail_en = f"Largest single wallet holds {top.share:.1f}% of supply — no excess concentration."
     return s
 
 
@@ -261,8 +271,14 @@ def sig_launch_dominance(ctx: SignalContext) -> Signal:
             f"arzın %{top.share:.1f}'ini almış — o cüzdan artık elinde "
             f"tutmasa bile bu, lansmanın adil dağıtılmadığının kanıtıdır."
         )
+        s.detail_en = (
+            f"A single wallet ({top.owner[:6]}…{top.owner[-4:]}) took "
+            f"{top.share:.1f}% of supply at launch — even if that wallet no "
+            f"longer holds it, this proves the launch wasn't distributed fairly."
+        )
     else:
         s.detail = f"Lansmanda en büyük tekil alım %{top.share:.1f} — aşırı yoğunlaşma yok."
+        s.detail_en = f"Largest single launch buy was {top.share:.1f}% — no excess concentration."
     return s
 
 
@@ -291,8 +307,13 @@ def sig_fresh_wallets(ctx: SignalContext) -> Signal:
             f"{len(fresh)}/{len(holders)} büyük cüzdanın toplam işlem geçmişi "
             f"10'un altında — geçmişsiz cüzdanlar."
         )
+        s.detail_en = (
+            f"{len(fresh)}/{len(holders)} large wallets have fewer than 10 total "
+            f"transactions — histories look brand new."
+        )
     else:
         s.detail = f"Cüzdanların {len(holders) - len(fresh)}'inin gerçek işlem geçmişi var."
+        s.detail_en = f"{len(holders) - len(fresh)} of the wallets have a real transaction history."
     return s
 
 
@@ -325,15 +346,25 @@ def sig_wallet_age_cluster(ctx: SignalContext) -> Signal:
             f"{len(born_just_before)} cüzdan token doğmadan önceki "
             f"{SIGNAL_TUNING['wallet_age_cluster_hours']} saat içinde açılmış."
         )
+        s.detail_en = (
+            f"{len(born_just_before)} wallets were created within "
+            f"{SIGNAL_TUNING['wallet_age_cluster_hours']}h before the token's birth."
+        )
     else:
         median_age = (ctx.launch_ts - statistics.median(ages)) / DAY
         if median_age < 0:
             s.detail = (
                 "Büyük cüzdanların çoğu tokendan SONRA açılmış — lansman kümesi yok."
             )
+            s.detail_en = (
+                "Most large wallets were created AFTER the token — no launch cluster."
+            )
         else:
             s.detail = (
                 f"Cüzdan yaşları dağınık (medyan {median_age:.0f} gün önce açılmış)."
+            )
+            s.detail_en = (
+                f"Wallet ages are spread out (median created {median_age:.0f} days earlier)."
             )
     return s
 
@@ -403,8 +434,14 @@ def sig_wallet_age_batch(ctx: SignalContext) -> Signal:
             f"önce ve {window_days:.1f} günlük dar bir pencerede açılmış — önceden "
             "hazırlanıp bekletilmiş bir cüzdan partisi."
         )
+        s.detail_en = (
+            f"{len(best)} launch wallets were created a median of {median_days:.0f} "
+            f"days before launch, within a tight {window_days:.1f}-day window — "
+            "a batch of wallets prepared and held in advance."
+        )
     else:
         s.detail = "Lansman cüzdanlarının açılış tarihleri bir parti oluşturmuyor."
+        s.detail_en = "Launch wallets' creation dates don't form a batch."
     return s
 
 
@@ -426,6 +463,7 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
     funders = [f for f in resolved if not registry.is_infrastructure(f)]
     if not funders:
         s.detail = "Tüm fonlamalar bilinen borsa adreslerinden — özel ortak fonlayıcı yok."
+        s.detail_en = "All funding came from known exchange addresses — no private common funder."
         s.evidence = {"resolved": len(resolved), "private_funders": 0}
         return s
 
@@ -455,8 +493,14 @@ def sig_common_funder(ctx: SignalContext) -> Signal:
             f"({top_funder[:6]}…{top_funder[-4:]}) — birlikte arzın "
             f"%{shared_share:.1f}'i."
         )
+        s.detail_en = (
+            f"{n} large wallets got their first SOL from the same address "
+            f"({top_funder[:6]}…{top_funder[-4:]}) — together they hold "
+            f"{shared_share:.1f}% of supply."
+        )
     else:
         s.detail = f"{len(counts)} farklı fonlama kaynağı — ortak fonlayıcı yok."
+        s.detail_en = f"{len(counts)} distinct funding sources — no common funder."
     return s
 
 
@@ -492,6 +536,7 @@ def sig_same_slot_entry(ctx: SignalContext) -> Signal:
     if n < SIGNAL_TUNING["same_slot_min"]:
         s.evidence = {"cluster_size": n, "total": len(wl)}
         s.detail = "Girişler zamana yayılmış."
+        s.detail_en = "Entries are spread out over time."
         return s
 
     slot_span = best[-1].first_slot - best[0].first_slot
@@ -521,6 +566,10 @@ def sig_same_slot_entry(ctx: SignalContext) -> Signal:
             f"{same_tx} lansman alıcısı TEK işlemde alım yapmış — operatör bir "
             "cüzdandan birden çok cüzdana aldı; tartışmasız paket imzası."
         )
+        s.detail_en = (
+            f"{same_tx} launch buyers bought in a SINGLE transaction — an "
+            "operator bought into multiple wallets from one; an unmistakable bundle signature."
+        )
         return s
 
     # 2) Saf eşzamanlılık — sıkılığa göre ölçekle, botsu yarışsa iskonto et.
@@ -546,16 +595,29 @@ def sig_same_slot_entry(ctx: SignalContext) -> Signal:
             f"{n} cüzdan {window} slot içinde girdi ama ayrı işlem ve ayrı "
             "fonlayıcılarla — koordinasyondan çok sniper/bot yarışı."
         )
+        s.detail_en = (
+            f"{n} wallets entered within {window} slots but with separate "
+            "transactions and funders — looks more like a sniper/bot race than coordination."
+        )
         return s
     if race:
         s.detail = (
             f"{n} cüzdan {slot_span} slot içinde girmiş ama her biri ayrı "
             "fonlayıcı/işlem kullanmış — kısmi koordinasyon işareti."
         )
+        s.detail_en = (
+            f"{n} wallets entered within {slot_span} slots but each used a "
+            "separate funder/transaction — a partial coordination signal."
+        )
     else:
         s.detail = (
             f"{n} cüzdan tokena {slot_span} slot (~{slot_span * 0.4:.1f} sn) "
             "içinde girmiş — işlem paketi imzası."
+        )
+        s.detail_en = (
+            f"{n} wallets entered the token within {slot_span} "
+            f"slot{'s' if slot_span != 1 else ''} (~{slot_span * 0.4:.1f}s) — "
+            "a transaction-bundle signature."
         )
     return s
 
@@ -601,6 +663,7 @@ def sig_identical_balances(ctx: SignalContext) -> Signal:
 
     if not tight_hit and not cv_hit:
         s.detail = f"Bakiyeler doğal biçimde farklı (varyasyon katsayısı {cv:.2f})."
+        s.detail_en = f"Balances vary naturally (coefficient of variation {cv:.2f})."
         return s
 
     s.fired = True
@@ -613,11 +676,21 @@ def sig_identical_balances(ctx: SignalContext) -> Signal:
             f"(varyasyon katsayısı {cv:.2f}) — elle alımda beklenmeyen tekdüzelik, "
             "tek elden allocation işareti."
         )
+        s.detail_en = (
+            f"{len(body)} launch wallets' buy sizes sit in a tight band "
+            f"(coefficient of variation {cv:.2f}) — unexpected uniformity for "
+            "manual buying, a sign of single-source allocation."
+        )
     else:
         s.detail = (
             f"{len(tight)} cüzdanın bakiyesi birbirinin %{tol * 100:.0f}'i içinde"
             + (f"; tüm setin varyasyon katsayısı {cv:.2f}" if cv_hit else "")
             + " — elle alımda beklenmeyen eşitlik."
+        )
+        s.detail_en = (
+            f"{len(tight)} wallets' balances are within {tol * 100:.0f}% of each other"
+            + (f"; whole-set coefficient of variation {cv:.2f}" if cv_hit else "")
+            + " — unexpected uniformity for manual buying."
         )
     return s
 
@@ -645,6 +718,7 @@ def sig_fee_fingerprint(ctx: SignalContext) -> Signal:
     }
     if n < SIGNAL_TUNING["fee_fingerprint_min"]:
         s.detail = "Giriş ücretleri farklı — tek bir otomasyon izi yok."
+        s.detail_en = "Entry fees vary — no single automation fingerprint."
         return s
 
     s.fired = True
@@ -657,12 +731,20 @@ def sig_fee_fingerprint(ctx: SignalContext) -> Signal:
             f"{n} işlem aynı öncelik ücretini ({fee} lamports) ödemiş ama ayrı "
             "fonlayıcılarla — muhtemelen ortak bir botun/router'ın varsayılanı."
         )
+        s.detail_en = (
+            f"{n} transactions paid the same priority fee ({fee} lamports) but "
+            "with separate funders — likely a shared bot's/router's default."
+        )
         if s.strength < 0.12:
             s.fired = False
     else:
         s.detail = (
             f"{n} giriş işlemi birebir aynı öncelik ücretini ödemiş "
             f"({fee} lamports) — aynı botun imzası."
+        )
+        s.detail_en = (
+            f"{n} entry transactions paid the exact same priority fee "
+            f"({fee} lamports) — the same bot's signature."
         )
     return s
 
@@ -718,6 +800,11 @@ def sig_funding_profile(ctx: SignalContext) -> Signal:
                         f"borsadan ({top_ex}) — olağandışı derecede tek kaynak "
                         "(zayıf işaret)."
                     )
+                    s.detail_en = (
+                        f"{dominance * 100:.0f}% of wallets were funded from a "
+                        f"single major exchange ({top_ex}) — unusually single-sourced "
+                        "(weak signal)."
+                    )
                     if s.strength < 0.12:
                         s.fired = False
                     return s
@@ -728,6 +815,10 @@ def sig_funding_profile(ctx: SignalContext) -> Signal:
                     f"Cüzdanların %{dominance * 100:.0f}'i tek bir borsadan "
                     f"fonlanmış ({top_ex}) — tek elden dağıtım işareti."
                 )
+                s.detail_en = (
+                    f"{dominance * 100:.0f}% of wallets were funded from a "
+                    f"single exchange ({top_ex}) — a sign of single-source distribution."
+                )
                 return s
 
     if tiers["low_trust"]:
@@ -735,6 +826,7 @@ def sig_funding_profile(ctx: SignalContext) -> Signal:
         s.direction = "bundled"
         s.strength = _ramp(tiers["low_trust"] / len(funders), 0.1, 0.5)
         s.detail = f"{tiers['low_trust']} cüzdan düşük güvenli kaynaktan fonlanmış."
+        s.detail_en = f"{tiers['low_trust']} wallets were funded from a low-trust source."
         return s
 
     if cex_total >= 3 and tiers["major"] >= tiers["regional"]:
@@ -743,8 +835,13 @@ def sig_funding_profile(ctx: SignalContext) -> Signal:
             f"{tiers['major']} cüzdan büyük borsalardan fonlanmış — "
             "dağıtım doğal görünüyor."
         )
+        s.detail_en = (
+            f"{tiers['major']} wallets were funded from major exchanges — "
+            "distribution looks natural."
+        )
     else:
         s.detail = f"{tiers['unknown']} cüzdanın fonlama kaynağı tanımlı listede yok."
+        s.detail_en = f"{tiers['unknown']} wallets' funding source isn't in our known list."
     return s
 
 
@@ -765,8 +862,10 @@ def sig_flagged_wallets(ctx: SignalContext) -> Signal:
         s.fired = True
         s.strength = _ramp(len(set(hits)), 1, 4)
         s.detail = f"{len(set(hits))} adres kendi kayıtlarımızda daha önce işaretlenmiş."
+        s.detail_en = f"{len(set(hits))} address(es) were previously flagged in our own records."
     else:
         s.detail = "Bilinen işaretli cüzdan yok."
+        s.detail_en = "No known flagged wallets."
     return s
 
 
@@ -795,11 +894,16 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
             f"Deployer ({addr[:6]}…{addr[-4:]}) daha önce çöken bir tokende "
             "işaretlenmiş — kendi kayıtlarımızda seri rug profili."
         )
+        s.detail_en = (
+            f"Deployer ({addr[:6]}…{addr[-4:]}) was flagged before on a token "
+            "that later collapsed — a serial-rug profile in our own records."
+        )
         return s
 
     if not dep or not getattr(dep, "checked", False):
         s.data_ok = False
         s.detail = "Deployer geçmişi çıkarılamadı (Helius DAS gerekli)."
+        s.detail_en = "Deployer history could not be retrieved (Helius DAS required)."
         return s
     n = getattr(dep, "prior_tokens", 0)
     checked = getattr(dep, "checked_tokens", 0)
@@ -814,6 +918,7 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
     }
     if n == 0:
         s.detail = "Deployer'ın ilk tokeni."
+        s.detail_en = "This is the deployer's first token."
         return s
 
     # Seri lansman + yüksek ölüm oranı = güçlü kırmızı bayrak.
@@ -825,18 +930,26 @@ def sig_deployer_history(ctx: SignalContext) -> Signal:
             f"Deployer {n} token basmış; kontrol edilen {checked}'inin "
             f"{dead}'i (%{rate * 100:.0f}) ölmüş/likidite çekilmiş — seri rug profili."
         )
+        s.detail_en = (
+            f"Deployer has minted {n} tokens; {dead} of the {checked} checked "
+            f"({rate * 100:.0f}%) are dead/had liquidity pulled — a serial-rug profile."
+        )
     elif n >= 15:
         s.fired = True
         s.direction = "bundled"
         s.strength = _ramp(n, 15, 50)
         s.detail = f"Deployer daha önce {n} token basmış — seri lansman cüzdanı."
+        s.detail_en = f"Deployer has minted {n} prior tokens — a serial-launch wallet."
     elif n >= 5:
         s.fired = True
         s.strength = _ramp(n, 5, 20)
         extra = f", kontrol edilen {checked}'ten {dead}'i ölü" if checked else ""
+        extra_en = f", {dead} of {checked} checked are dead" if checked else ""
         s.detail = f"Deployer daha önce {n} token basmış{extra}."
+        s.detail_en = f"Deployer has minted {n} prior tokens{extra_en}."
     else:
         s.detail = f"Deployer'ın {n} önceki tokeni var — memecoin'de olağan."
+        s.detail_en = f"Deployer has {n} prior token(s) — normal for memecoins."
     return s
 
 
@@ -860,6 +973,7 @@ def sig_funding_tree(ctx: SignalContext) -> Signal:
     if not fb:
         s.data_ok = False
         s.detail = "Fonlama ağacı çıkarılamadı."
+        s.detail_en = "Funding tree could not be resolved."
         return s
 
     # 1) Herhangi bir hop'ta (>=2) ortak ata — en güçlü, en derin sinyal.
@@ -883,6 +997,11 @@ def sig_funding_tree(ctx: SignalContext) -> Signal:
             f"({anc[:6]}…{anc[-4:]}) çıkıyor — araya cüzdan koyarak gizlenmiş "
             "ortak kaynak."
         )
+        s.detail_en = (
+            f"{n} launch buyers' funding traces back {max_hop} hops to the same "
+            f"address ({anc[:6]}…{anc[-4:]}) — a common source hidden behind "
+            "intermediary wallets."
+        )
         return s
 
     # 2) Fallback: hop 2 grandfunder yoğunlaşması.
@@ -904,9 +1023,17 @@ def sig_funding_tree(ctx: SignalContext) -> Signal:
             f"({best_gf[:6]}…{best_gf[-4:]}) besleniyor — bu fonlayıcılar "
             f"{reached} lansman alıcısına para göndermiş."
         )
+        s.detail_en = (
+            f"{len(best_funders)} distinct funders are fed by a single upstream "
+            f"source ({best_gf[:6]}…{best_gf[-4:]}) — these funders sent money "
+            f"to {reached} launch buyers."
+        )
     else:
         s.detail = (
             f"Fonlayıcılar ayrı üst kaynaklardan — {hops}-hop koordinasyon yok."
+        )
+        s.detail_en = (
+            f"Funders come from separate upstream sources — no {hops}-hop coordination."
         )
     return s
 
@@ -924,19 +1051,26 @@ def sig_mint_authority(ctx: SignalContext) -> Signal:
         "freeze_authority": mi.freeze_authority,
     }
     risks = []
+    risks_en = []
     if mi.mint_authority:
         risks.append(("mint", "arz sonradan artırılabilir"))
+        risks_en.append(("mint", "supply can be increased later"))
     if mi.freeze_authority:
         risks.append(("freeze", "cüzdanlar dondurulup satış engellenebilir"))
+        risks_en.append(("freeze", "wallets can be frozen, blocking sales"))
     if risks:
         s.fired = True
         s.strength = 1.0 if len(risks) == 2 else 0.6
         names = " ve ".join(r[0] for r in risks)
         effects = "; ".join(r[1] for r in risks)
         s.detail = f"{names} yetkisi hâlâ açık — {effects}."
+        names_en = " and ".join(r[0] for r in risks_en)
+        effects_en = "; ".join(r[1] for r in risks_en)
+        s.detail_en = f"{names_en} authority is still live — {effects_en}."
     else:
         s.direction = "organic"
         s.detail = "Mint ve freeze yetkileri devredilmiş."
+        s.detail_en = "Mint and freeze authority have been revoked."
     return s
 
 
@@ -957,6 +1091,7 @@ def sig_lp_lock(ctx: SignalContext) -> Signal:
     if not lp or not getattr(lp, "checked", False):
         s.data_ok = False
         s.detail = "LP kilit durumu çıkarılamadı."
+        s.detail_en = "LP lock status could not be retrieved."
         return s
 
     st = getattr(lp, "status", "unknown")
@@ -973,17 +1108,20 @@ def sig_lp_lock(ctx: SignalContext) -> Signal:
         "source": getattr(lp, "source", ""),
     }
     detail = getattr(lp, "detail", "") or ""
+    detail_en = getattr(lp, "detail_en", "") or ""
 
     if st in ("burned", "locked", "protocol_locked", "bonding_curve"):
         s.direction = "organic"
         s.fired = True
         s.strength = 0.6 if st in ("burned", "locked") else 0.4
         s.detail = detail
+        s.detail_en = detail_en
     elif st == "unlocked":
         s.direction = "cabaled"
         s.fired = True
         s.strength = max(0.5, _ramp(max(dev, top), 0.4, 0.9))
         s.detail = detail or "LP kilitli değil — likidite çekilebilir."
+        s.detail_en = detail_en or "LP is not locked — liquidity can be pulled."
     elif st == "unverified":
         # Doğrulanamayan LP bir risktir — "güvenli" sayma. Hafif bir cabaled
         # dürtüsü + sonuç ekranında belirgin uyarı (classifier caveat'ı).
@@ -991,11 +1129,14 @@ def sig_lp_lock(ctx: SignalContext) -> Signal:
         s.fired = True
         s.strength = 0.3
         s.detail = detail or "LP kilit durumu doğrulanamadı — çekilebilir olabilir."
+        s.detail_en = detail_en or "LP lock status could not be verified — it may be pullable."
     elif st == "partial":
         s.detail = detail or "LP kısmen yakılmış/kilitli."
+        s.detail_en = detail_en or "LP is partially burned/locked."
     else:
         s.data_ok = False
         s.detail = detail or "LP kilit durumu belirsiz."
+        s.detail_en = detail_en or "LP lock status is unclear."
     return s
 
 
@@ -1022,9 +1163,14 @@ def sig_liquidity_health(ctx: SignalContext) -> Signal:
             f"Likidite piyasa değerinin sadece %{ratio * 100:.1f}'i — "
             "büyük satışlar fiyatı çökertir."
         )
+        s.detail_en = (
+            f"Liquidity is only {ratio * 100:.1f}% of market cap — "
+            "large sells will crash the price."
+        )
     else:
         s.direction = "organic"
         s.detail = f"Likidite / piyasa değeri oranı %{ratio * 100:.1f}."
+        s.detail_en = f"Liquidity / market-cap ratio is {ratio * 100:.1f}%."
     return s
 
 
@@ -1046,6 +1192,10 @@ def sig_wallet_age_diversity(ctx: SignalContext) -> Signal:
             "Cüzdanların yeterince çoğunun gerçek yaşı çözülemedi — "
             "organiklik puanı verilemiyor."
         )
+        s.detail_en = (
+            "Real age could not be resolved for enough wallets — "
+            "no organic-ness score can be given."
+        )
         return s
     days = [(ctx.launch_ts - t) / DAY for t in ages]
     spread = statistics.pstdev(days)
@@ -1062,8 +1212,13 @@ def sig_wallet_age_diversity(ctx: SignalContext) -> Signal:
             f"Cüzdanların {older_than_month}/{len(days)}'i tokendan en az bir ay "
             "önce açılmış, yaş dağılımı geniş."
         )
+        s.detail_en = (
+            f"{older_than_month}/{len(days)} wallets were created at least a "
+            "month before the token — age spread is wide."
+        )
     else:
         s.detail = "Yaş dağılımı organik sayılacak kadar geniş değil."
+        s.detail_en = "Age spread isn't wide enough to count as organic."
     return s
 
 
@@ -1108,5 +1263,6 @@ def run_signals(ctx: SignalContext) -> list[Signal]:
                 weight=0.0,
                 data_ok=False,
                 detail=f"Sinyal hesaplanamadı: {exc}",
+                detail_en=f"Signal could not be computed: {exc}",
             ))
     return out

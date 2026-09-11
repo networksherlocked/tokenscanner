@@ -2023,7 +2023,7 @@ function render(d){
         <span>${s.fired ? Math.round(s.strength*100)+'%' : ''}</span></div>
       <div class="n">${sigLabel}</div>
       <div class="bar"><span></span></div>
-      <div class="why">${s.detail || L('noSignalData')}
+      <div class="why">${(lang === 'en' && s.detail_en) ? s.detail_en : (s.detail || L('noSignalData'))}
         ${evidenceHtml(s.evidence)}
         ${flaggedAddrs.length ? liveWalletHtml() : ''}</div>`;
     el.onclick = ()=>{
@@ -2038,9 +2038,11 @@ function render(d){
     }, 60*i);
   });
 
-  $('caveats').innerHTML = v.caveats?.length ? `
+  const capList = (lang === 'en' && v.caveats_en && v.caveats_en.length === (v.caveats||[]).length)
+    ? v.caveats_en : v.caveats;
+  $('caveats').innerHTML = capList?.length ? `
     <div class="caveats"><b>${L('whatLimits')}</b>
-      <ul>${v.caveats.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
+      <ul>${capList.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
 
   renderMomentum(d.momentum);
 

@@ -17,6 +17,29 @@ from dataclasses import dataclass, field
 
 from .signals import Signal
 
+# Sinyal etiketlerinin İngilizcesi — yalnızca caveat metinlerinde sinyal
+# adı gömülü olduğu için lazım (frontend'deki SIG_EN ile aynı tutulmalı).
+SIG_LABEL_EN = {
+    "wallet_age_cluster": "Wallet birth cluster",
+    "wallet_age_batch": "Prepared wallet batch",
+    "common_funder": "Common funder",
+    "funding_tree": "Funding tree (multi-hop)",
+    "same_slot_entry": "Simultaneous entry",
+    "identical_balances": "Uniform balance spread",
+    "fee_fingerprint": "Fee fingerprint",
+    "fresh_wallets": "Fresh-wallet ratio",
+    "deployer_history": "Deployer history",
+    "flagged_wallets": "Previously flagged wallets",
+    "supply_whale": "Single-wallet dominance",
+    "launch_dominance": "Single-wallet launch dominance",
+    "top10_concentration": "Top-10 concentration",
+    "funding_profile": "Funding-source profile",
+    "mint_authority": "Mint / freeze authority",
+    "lp_lock": "LP lock status",
+    "liquidity_health": "Liquidity depth",
+    "wallet_age_diversity": "Wallet-age diversity",
+}
+
 # "Sert" sinyaller: tek başına değil ama birkaçı birleşince Bundled kararı verir.
 HARD_SIGNALS = {
     "wallet_age_cluster",
@@ -97,6 +120,7 @@ class Verdict:
     fired: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
+    caveats_en: list[str] = field(default_factory=list)
     risk_flags: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -111,6 +135,7 @@ class Verdict:
             "fired_signals": self.fired,
             "reasons": self.reasons,
             "caveats": self.caveats,
+            "caveats_en": self.caveats_en,
             "risk_flags": self.risk_flags,
         }
 
@@ -220,6 +245,7 @@ def classify(
     conf = 0.55 * signal_coverage + 0.30 * coverage + 0.15 * (1.0 if market_available else 0.0)
 
     caveats: list[str] = []
+    caveats_en: list[str] = []
     # Küçük örneklem cezası: "koordineli desen bulunamadı" iddiası 3-4
     # lansman alıcısı üzerinden kurulmuşsa, 50+ alıcılı bir lansmana göre çok
     # daha zayıf bir kanıttır — signal_coverage/chain_coverage bunu yakalamaz
@@ -232,12 +258,23 @@ def classify(
                 "koordinasyon sinyalleri bu kadar küçük bir örneklemde "
                 "istatistiksel olarak güçsüzdür, güven buna göre düşürüldü."
             )
+            caveats_en.append(
+                f"Only {launch_buyer_count} buyers were found at launch — "
+                "coordination signals are statistically weak on such a small "
+                "sample, confidence was lowered accordingly."
+            )
     if kind == "bundled" and mass_slot_bundle and not strong_bundle:
         caveats.append(
             "Lansman alıcılarının neredeyse tamamı tek-iki slot içinde girmiş "
             "(paket imzası), ancak fonlama ve cüzdan-hazırlık izleri gizlenmiş — "
             "parmak izini bilinçli olarak örten bir paket olabilir; klasik "
             "paketlerin tüm sert sinyalleri tetiklenmedi."
+        )
+        caveats_en.append(
+            "Nearly all launch buyers entered within one or two slots (a bundle "
+            "signature), but the funding and wallet-prep traces are hidden — "
+            "this may be a bundle that deliberately covers its fingerprint; not "
+            "every hard signal a classic bundle fires was triggered."
         )
     if not launch_available:
         conf *= 0.8
@@ -246,10 +283,19 @@ def classify(
             "Bundle sinyalleri lansmandaki ilk alıcılar yerine ŞU ANKİ en büyük "
             "cüzdanlar üzerinde çalıştı — koordineli bir lansmanı kaçırmış olabiliriz."
         )
+        caveats_en.append(
+            "Launch transaction data could not be retrieved (very high volume / "
+            "old token). Bundle signals ran on the CURRENT top holders instead of "
+            "the original launch buyers — we may have missed a coordinated launch."
+        )
     if token_age_hours is not None and token_age_hours < 6:
         conf *= 0.7
         caveats.append(
             "Token 6 saatten yeni — işlem geçmişi bir desen çıkarmaya yetmeyebilir."
+        )
+        caveats_en.append(
+            "Token is less than 6 hours old — transaction history may not be "
+            "enough to establish a pattern."
         )
     whale = next((s for s in signals if s.key == "supply_whale" and s.fired), None)
     if whale:
@@ -257,11 +303,18 @@ def classify(
             "Baskın cüzdan bir borsa soğuk cüzdanı, hazine ya da kilitli vesting "
             "kontratı da olabilir — etiketleyemedik."
         )
+        caveats_en.append(
+            "The dominant wallet could also be an exchange cold wallet, a "
+            "treasury, or a locked vesting contract — we couldn't label it."
+        )
     if not market_available:
         caveats.append("Piyasa verisi alınamadı; likidite sinyalleri hesaplanmadı.")
+        caveats_en.append("Market data could not be retrieved; liquidity signals were not computed.")
     missing = [s.label for s in signals if not s.data_ok]
     if missing:
         caveats.append(f"Veri yetersizliği nedeniyle hesaplanamayan sinyaller: {', '.join(missing)}.")
+        missing_en = [SIG_LABEL_EN.get(s.key, s.label) for s in signals if not s.data_ok]
+        caveats_en.append(f"Signals that couldn't be computed due to insufficient data: {', '.join(missing_en)}.")
 
     # --- Risk bayrakları (karara girmez, ayrı gösterilir) --------------
     risk_flags: list[dict] = []
@@ -274,37 +327,43 @@ def classify(
                 if st == "unverified"
                 else "LP kilitli/yakılmış değil — geliştirici çekebilir."
             )
+            msg_en = lp.detail_en or (
+                "LP lock status could not be verified — assume it can be pulled."
+                if st == "unverified"
+                else "LP is not locked/burned — the developer can pull it."
+            )
             risk_flags.append({
                 "key": "lp", "severity": "high",
-                "label": "Likidite çekilebilir", "detail": msg,
+                "label": "Likidite çekilebilir", "detail": msg, "detail_en": msg_en,
             })
             caveats.append("⚠ " + msg)
+            caveats_en.append("⚠ " + msg_en)
     ma = next((s for s in signals if s.key == "mint_authority" and s.fired
                and s.direction != "organic"), None)
     if ma:
         risk_flags.append({
             "key": "authority", "severity": "high",
-            "label": "Mint/freeze yetkisi açık", "detail": ma.detail,
+            "label": "Mint/freeze yetkisi açık", "detail": ma.detail, "detail_en": ma.detail_en,
         })
     lh = next((s for s in signals if s.key == "liquidity_health" and s.fired
                and s.direction == "cabaled"), None)
     if lh:
         risk_flags.append({
             "key": "liquidity", "severity": "medium",
-            "label": "İnce likidite", "detail": lh.detail,
+            "label": "İnce likidite", "detail": lh.detail, "detail_en": lh.detail_en,
         })
     dh = next((s for s in signals if s.key == "deployer_history" and s.fired
                and s.direction == "bundled"), None)
     if dh:
         risk_flags.append({
             "key": "deployer", "severity": "high",
-            "label": "Deployer rug/seri lansman geçmişi", "detail": dh.detail,
+            "label": "Deployer rug/seri lansman geçmişi", "detail": dh.detail, "detail_en": dh.detail_en,
         })
     fw = next((s for s in signals if s.key == "flagged_wallets" and s.fired), None)
     if fw:
         risk_flags.append({
             "key": "flagged", "severity": "high",
-            "label": "Kara listedeki cüzdanlar", "detail": fw.detail,
+            "label": "Kara listedeki cüzdanlar", "detail": fw.detail, "detail_en": fw.detail_en,
         })
 
     confidence = int(round(max(0.0, min(1.0, conf)) * 100))
@@ -321,5 +380,6 @@ def classify(
         fired=[s.key for s in fired],
         reasons=[s.detail for s in fired if s.detail],
         caveats=caveats,
+        caveats_en=caveats_en,
         risk_flags=risk_flags,
     )
