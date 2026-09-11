@@ -973,6 +973,12 @@ function modFlagged(d){
         <input id="fnote" placeholder="not (ör. X tokende pakette)" style="flex:3 1 240px">
         <button id="fadd">ekle</button>
       </div></div>
+      <div class="card-actions">
+        <span class="note">Ana sayfadaki "riskli tokenlar" listesi: kara listedeki bir cüzdan izlenen
+          bir tokende de tehlikeli pay tutuyorsa oraya düşer; cüzdan o tokenden çıkınca (payı zincirde
+          eşiğin altına düşünce) arka planda otomatik kalkar (~5 dk'da bir taranır).</span>
+        <button class="ghost" id="riskRecheck">riskli tokenları şimdi kontrol et</button>
+      </div>
     </div>
     <div class="section-title">İşaretli cüzdanlar <span class="cnt">${pg.total} adres</span></div>
     <div class="tbl-card"><table><thead><tr><th style="width:120px">adres</th><th>açıklama</th><th></th></tr></thead>
@@ -1000,6 +1006,15 @@ function wireFlagged(root){
     if(!confirm('Bu adres kara listeden kaldırılsın mı?')) return;
     await api('/flagged/'+encodeURIComponent(b.dataset.fx), {method:'DELETE'}); flash('kaldırıldı'); paintAiSub();
   });
+  const rr = root.querySelector('#riskRecheck');
+  if(rr) rr.onclick = async ()=>{
+    rr.disabled = true; const o = rr.textContent; rr.textContent = 'kontrol ediliyor…';
+    try{
+      const j = await api('/risk/recheck', {method:'POST'});
+      flash(j.cleared ? `${j.cleared} riskli token temizlendi` : 'değişiklik yok — hepsi hâlâ riskli');
+    }catch(e){ flash(e.message); }
+    finally{ rr.disabled = false; rr.textContent = o; }
+  };
 }
 
 /* ================= AI TESPİT (dersler + işaretli cüzdanlar) ================= */

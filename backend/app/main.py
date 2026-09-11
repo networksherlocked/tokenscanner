@@ -40,6 +40,7 @@ from .rpc import trades as rpc_trades
 from .rpc.market import fetch_market
 from .rpc.pool import RpcError, RpcPool
 from .rpc.pool import mask_endpoints as pool_mask
+from .rpc.solana import wallet_token_share
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -130,6 +131,17 @@ async def refresh_track() -> None:
             cache.visit_prune(90)
         except Exception:  # noqa: BLE001
             log.debug("visit_prune düştü", exc_info=True)
+
+    # Riskli işaretlenen tokenlarda kara listedeki cüzdan hâlâ tehlikeli
+    # büyüklükte mi tutuyor? Çıktıysa/azalttıysa kayıt otomatik kalkar.
+    pool = state.get("pool")
+    if pool is not None:
+        try:
+            cleared = await risk_recheck(cache, pool)
+            if cleared:
+                log.info("RİSK YENİDEN KONTROL: %s kayıt temizlendi (cüzdan çıkmış)", cleared)
+        except Exception:  # noqa: BLE001
+            log.exception("risk_recheck hatası")
 
 
 async def _refresh_track_row(cache, row: dict, now: int) -> None:
@@ -323,6 +335,45 @@ def recheck_flagged_impact(cache: ScanCache, addresses) -> int:
     if found:
         log.info("RİSK YAYILIMI: %s izlenen token yeniden riskli işaretlendi", found)
     return found
+
+
+# "holder"/"launch_buyer": riskin sebebi doğrudan o cüzdanın kendi payı — o
+# yüzden cüzdan payı zincirde eşiğin altına düşünce (çıktı/azalttı) otomatik
+# temizlenebilir. "funder"/"deployer": risk o cüzdanın BAŞKA cüzdanları
+# fonlamış ya da tokeni basmış olmasından geliyor — kendi bakiyesi hiç
+# olmayabilir zaten, "çıkış" kavramı buraya uymuyor; bunlar kalıcı kalır
+# (yalnızca elle "geri al" ya da kara listeden çıkarma ile temizlenir).
+_RISK_RECHECKABLE_ROLES = {"holder", "launch_buyer"}
+
+
+async def risk_recheck(cache: ScanCache, pool: RpcPool) -> int:
+    """risk_tokens'daki her kayıt için: o cüzdan tokeni hâlâ tehlikeli
+    büyüklükte mi tutuyor? Zincirden ŞU ANKİ payı çekilip eşiğin (RISK_MIN_SHARE)
+    altına düştüyse (cüzdan sattı/çıktı) kayıt kaldırılır — tehlike uyarısı
+    sona erer. RPC hatasında (None) temkinli davranılır, kayıt kalır."""
+    if not RISK_ENABLED:
+        return 0
+    rows = [r for r in cache.risk_list(500) if r.get("role") in _RISK_RECHECKABLE_ROLES]
+    if not rows:
+        return 0
+    sem = asyncio.Semaphore(4)
+    cleared = 0
+
+    async def one(row: dict) -> None:
+        nonlocal cleared
+        async with sem:
+            share = await wallet_token_share(pool, row["address"], row["mint"])
+        if share is not None and share < RISK_MIN_SHARE:
+            cache.risk_remove(row["mint"])
+            cleared += 1
+            log.info(
+                "RİSK TEMİZLENDİ: %s — %s artık burada sadece %%%.1f tutuyor (eşik %%%s)",
+                row.get("symbol") or row["mint"][:6], _short_addr(row["address"]),
+                share, RISK_MIN_SHARE,
+            )
+
+    await asyncio.gather(*(one(r) for r in rows))
+    return cleared
 
 
 def _cluster_evidence(scan: dict) -> tuple[list[str], str, str]:
@@ -1457,6 +1508,15 @@ async def admin_flagged_remove(address: str):
     state["cache"].risk_remove_by_address(addr)
     _reload_flagged()
     return {"ok": True}
+
+
+@app.post("/api/admin/risk/recheck", dependencies=[Depends(_admin)])
+async def admin_risk_recheck():
+    """Riskli tokenlarda kara listedeki cüzdanın hâlâ tehlikeli payı var mı
+    diye zincirden hemen kontrol eder (5 dk'lık arka plan döngüsünü bekletmez).
+    Cüzdan çıkmışsa/payı düşmüşse kayıt kalkar."""
+    cleared = await risk_recheck(state["cache"], state["pool"])
+    return {"ok": True, "cleared": cleared}
 
 
 @app.get("/api/admin/lessons", dependencies=[Depends(_admin)])

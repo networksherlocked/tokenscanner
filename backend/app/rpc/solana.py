@@ -84,6 +84,35 @@ async def get_mint_info(pool: RpcPool, mint: str) -> MintInfo:
     )
 
 
+async def wallet_token_share(pool: RpcPool, owner: str, mint: str) -> float | None:
+    """Bir cüzdanın belirli bir mint'teki ŞU ANKİ payı (%) — kara liste
+    yayılımı (risk_tokens) için: cüzdan o tokenden çıktı mı diye periyodik
+    yeniden kontrol. RPC/parse hatasında temkinli ol: None döndür (kaldırma,
+    bir sonraki döngüde tekrar denenir). Cüzdan artık hiç tutmuyorsa 0.0."""
+    try:
+        mi = await get_mint_info(pool, mint)
+        if not mi.supply_raw:
+            return None
+        res = await pool.call(
+            "getTokenAccountsByOwner",
+            [owner, {"mint": mint}, {"encoding": "jsonParsed"}],
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    bal = 0
+    for acc in (res or {}).get("value") or []:
+        info = (
+            acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+        )
+        amt = (info.get("tokenAmount") or {}).get("amount")
+        if amt:
+            try:
+                bal += int(amt)
+            except (TypeError, ValueError):
+                pass
+    return round(bal / mi.supply_raw * 100, 3)
+
+
 async def get_top_holders(pool: RpcPool, mint: str, decimals: int) -> list[HolderRecord]:
     """En büyük 20 token hesabı. Tek çağrı, ucuz."""
     res = await pool.call("getTokenLargestAccounts", [mint])
