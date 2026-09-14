@@ -112,75 +112,77 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
 .printhead{display:none}
 .printfoot{display:none}
 
-/* Baskı/QR ölçüleri pt cinsinden veriliyor — px→pt dönüşüm belirsizliği
-   olmadan, tarayıcı yazdırma önizlemesinde doğrudan doğru boyut çıksın diye. */
+/* A4 dikey, sabit sayfa boyutu — tarayıcı "otomatik" boyutla farklı kağıt/
+   ölçek seçmesin diye açıkça belirtiliyor. Tüm yazı boyutları pt cinsinden
+   (px→pt belirsizliği yok) ve yoğun bir kurumsal döküm için KÜÇÜK tutuldu —
+   gövde metni ~5-6pt, en büyük öğe (wordmark) 15pt. */
 @media print{
-  @page{ size:auto; margin:12mm 12mm 14mm; }
-  html,body{background:#fff;color:#161616;font-size:7.5pt;line-height:1.35}
+  @page{ size:A4 portrait; margin:9mm 9mm 11mm; }
+  html,body{background:#fff;color:#161616;font-size:5.5pt;line-height:1.3}
   body{background-image:none}
   header, footer, .langsel, #copyBtn, #pdfBtn, #solscanLink, .state, .kicker{display:none!important}
   main{padding:0}
   .wrap{max-width:100%;padding:0;margin:0}
 
-  /* kurumsal antet: gerçek kartal görseli (filigran değil) + büyük wordmark + QR */
-  .printhead{display:block;margin-bottom:7pt;padding-bottom:6pt;border-bottom:1.4pt solid #161616}
-  .phRow{display:flex;align-items:center;gap:9pt}
-  .phEagle{height:44pt;width:auto;flex:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* kurumsal antet: gerçek kartal görseli (filigran değil) + wordmark + QR */
+  .printhead{display:block;margin-bottom:5pt;padding-bottom:4pt;border-bottom:1pt solid #161616}
+  .phRow{display:flex;align-items:center;gap:6pt}
+  .phEagle{height:26pt;width:auto;flex:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .phTitleBlock{flex:1 1 auto;min-width:0}
-  .phBrand{font-family:var(--display);font-weight:700;font-size:23pt;letter-spacing:.03em;color:#161616;
+  .phBrand{font-family:var(--display);font-weight:700;font-size:15pt;letter-spacing:.02em;color:#161616;
     line-height:1;white-space:nowrap}
-  .phSub{font-family:var(--display);font-weight:600;font-size:8.5pt;letter-spacing:.24em;color:#a3312d;
-    text-transform:uppercase;margin-top:2pt}
+  .phSub{font-family:var(--display);font-weight:600;font-size:6pt;letter-spacing:.2em;color:#a3312d;
+    text-transform:uppercase;margin-top:1.5pt}
   .phQRWrap{flex:none}
-  .phQR{width:44pt;height:44pt}
+  .phQR{width:28pt;height:28pt}
   .phQR img{width:100%!important;height:100%!important;image-rendering:pixelated}
   .pTitle{display:none}
-  .pMeta{font-size:6pt;color:#777;margin-top:5pt;font-family:var(--mono)}
+  .pMeta{font-size:4.3pt;color:#777;margin-top:3pt;font-family:var(--mono)}
 
   /* içerik: kompakt, düşük kontrastlı kurumsal palet, pt bazlı */
-  .wcard{border:1pt solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;
-    padding:6pt 8pt;margin-bottom:7pt;page-break-inside:avoid;border-radius:0}
-  .waddr{gap:6pt}
-  .waddr b{font-size:9pt;color:#161616!important}
+  .wcard{border:.7pt solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;
+    padding:4pt 6pt;margin-bottom:5pt;page-break-inside:avoid;border-radius:0}
+  .waddr{gap:5pt}
+  .waddr b{font-size:6.5pt;color:#161616!important}
   .wbtn{display:none}
-  .wrole{font-size:5.5pt;padding:1pt 4pt;color:#a3312d!important;border-color:#a3312d!important}
-  .wnote{font-size:7pt;color:#444!important;margin-top:3pt}
-  .wsince{font-size:6pt;color:#888!important;margin-top:3pt}
+  .wrole{font-size:4pt;padding:.7pt 3pt;color:#a3312d!important;border-color:#a3312d!important}
+  .wnote{font-size:4.6pt;color:#444!important;margin-top:2.5pt}
+  .wsince{font-size:4.2pt;color:#888!important;margin-top:2.5pt}
 
-  .stats{display:flex;gap:0;border:1pt solid #d8d8d8;margin-bottom:7pt}
-  .stat{flex:1;border-right:1pt solid #d8d8d8;background:#fff!important;box-shadow:none!important;
-    padding:4pt 5pt;border-radius:0;text-align:center}
+  .stats{display:flex;gap:0;border:.7pt solid #d8d8d8;margin-bottom:5pt}
+  .stat{flex:1;border-right:.7pt solid #d8d8d8;background:#fff!important;box-shadow:none!important;
+    padding:3pt 4pt;border-radius:0;text-align:center}
   .stat:last-child{border-right:0}
-  .stat b{font-size:11pt;color:#161616!important}
-  .stat span{font-size:5.2pt;letter-spacing:.04em;color:#888!important}
+  .stat b{font-size:7.5pt;color:#161616!important}
+  .stat span{font-size:3.8pt;letter-spacing:.03em;color:#888!important}
   .stat.hot b{color:#a3312d!important}
 
-  .section-title{font-size:7.5pt;letter-spacing:.1em;color:#161616;margin-bottom:4pt}
-  .itable{border:1pt solid #d8d8d8;border-radius:0}
-  .itable thead th{font-size:5pt;letter-spacing:.06em;color:#777!important;padding:2.5pt 5pt;
-    border-bottom:1pt solid #161616;background:#f3f3f3!important}
-  .itable th.ic-kind,.itable td.ic-kind{width:34pt}
-  .itable th.ic-damage,.itable td.ic-damage{width:36pt}
-  .itable th.ic-date,.itable td.ic-date{width:44pt}
-  .itable td{padding:2.5pt 5pt;border-bottom-color:#ececec!important;page-break-inside:avoid}
+  .section-title{font-size:5pt;letter-spacing:.08em;color:#161616;margin-bottom:3pt}
+  .itable{border:.7pt solid #d8d8d8;border-radius:0}
+  .itable thead th{font-size:3.8pt;letter-spacing:.04em;color:#777!important;padding:2pt 4pt;
+    border-bottom:.7pt solid #161616;background:#f3f3f3!important}
+  .itable th.ic-kind,.itable td.ic-kind{width:26pt}
+  .itable th.ic-damage,.itable td.ic-damage{width:28pt}
+  .itable th.ic-date,.itable td.ic-date{width:34pt}
+  .itable td{padding:2pt 4pt;border-bottom-color:#ececec!important;page-break-inside:avoid}
   .itable tbody tr{background:#fff!important}
   .itable tbody tr:hover{background:#fff!important}
-  .i-kind{font-size:5pt;padding:0.5pt 3pt;border-width:.7pt}
+  .i-kind{font-size:3.8pt;padding:.4pt 2.5pt;border-width:.5pt}
   .i-kind.crash{color:#9a6b1f!important}
   .i-kind.rug{color:#a3312d!important}
-  .i-sym{font-size:7pt;color:#161616!important}
-  .i-detail{font-size:5.3pt;color:#888!important;margin-top:1pt;line-height:1.25}
-  .i-damage{font-size:6.5pt;color:#a3312d!important}
-  .i-date{font-size:5.3pt;color:#888!important}
-  .noincidents{font-size:6.5pt;color:#888!important;border-color:#d8d8d8;padding:6pt 8pt}
+  .i-sym{font-size:5pt;color:#161616!important}
+  .i-detail{font-size:4pt;color:#888!important;margin-top:.8pt;line-height:1.2}
+  .i-damage{font-size:4.6pt;color:#a3312d!important}
+  .i-date{font-size:4pt;color:#888!important}
+  .noincidents{font-size:4.6pt;color:#888!important;border-color:#d8d8d8;padding:4pt 6pt}
 
-  .caveat{border-left-width:1.4pt;border-left-color:#c9c9c9!important;background:#fbfbfb!important;
-    color:#888!important;font-size:5.3pt;line-height:1.4;padding:5pt 7pt;margin-top:8pt}
+  .caveat{border-left-width:1pt;border-left-color:#c9c9c9!important;background:#fbfbfb!important;
+    color:#888!important;font-size:4pt;line-height:1.35;padding:3.5pt 5pt;margin-top:5pt}
 
   a{text-decoration:none;color:inherit}
 
-  .printfoot{display:flex;justify-content:space-between;align-items:center;margin-top:8pt;
-    padding-top:4pt;border-top:.7pt solid #e4e4e4;font-size:5.3pt;color:#999;font-family:var(--mono)}
+  .printfoot{display:flex;justify-content:space-between;align-items:center;margin-top:5pt;
+    padding-top:3pt;border-top:.5pt solid #e4e4e4;font-size:4pt;color:#999;font-family:var(--mono)}
 }
 </style>
 </head>
