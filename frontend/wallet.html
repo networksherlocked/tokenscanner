@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet forensics — america.sx</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230b1424'/%3E%3Cpath d='M32 6 L56 14 V31 C56 45 45 54 32 58 C19 54 8 45 8 31 V14 Z' fill='none' stroke='%23c8a45c' stroke-width='3'/%3E%3Cpath d='M32 17 L38 24 H34 L42 32 H36 L44 42 H32 Z M32 17 L26 24 H30 L22 32 H28 L20 42 H32' fill='%23c8a45c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0b1424; --panel:#111d33; --panel-2:#17263f; --rule:#283a5c;
+  --text:#e2e8f4; --muted:#8797b3; --dim:#526486;
+  --gold:#c8a45c; --gold-dim:#8a7440;
+  --bundled:#d5433f; --cabaled:#d5932f; --organic:#5c8fd6; --live:#e0b352;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --display:'Oswald',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--ink);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  background-image:repeating-linear-gradient(90deg,rgba(200,164,92,.028) 0 1px,transparent 1px 3px),
+    radial-gradient(1200px 600px at 50% -10%,rgba(92,143,214,.08),transparent 70%);
+  background-attachment:fixed}
+a{color:inherit}
+[hidden]{display:none!important}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px}
+
+header{border-bottom:1px solid var(--rule);position:sticky;top:0;
+  background:linear-gradient(180deg,rgba(11,20,36,.97),rgba(11,20,36,.92));
+  backdrop-filter:blur(8px);z-index:20;box-shadow:0 1px 0 rgba(200,164,92,.14)}
+.bar{display:flex;align-items:center;justify-content:space-between;height:60px;gap:16px}
+.brand{display:flex;align-items:baseline;font-family:var(--display);font-weight:700;
+  letter-spacing:.1em;font-size:24px;color:var(--text);line-height:1;text-decoration:none}
+.brand i{font-style:normal;color:var(--gold);font-weight:700}
+.bar nav{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted)}
+.navbtn{background:transparent;border:0;color:var(--muted);font-family:var(--display);
+  font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;padding:4px 0;
+  text-decoration:none}
+.navbtn:hover{color:var(--gold)}
+.langsel{display:inline-flex;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.langsel button{background:transparent;border:0;color:var(--dim);font-family:var(--mono);
+  font-size:11px;letter-spacing:.06em;padding:5px 9px;cursor:pointer}
+.langsel button.on{background:var(--panel-2);color:var(--gold)}
+
+main{padding:36px 0 70px}
+.kicker{font-family:var(--display);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--bundled);margin-bottom:10px}
+.state{padding:60px 0;text-align:center;color:var(--dim);font-size:13px}
+
+.wcard{border:1px solid var(--gold-dim);background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  border-radius:2px;padding:22px 24px;box-shadow:0 10px 30px rgba(0,0,0,.35);margin-bottom:22px}
+.waddr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.waddr b{font-family:var(--mono);font-size:16px;color:var(--text);letter-spacing:.01em;word-break:break-all}
+.wbtn{background:transparent;border:1px solid var(--rule);color:var(--muted);font-family:var(--display);
+  font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;
+  border-radius:2px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.wbtn:hover{color:var(--gold);border-color:var(--gold-dim)}
+.wrole{display:inline-block;font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--bundled);border:1px solid currentColor;padding:2px 7px;border-radius:2px}
+.wnote{font-size:13px;color:var(--muted);line-height:1.6;margin-top:8px}
+.wsince{font-size:11px;color:var(--dim);margin-top:10px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:26px}
+.stat{border:1px solid var(--rule);background:var(--panel-2);border-radius:2px;padding:14px 16px}
+.stat b{display:block;font-family:var(--display);font-weight:700;font-size:22px;color:var(--text)}
+.stat span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.stat.hot b{color:var(--bundled)}
+
+.section-title{font-family:var(--display);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gold);margin:0 0 12px}
+.ilist{display:flex;flex-direction:column;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.irow{display:block;padding:14px 16px;border-bottom:1px solid var(--rule);text-decoration:none;color:inherit;
+  transition:background .15s}
+.irow:last-child{border-bottom:0}
+.irow:hover{background:rgba(213,67,63,.06)}
+.irow .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.ikind{font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid currentColor;padding:1px 6px;border-radius:2px;flex:none}
+.ikind.crash{color:var(--cabaled)}
+.ikind.rug{color:var(--bundled)}
+.isym{font-family:var(--display);font-weight:700;font-size:14px;color:var(--text)}
+.idamage{margin-left:auto;font-family:var(--display);font-weight:700;font-size:13px;color:var(--bundled);
+  white-space:nowrap}
+.iage{font-size:10px;color:var(--dim);white-space:nowrap}
+.idetail{font-size:12px;color:var(--muted);line-height:1.5}
+.noincidents{padding:20px 16px;color:var(--dim);font-size:12px}
+
+.caveat{margin-top:24px;border-left:2px solid var(--cabaled);background:rgba(213,147,47,.07);
+  padding:12px 16px;font-size:11px;color:var(--muted);line-height:1.6}
+
+footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-size:11px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="/"><span>AMERICA<i>.SX</i></span></a>
+    <nav>
+      <a class="navbtn" href="/" data-i18n="navHome">Home</a>
+      <span class="langsel">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="tr">TR</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="kicker" data-i18n="kicker">Wallet forensics</div>
+
+    <div id="loadingState" class="state" data-i18n="loading">Loading…</div>
+    <div id="errState" class="state" hidden></div>
+
+    <div id="content" hidden>
+      <div class="wcard">
+        <div class="waddr">
+          <span class="wrole" id="wRole"></span>
+          <b id="wAddr"></b>
+          <button class="wbtn" id="copyBtn" data-i18n="copyBtn">Copy</button>
+          <a class="wbtn" id="solscanLink" target="_blank" rel="noopener" data-i18n="solscanBtn">Solscan ↗</a>
+        </div>
+        <div class="wnote" id="wNote"></div>
+        <div class="wsince" id="wSince"></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat hot"><b id="stIncidents">0</b><span data-i18n="stIncidents">incidents</span></div>
+        <div class="stat"><b id="stTokens">0</b><span data-i18n="stTokens">tokens hit</span></div>
+        <div class="stat hot"><b id="stDamage">$0</b><span data-i18n="stDamage">est. damage</span></div>
+        <div class="stat"><b id="stHits">0</b><span data-i18n="stHits">times flagged</span></div>
+      </div>
+
+      <div class="section-title" data-i18n="incidentsHead">Incident history</div>
+      <div class="ilist" id="ilist"></div>
+
+      <div class="caveat" data-i18n="caveat">Damage figures are estimates derived from market-cap drop or liquidity pulled around the time this wallet was implicated — not an audited or legally established loss. This is a correlation-based record, not a court finding.</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap" data-i18n="footNote">Part of america.sx — Solana launch &amp; supply-distribution forensics.</div>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = window.SOLSCOPE_API ?? '';
+let lang = 'en';
+try{
+  const s = localStorage.getItem('americasx_lang') || localStorage.getItem('uavsx_lang');
+  if(s === 'tr' || s === 'en') lang = s;
+}catch(e){}
+
+const STR = {
+  en: {
+    navHome:'Home', kicker:'Wallet forensics', loading:'Loading…',
+    copyBtn:'Copy', copied:'Copied', solscanBtn:'Solscan ↗',
+    stIncidents:'incidents', stTokens:'tokens hit', stDamage:'est. damage', stHits:'times flagged',
+    incidentsHead:'Incident history',
+    caveat:'Damage figures are estimates derived from market-cap drop or liquidity pulled around the time this wallet was implicated — not an audited or legally established loss. This is a correlation-based record, not a court finding.',
+    footNote:'Part of america.sx — Solana launch & supply-distribution forensics.',
+    notFound:"This address isn't on the blacklist.",
+    badAddr:'Not a valid Solana address.',
+    fetchErr:'Could not load this wallet — try again later.',
+    sinceLine: rel => `First flagged ${rel}`,
+    roleWallet:'wallet', roleDeployer:'deployer', roleCreator:'creator',
+    kindCrash:'crash', kindRug:'liquidity rug',
+    noIncidents:'No incident history recorded yet.',
+    viewScan:'view scan →',
+  },
+  tr: {
+    navHome:'Ana sayfa', kicker:'Cüzdan adli analizi', loading:'Yükleniyor…',
+    copyBtn:'Kopyala', copied:'Kopyalandı', solscanBtn:'Solscan ↗',
+    stIncidents:'olay', stTokens:'etkilenen token', stDamage:'tahmini zarar', stHits:'kaç kez işaretlendi',
+    incidentsHead:'Olay geçmişi',
+    caveat:'Zarar rakamları, bu cüzdanın karıştığı olay sırasındaki piyasa değeri düşüşü ya da çekilen likiditeden türetilen tahminlerdir — denetlenmiş ya da hukuken tespit edilmiş bir kayıp değildir. Bu korelasyon tabanlı bir kayıttır, mahkeme kararı değil.',
+    footNote:'america.sx\'in bir parçası — Solana lansman ve arz dağıtımı adli analizi.',
+    notFound:'Bu adres kara listede değil.',
+    badAddr:'Geçerli bir Solana adresi değil.',
+    fetchErr:'Bu cüzdan yüklenemedi — daha sonra tekrar dene.',
+    sinceLine: rel => `İlk işaretlenme: ${rel}`,
+    roleWallet:'cüzdan', roleDeployer:'deployer', roleCreator:'yaratıcı',
+    kindCrash:'çöküş', kindRug:'likidite çekme',
+    noIncidents:'Henüz kayıtlı bir olay yok.',
+    viewScan:'taramayı gör →',
+  },
+};
+function L(key, ...args){
+  const dict = STR[lang] || STR.en;
+  const v = (key in dict) ? dict[key] : STR.en[key];
+  return typeof v === 'function' ? v(...args) : (v ?? key);
+}
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+const short = a => a ? a.slice(0,4)+'…'+a.slice(-4) : '—';
+function usd(n){
+  if(n == null) return '$0';
+  const a = Math.abs(n);
+  if(a >= 1e6) return '$'+(n/1e6).toFixed(2)+'M';
+  if(a >= 1e3) return '$'+Math.round(n/1e3)+'k';
+  return '$'+Math.round(n);
+}
+function relTime(ts){
+  if(!ts) return '—';
+  const s = Math.max(0, Math.floor(Date.now()/1000 - ts));
+  if(s < 60) return lang==='tr' ? `${s} sn önce` : `${s}s ago`;
+  if(s < 3600) return lang==='tr' ? `${Math.floor(s/60)} dk önce` : `${Math.floor(s/60)}m ago`;
+  if(s < 86400) return lang==='tr' ? `${Math.floor(s/3600)} sa önce` : `${Math.floor(s/3600)}h ago`;
+  return lang==='tr' ? `${Math.floor(s/86400)} gün önce` : `${Math.floor(s/86400)}d ago`;
+}
+
+function applyI18n(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = L(el.dataset.i18n); });
+  document.querySelectorAll('.langsel button').forEach(b=> b.classList.toggle('on', b.dataset.lang === lang));
+}
+document.querySelectorAll('.langsel button').forEach(b=>{
+  b.onclick = ()=>{
+    lang = b.dataset.lang === 'tr' ? 'tr' : 'en';
+    try{ localStorage.setItem('americasx_lang', lang); }catch(e){}
+    applyI18n();
+    if(window.__WALLET_DATA__) render(window.__WALLET_DATA__);
+  };
+});
+
+function addrFromPath(){
+  const m = location.pathname.match(/\/w\/([^/?#]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+const ROLE_L = { wallet:'roleWallet', deployer:'roleDeployer', creator:'roleCreator' };
+const KIND_L = { crash:'kindCrash', rug:'kindRug' };
+
+function render(d){
+  window.__WALLET_DATA__ = d;
+  $('wRole').textContent = L(ROLE_L[d.kind] || 'roleWallet');
+  $('wAddr').textContent = d.address;
+  $('solscanLink').href = `https://solscan.io/account/${encodeURIComponent(d.address)}`;
+  const note = (lang === 'en' ? d.note_en : d.note) || d.note || '';
+  $('wNote').textContent = note;
+  $('wSince').textContent = L('sinceLine', relTime(d.first_seen));
+
+  $('stIncidents').textContent = d.incidents.length;
+  $('stTokens').textContent = d.distinct_tokens;
+  $('stDamage').textContent = usd(d.total_damage_usd);
+  $('stHits').textContent = d.hits;
+
+  const box = $('ilist');
+  box.innerHTML = '';
+  if(!d.incidents.length){
+    box.innerHTML = `<div class="noincidents">${esc(L('noIncidents'))}</div>`;
+  } else {
+    d.incidents.forEach(i=>{
+      const detail = (lang === 'en' ? i.detail_en : i.detail) || i.detail || '';
+      const a = document.createElement('a');
+      a.className = 'irow';
+      a.href = `/t/${encodeURIComponent(i.mint)}?lang=${lang}`;
+      a.innerHTML = `
+        <div class="top">
+          <span class="ikind ${i.kind}">${esc(L(KIND_L[i.kind] || i.kind))}</span>
+          <span class="isym">${esc(i.symbol || short(i.mint))}</span>
+          <span class="idamage">${i.damage_usd ? usd(i.damage_usd) : ''}</span>
+          <span class="iage">${relTime(i.created_at)}</span>
+        </div>
+        <div class="idetail">${esc(detail)}</div>`;
+      box.appendChild(a);
+    });
+  }
+
+  $('loadingState').hidden = true;
+  $('errState').hidden = true;
+  $('content').hidden = false;
+}
+
+async function load(){
+  applyI18n();
+  const address = addrFromPath();
+  if(!address || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)){
+    $('loadingState').hidden = true;
+    $('errState').hidden = false;
+    $('errState').textContent = L('badAddr');
+    return;
+  }
+  try{
+    const r = await fetch(`${API}/api/wallet/${encodeURIComponent(address)}`);
+    if(r.status === 404){
+      $('loadingState').hidden = true;
+      $('errState').hidden = false;
+      $('errState').textContent = L('notFound');
+      return;
+    }
+    if(!r.ok) throw new Error('http '+r.status);
+    const data = await r.json();
+    render(data);
+  }catch(e){
+    $('loadingState').hidden = true;
+    $('errState').hidden = false;
+    $('errState').textContent = L('fetchErr');
+  }
+}
+
+$('copyBtn').onclick = async ()=>{
+  const addr = $('wAddr').textContent;
+  const btn = $('copyBtn'), orig = btn.textContent;
+  try{ await navigator.clipboard.writeText(addr); }
+  catch(e){ prompt('', addr); }
+  btn.textContent = L('copied');
+  setTimeout(()=>{ btn.textContent = orig; }, 1200);
+};
+
+load();
+</script>
+</body>
+</html>

@@ -98,6 +98,17 @@ CREATE TABLE IF NOT EXISTS flagged (
     hits INTEGER NOT NULL DEFAULT 1, via TEXT, kind TEXT NOT NULL DEFAULT 'wallet'
 );
 
+-- Cüzdan adli analiz sayfası için: bir cüzdanın karıştığı HER olay (hangi
+-- token, ne zaman, ne kadar zarar) — flagged tablosu yalnızca son notu/
+-- toplam hit sayısını tutar, geçmişi tutmaz.
+CREATE TABLE IF NOT EXISTS flagged_incidents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, address TEXT NOT NULL, mint TEXT NOT NULL,
+    symbol TEXT, kind TEXT NOT NULL, verdict_was TEXT, drop_pct REAL,
+    damage_usd REAL, role TEXT, detail TEXT, detail_en TEXT,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_flagged_incidents_addr ON flagged_incidents(address, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS lessons (
     id INTEGER PRIMARY KEY AUTOINCREMENT, mint TEXT NOT NULL, symbol TEXT,
     verdict_was TEXT, outcome TEXT, drop_pct REAL, scored_at INTEGER,
@@ -211,6 +222,14 @@ CREATE TABLE IF NOT EXISTS flagged (
     address TEXT PRIMARY KEY, note TEXT, note_en TEXT, created_at BIGINT NOT NULL,
     hits INTEGER NOT NULL DEFAULT 1, via TEXT, kind TEXT NOT NULL DEFAULT 'wallet'
 );
+
+CREATE TABLE IF NOT EXISTS flagged_incidents (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, address TEXT NOT NULL,
+    mint TEXT NOT NULL, symbol TEXT, kind TEXT NOT NULL, verdict_was TEXT,
+    drop_pct DOUBLE PRECISION, damage_usd DOUBLE PRECISION, role TEXT,
+    detail TEXT, detail_en TEXT, created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_flagged_incidents_addr ON flagged_incidents(address, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS lessons (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, mint TEXT NOT NULL,
@@ -650,6 +669,35 @@ class ScanCache:
         return self._one(
             "SELECT 1 AS x FROM flagged WHERE address = ?", (address,)
         ) is not None
+
+    def flagged_get(self, address: str) -> dict | None:
+        return self._one(
+            "SELECT address, note, note_en, created_at, hits, via, kind "
+            "FROM flagged WHERE address = ?",
+            (address,),
+        )
+
+    # ---- cüzdan adli analiz (flagged_incidents) ------------------------
+
+    def flagged_incident_add(self, **kw) -> None:
+        cols = (
+            "address", "mint", "symbol", "kind", "verdict_was", "drop_pct",
+            "damage_usd", "role", "detail", "detail_en", "created_at",
+        )
+        vals = tuple(kw.get(c) for c in cols)
+        self._write(
+            f"INSERT INTO flagged_incidents ({', '.join(cols)}) "
+            f"VALUES ({', '.join('?' for _ in cols)})",
+            vals,
+        )
+
+    def flagged_incidents_for(self, address: str, limit: int = 200) -> list[dict]:
+        return self._rows(
+            "SELECT mint, symbol, kind, verdict_was, drop_pct, damage_usd, role, "
+            "detail, detail_en, created_at FROM flagged_incidents "
+            "WHERE address = ? ORDER BY created_at DESC LIMIT ?",
+            (address, limit),
+        )
 
     # ---- AI tespitli riskli tokenlar ---------------------------------
 

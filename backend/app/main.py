@@ -577,16 +577,30 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
         f"{sym}: scanned as '{verdict_was}', then crashed {pct_en} within "
         f"{win_h}h — AI-detected (mint {mint[:6]}…)"
     )
+    base = row.get("mcap_at_scan")
+    damage = base * drop if base else None
+    now_ts = int(time.time())
     flagged_wallets: list[str] = []
     for addr in suspects[:LEARN_MAX_WALLETS]:
         if addr and not registry.is_infrastructure(addr):
             cache.flagged_add(addr, note, note_en, via=mint, kind="wallet", bump=True)
+            cache.flagged_incident_add(
+                address=addr, mint=mint, symbol=row.get("symbol"), kind="crash",
+                verdict_was=verdict_was, drop_pct=round(drop, 3), damage_usd=damage,
+                role="wallet", detail=note, detail_en=note_en, created_at=now_ts,
+            )
             flagged_wallets.append(addr)
     dep_flagged = bool(deployer) and not registry.is_infrastructure(deployer)
     if dep_flagged:
         cache.flagged_add(
             deployer, note + " · deployer", note_en + " · deployer",
             via=mint, kind="deployer", bump=True,
+        )
+        cache.flagged_incident_add(
+            address=deployer, mint=mint, symbol=row.get("symbol"), kind="crash",
+            verdict_was=verdict_was, drop_pct=round(drop, 3), damage_usd=damage,
+            role="deployer", detail=note + " · deployer", detail_en=note_en + " · deployer",
+            created_at=now_ts,
         )
     if flagged_wallets or dep_flagged:
         _reload_flagged()
@@ -699,6 +713,13 @@ def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> 
         cache.flagged_add(
             creator, note + " · yaratıcı", note_en + " · creator",
             via=mint, kind="deployer", bump=True,
+        )
+        cache.flagged_incident_add(
+            address=creator, mint=mint, symbol=row.get("symbol"), kind="rug",
+            verdict_was=verdict_was, drop_pct=round(drop, 3),
+            damage_usd=max(0.0, liq0 - liq_now), role="creator",
+            detail=note + " · yaratıcı", detail_en=note_en + " · creator",
+            created_at=int(time.time()),
         )
         flagged_creator = True
         _reload_flagged()
@@ -1434,6 +1455,34 @@ async def flagged_top(limit: int = 12):
     return {"wallets": rows}
 
 
+@app.get("/api/wallet/{address}")
+async def wallet_forensics(address: str):
+    """Kara listedeki bir cüzdanın 'adli analiz' profili: karıştığı her olay
+    (hangi token, ne zaman, ne kadar zarar) + toplamlar. Yalnızca zaten
+    işaretli (flagged) adresler için veri döner."""
+    address = address.strip()
+    if not BASE58.match(address):
+        raise HTTPException(400, "Geçersiz Solana adresi.")
+    cache = state["cache"]
+    row = cache.flagged_get(address)
+    if not row:
+        raise HTTPException(404, "Bu adres kara listede değil.")
+    incidents = cache.flagged_incidents_for(address)
+    total_damage = sum(i["damage_usd"] for i in incidents if i.get("damage_usd"))
+    distinct_tokens = len({i["mint"] for i in incidents})
+    return {
+        "address": address,
+        "note": row.get("note"),
+        "note_en": row.get("note_en"),
+        "hits": row.get("hits"),
+        "kind": row.get("kind"),
+        "first_seen": row.get("created_at"),
+        "incidents": incidents,
+        "total_damage_usd": round(total_damage, 2) if incidents else 0,
+        "distinct_tokens": distinct_tokens,
+    }
+
+
 @app.get("/api/health")
 async def health():
     return {
@@ -1534,6 +1583,15 @@ async def share_page(mint: str, request: Request, lang: str = "en"):
     )
     doc = doc.replace("</head>", og + "</head>", 1)
     return HTMLResponse(doc)
+
+
+@app.get("/w/{address}", response_class=HTMLResponse)
+async def wallet_page(address: str):
+    """Cüzdan adli analiz sayfası — statik dosya, adres client-side JS'te
+    URL'den okunup /api/wallet/{address}'ten veri çekilir."""
+    if not _FRONTEND_DIR.is_dir():
+        raise HTTPException(404, "frontend yok")
+    return HTMLResponse((_FRONTEND_DIR / "wallet.html").read_text(encoding="utf-8"))
 
 
 @app.post("/api/appeal")
