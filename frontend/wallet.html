@@ -94,24 +94,64 @@ main{padding:36px 0 70px}
 footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-size:11px;color:var(--dim)}
 
 .printhead{display:none}
-.pTitle{font-family:var(--display);font-weight:700;font-size:20px}
-.pMeta{font-size:11px;color:var(--dim);margin-top:4px}
+.printfoot{display:none}
 
 @media print{
-  body{background:#fff;color:#111}
-  header, footer, .langsel, #copyBtn, #pdfBtn, #solscanLink, .state{display:none!important}
-  .printhead{display:block;margin-bottom:18px;border-bottom:2px solid #111;padding-bottom:10px}
-  .pTitle{color:#111}
-  .pMeta{color:#555}
-  .wcard, .stat, .ilist, .irow{background:#fff!important;border-color:#bbb!important;box-shadow:none!important}
-  .wcard{page-break-inside:avoid}
-  .irow{page-break-inside:avoid}
+  @page{ size:auto; margin:16mm 15mm 18mm; }
+  html,body{background:#fff;color:#161616;font-size:9.5px;line-height:1.5}
+  body{background-image:none}
+  header, footer, .langsel, #copyBtn, #pdfBtn, #solscanLink, .state, .kicker{display:none!important}
+  main{padding:0}
+  .wrap{max-width:100%;padding:0;margin:0}
+
+  /* kurumsal antet: arma + wordmark + rapor başlığı */
+  .printhead{display:block;margin-bottom:16px;padding-bottom:10px;border-bottom:1.5px solid #161616}
+  .phTop{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .phCrest{width:26px;height:26px;flex:none}
+  .phCrest svg{width:100%;height:100%;display:block}
+  .phBrand{font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.1em;color:#161616}
+  .phBrand i{font-style:normal;color:#a3312d;font-weight:700}
+  .pTitle{font-family:var(--display);font-weight:600;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:#555}
+  .pMeta{font-size:8.5px;color:#777;margin-top:3px;font-family:var(--mono)}
+
+  /* içerik: kompakt, düşük kontrastlı kurumsal palet */
+  .wcard{border:1px solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;
+    padding:12px 14px;margin-bottom:14px;page-break-inside:avoid;border-radius:0}
+  .waddr b{font-size:11.5px;color:#161616!important}
+  .wbtn{display:none}
+  .wrole{font-size:7.5px;padding:1px 6px;color:#a3312d!important;border-color:#a3312d!important}
+  .wnote{font-size:9.5px;color:#444!important;margin-top:7px}
+  .wsince{font-size:8.5px;color:#888!important;margin-top:8px}
+
+  .stats{gap:8px;margin-bottom:16px}
+  .stat{border:1px solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;padding:9px 11px;
+    border-radius:0}
+  .stat b{font-size:15px;color:#161616!important}
+  .stat span{font-size:7.5px;color:#888!important}
+  .stat.hot b{color:#a3312d!important}
+
+  .section-title{font-size:9.5px;letter-spacing:.12em;color:#161616;margin-bottom:8px}
+  .ilist{border:1px solid #d8d8d8;border-radius:0}
+  .irow{border-bottom-color:#e4e4e4!important;background:#fff!important;padding:9px 12px;
+    page-break-inside:avoid}
   .irow:hover{background:#fff!important}
-  .wrole, .ikind, .idamage, .fhits, .kicker{color:#a33!important}
-  .wnote, .wsince, .idetail, .stat span, .iage{color:#444!important}
-  .waddr b, .isym, .stat b{color:#111!important}
-  .caveat{background:#fff!important;border-left-color:#999!important;color:#555!important}
-  a{text-decoration:none}
+  .ikind{font-size:7.5px;padding:1px 6px}
+  .ikind.crash{color:#9a6b1f!important}
+  .ikind.rug{color:#a3312d!important}
+  .isym{font-size:10.5px;color:#161616!important}
+  .idamage{font-size:9.5px;color:#a3312d!important}
+  .iage{font-size:7.5px;color:#888!important}
+  .idetail{font-size:8.5px;color:#555!important}
+  .noincidents{font-size:9px;color:#888!important}
+
+  .caveat{border-left-color:#c9c9c9!important;background:#fbfbfb!important;color:#777!important;
+    font-size:8px;padding:9px 12px;margin-top:16px}
+
+  a{text-decoration:none;color:inherit}
+
+  .printfoot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;
+    padding-top:8px;border-top:1px solid #e4e4e4;font-size:7.5px;color:#999;font-family:var(--mono)}
 }
 </style>
 </head>
@@ -134,7 +174,11 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
   <div class="wrap">
     <div class="kicker" data-i18n="kicker">Wallet forensics</div>
     <div class="printhead" id="printHead">
-      <div class="pTitle">america.sx — <span data-i18n="printTitle">Wallet Forensics Report</span></div>
+      <div class="phTop">
+        <span class="phCrest"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="#161616" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="#161616"/><circle cx="32" cy="12" r="2.6" fill="#161616"/></svg></span>
+        <span class="phBrand">AMERICA<i>.SX</i></span>
+      </div>
+      <div class="pTitle" data-i18n="printTitle">Wallet Forensics Report</div>
       <div class="pMeta" id="pMeta"></div>
     </div>
 
@@ -165,6 +209,11 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
       <div class="ilist" id="ilist"></div>
 
       <div class="caveat" data-i18n="caveat">Damage figures are estimates derived from market-cap drop or liquidity pulled around the time this wallet was implicated — not an audited or legally established loss. This is a correlation-based record, not a court finding.</div>
+
+      <div class="printfoot">
+        <span>america.sx</span>
+        <span id="pfUrl"></span>
+      </div>
     </div>
   </div>
 </main>
@@ -313,6 +362,7 @@ function updatePrintMeta(){
   const now = new Date();
   const date = now.toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US');
   $('pMeta').textContent = L('printMeta', addr, date);
+  $('pfUrl').textContent = location.href;
 }
 
 async function load(){
