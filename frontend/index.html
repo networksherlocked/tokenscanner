@@ -1038,7 +1038,7 @@ const STR = {
     riskHead:'Risk flagged by AI',
     riskSub:'A wallet that was blacklisted after a crash also holds a harmful share here — these already-scanned tokens were automatically re-flagged as risky.',
     riskCount: n => `${n} token`,
-    flagHead:'Most malicious flagged wallets',
+    flagHead:'Blacklisted wallets',
     flagSub:'The blacklisted wallets tied to the most confirmed incidents — repeat offenders across multiple scanned tokens.',
     flagCount: n => `${n} wallets`,
     flagHits: n => `×${n}`,
@@ -1154,7 +1154,7 @@ const STR = {
     riskHead:'AI tespitli riskli tokenlar',
     riskSub:'Bir çöküşün ardından kara listeye alınan bir cüzdan, bu daha önce taranmış tokenlarda da zarar verecek büyüklükte pay tutuyor — otomatik olarak yeniden riskli işaretlendiler.',
     riskCount: n => `${n} token`,
-    flagHead:'En kötü niyetli işaretli cüzdanlar',
+    flagHead:'Kara liste cüzdanlar',
     flagSub:'En çok doğrulanmış olaya karışan kara listedeki cüzdanlar — birden çok taranmış tokende tekrar eden failler.',
     flagCount: n => `${n} cüzdan`,
     flagHits: n => `×${n}`,
@@ -1870,7 +1870,7 @@ function renderFlagged(wallets){
 let lastFlagged = null;
 async function loadFlagged(){
   try{
-    const r = await fetch(`${API}/api/flagged/top?limit=10`);
+    const r = await fetch(`${API}/api/flagged/top?limit=12`);
     if(!r.ok) return;
     const data = await r.json();
     lastFlagged = data.wallets || [];

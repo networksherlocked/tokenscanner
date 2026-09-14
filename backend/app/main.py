@@ -571,11 +571,11 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
 
     note = (
         f"{sym}: '{verdict_was}' dendi, {win_h} saatte {pct} çöktü — "
-        f"otomatik ders (mint {mint[:6]}…)"
+        f"AI tespitli (mint {mint[:6]}…)"
     )
     note_en = (
         f"{sym}: scanned as '{verdict_was}', then crashed {pct_en} within "
-        f"{win_h}h — automatic lesson (mint {mint[:6]}…)"
+        f"{win_h}h — AI-detected (mint {mint[:6]}…)"
     )
     flagged_wallets: list[str] = []
     for addr in suspects[:LEARN_MAX_WALLETS]:
@@ -1426,9 +1426,9 @@ async def risk_list(limit: int = 24):
 
 
 @app.get("/api/flagged/top")
-async def flagged_top(limit: int = 10):
+async def flagged_top(limit: int = 12):
     """Kara listedeki en çok tekrarlanan (hits en yüksek) cüzdanlar — ana
-    sayfadaki 'en kötü niyetli cüzdanlar' bölümü için. flagged_list() zaten
+    sayfadaki 'Kara liste cüzdanlar' bölümü için. flagged_list() zaten
     hits DESC sıralı döner."""
     rows = state["cache"].flagged_list()[: max(1, min(limit, 25))]
     return {"wallets": rows}
