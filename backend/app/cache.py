@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS appeals (
 CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS flagged (
-    address TEXT PRIMARY KEY, note TEXT, created_at INTEGER NOT NULL,
+    address TEXT PRIMARY KEY, note TEXT, note_en TEXT, created_at INTEGER NOT NULL,
     hits INTEGER NOT NULL DEFAULT 1, via TEXT, kind TEXT NOT NULL DEFAULT 'wallet'
 );
 
@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS appeals (
 CREATE INDEX IF NOT EXISTS idx_appeals_created ON appeals(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS flagged (
-    address TEXT PRIMARY KEY, note TEXT, created_at BIGINT NOT NULL,
+    address TEXT PRIMARY KEY, note TEXT, note_en TEXT, created_at BIGINT NOT NULL,
     hits INTEGER NOT NULL DEFAULT 1, via TEXT, kind TEXT NOT NULL DEFAULT 'wallet'
 );
 
@@ -312,6 +312,7 @@ class ScanCache:
             "ALTER TABLE track ADD COLUMN creator TEXT",
             "ALTER TABLE track ADD COLUMN rug_flagged INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE lessons ADD COLUMN detail_en TEXT",
+            "ALTER TABLE flagged ADD COLUMN note_en TEXT",
         ):
             try:
                 self._write(stmt)
@@ -618,24 +619,28 @@ class ScanCache:
 
     def flagged_list(self) -> list[dict]:
         return self._rows(
-            "SELECT address, note, created_at, hits, via, kind FROM flagged "
+            "SELECT address, note, note_en, created_at, hits, via, kind FROM flagged "
             "ORDER BY hits DESC, created_at DESC"
         )
 
     def flagged_add(
-        self, address: str, note: str | None,
+        self, address: str, note: str | None, note_en: str | None = None,
         via: str = "manual", kind: str = "wallet", bump: bool = False,
     ) -> None:
         """bump=True ise mevcut kayıtta hits +1 ve not güncellenir."""
         set_clause = (
-            "note=excluded.note, hits=flagged.hits+1, via=excluded.via"
-            if bump else "note=COALESCE(flagged.note, excluded.note)"
+            "note=excluded.note, note_en=excluded.note_en, "
+            "hits=flagged.hits+1, via=excluded.via"
+            if bump else
+            "note=COALESCE(flagged.note, excluded.note), "
+            "note_en=COALESCE(flagged.note_en, excluded.note_en)"
         )
         self._write(
-            "INSERT INTO flagged (address, note, created_at, hits, via, kind) "
-            "VALUES (?, ?, ?, 1, ?, ?) "
+            "INSERT INTO flagged (address, note, note_en, created_at, hits, via, kind) "
+            "VALUES (?, ?, ?, ?, 1, ?, ?) "
             f"ON CONFLICT(address) DO UPDATE SET {set_clause}",
-            (address, (note or "")[:500] or None, int(time.time()), via, kind),
+            (address, (note or "")[:500] or None, (note_en or "")[:500] or None,
+             int(time.time()), via, kind),
         )
 
     def flagged_remove(self, address: str) -> None:

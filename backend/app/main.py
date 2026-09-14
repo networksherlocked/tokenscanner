@@ -573,15 +573,20 @@ def learn_from_miss(cache: ScanCache, row: dict, drop: float) -> None:
         f"{sym}: '{verdict_was}' dendi, {win_h} saatte {pct} çöktü — "
         f"otomatik ders (mint {mint[:6]}…)"
     )
+    note_en = (
+        f"{sym}: scanned as '{verdict_was}', then crashed {pct_en} within "
+        f"{win_h}h — automatic lesson (mint {mint[:6]}…)"
+    )
     flagged_wallets: list[str] = []
     for addr in suspects[:LEARN_MAX_WALLETS]:
         if addr and not registry.is_infrastructure(addr):
-            cache.flagged_add(addr, note, via=mint, kind="wallet", bump=True)
+            cache.flagged_add(addr, note, note_en, via=mint, kind="wallet", bump=True)
             flagged_wallets.append(addr)
     dep_flagged = bool(deployer) and not registry.is_infrastructure(deployer)
     if dep_flagged:
         cache.flagged_add(
-            deployer, note + " · deployer", via=mint, kind="deployer", bump=True
+            deployer, note + " · deployer", note_en + " · deployer",
+            via=mint, kind="deployer", bump=True,
         )
     if flagged_wallets or dep_flagged:
         _reload_flagged()
@@ -685,9 +690,16 @@ def learn_from_rug(cache: ScanCache, row: dict, liq0: float, liq_now: float) -> 
         f"{sym}: taramadan {age_h} saat sonra likidite {pct} çekildi "
         f"(${liq0:,.0f} → ${liq_now:,.0f}) — rug. mint {mint[:6]}…"
     )
+    note_en = (
+        f"{sym}: liquidity was pulled {pct_en} {age_h}h after scanning "
+        f"(${liq0:,.0f} → ${liq_now:,.0f}) — rug. mint {mint[:6]}…"
+    )
     flagged_creator = False
     if creator and not registry.is_infrastructure(creator):
-        cache.flagged_add(creator, note + " · yaratıcı", via=mint, kind="deployer", bump=True)
+        cache.flagged_add(
+            creator, note + " · yaratıcı", note_en + " · creator",
+            via=mint, kind="deployer", bump=True,
+        )
         flagged_creator = True
         _reload_flagged()
         try:
@@ -1413,6 +1425,15 @@ async def risk_list(limit: int = 24):
     return {"tokens": state["cache"].risk_list(min(limit, 48))}
 
 
+@app.get("/api/flagged/top")
+async def flagged_top(limit: int = 10):
+    """Kara listedeki en çok tekrarlanan (hits en yüksek) cüzdanlar — ana
+    sayfadaki 'en kötü niyetli cüzdanlar' bölümü için. flagged_list() zaten
+    hits DESC sıralı döner."""
+    rows = state["cache"].flagged_list()[: max(1, min(limit, 25))]
+    return {"wallets": rows}
+
+
 @app.get("/api/health")
 async def health():
     return {
@@ -1690,7 +1711,7 @@ async def admin_flagged_add(payload: dict = Body(...)):
     addr = str(payload.get("address", "")).strip()
     if not BASE58.match(addr):
         raise HTTPException(422, "Geçersiz Solana adresi.")
-    state["cache"].flagged_add(addr, payload.get("note"))
+    state["cache"].flagged_add(addr, payload.get("note"), payload.get("note_en"))
     _reload_flagged()
     # izlenen tokenlarda bu cüzdanın etkisini yeniden değerlendir (arka planda)
     found = await asyncio.to_thread(
