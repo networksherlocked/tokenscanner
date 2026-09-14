@@ -1106,7 +1106,10 @@ function momentumView(d, cw){
   const cwWin = Math.round(cw.window_d || 5);
   const cwMin = cw.min_wallets || 2;
   const cwRows = cwList.map(c=>`<tr>
-    <td class="mono">${tokLink(c.mint, short(c.mint))}</td>
+    <td class="mono">${tokLink(c.mint, c.symbol||short(c.mint))}
+      ${c.name?`<div class="muted">${esc(c.name)}</div>`:''}
+      <div class="muted">${short(c.mint)}</div></td>
+    <td>${money(c.market_cap)}</td>
     <td><b>${c.count}</b> cüzdan</td>
     <td class="mono">${c.wallets.map(a=>solLink(a, short(a))).join(', ')}</td>
     <td class="muted">${ago(c.last_seen)} önce</td>
@@ -1159,8 +1162,8 @@ function momentumView(d, cw){
     <div class="section-title">Henüz taranmamış, birden çok izlenen cüzdanın biriktiği tokenlar
       <span class="cnt">${cwList.length}</span></div>
     <div class="tbl-card"><table>
-      <thead><tr><th>token</th><th>kaç cüzdan</th><th>hangi cüzdanlar</th><th>son görülme</th></tr></thead>
-      <tbody>${cwRows||'<tr><td colspan="4" class="muted">şu an kümelenme yok</td></tr>'}</tbody></table></div>
+      <thead><tr><th>token</th><th>market cap</th><th>kaç cüzdan</th><th>hangi cüzdanlar</th><th>son görülme</th></tr></thead>
+      <tbody>${cwRows||'<tr><td colspan="5" class="muted">şu an kümelenme yok</td></tr>'}</tbody></table></div>
 
     <div class="section-title">Yükselen tokenlardan çıkarılan dersler</div>
     <div class="tbl-card"><table>

@@ -878,10 +878,12 @@ async def gainer_watch_scan(cache: ScanCache, pool: RpcPool) -> tuple[int, int]:
     return len(batch), new_count
 
 
-def gainer_clusters(cache: ScanCache) -> list[dict]:
+async def gainer_clusters(cache: ScanCache) -> list[dict]:
     """gainer_watch kayıtlarını mint'e göre gruplar; ≥GAINER_CLUSTER_MIN farklı
     gainer cüzdanının, henüz taranmamış AYNI mint'te son GAINER_CLUSTER_WINDOW_DAYS
-    içinde biriktiği durumları döner (en çok cüzdanlı / en yeni önce)."""
+    içinde biriktiği durumları döner (en çok cüzdanlı / en yeni önce). Her
+    kümenin adı/sembolü/market cap'i canlı piyasa API'sinden çekilir — küme
+    sayısı zaten küçük (yalnızca eşiği geçenler), RPC harcamaz."""
     since = int(time.time()) - GAINER_CLUSTER_WINDOW_DAYS * 86400
     rows = cache.gainer_watch_rows(since=since)
     by_mint: dict[str, list[dict]] = {}
@@ -903,8 +905,25 @@ def gainer_clusters(cache: ScanCache) -> list[dict]:
             "count": len(addrs),
             "first_seen": min(e["first_seen"] for e in entries),
             "last_seen": max(e["first_seen"] for e in entries),
+            "symbol": None, "name": None, "market_cap": None,
         })
     clusters.sort(key=lambda c: (-c["count"], -c["last_seen"]))
+
+    # Piyasa API'lerine (DexScreener/GeckoTerminal) burst göndermemek için
+    # eşzamanlılık sınırlı (bkz. loadOrganic/loadTrack'te aynı desen).
+    sem = asyncio.Semaphore(3)
+
+    async def fill(c: dict) -> None:
+        async with sem:
+            try:
+                snap = await fetch_market(c["mint"])
+            except Exception:  # noqa: BLE001
+                return
+        c["symbol"] = snap.symbol
+        c["name"] = snap.name
+        c["market_cap"] = snap.market_cap
+
+    await asyncio.gather(*(fill(c) for c in clusters))
     return clusters
 
 
@@ -1746,7 +1765,7 @@ async def admin_gainer_remove(address: str):
 @app.get("/api/admin/gainer-watch/clusters", dependencies=[Depends(_admin)])
 async def admin_gainer_watch_clusters():
     return {
-        "clusters": gainer_clusters(state["cache"]),
+        "clusters": await gainer_clusters(state["cache"]),
         "window_d": GAINER_CLUSTER_WINDOW_DAYS,
         "min_wallets": GAINER_CLUSTER_MIN,
     }
