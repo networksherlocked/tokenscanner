@@ -71,22 +71,38 @@ main{padding:36px 0 70px}
 
 .section-title{font-family:var(--display);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--gold);margin:0 0 12px}
-.ilist{display:flex;flex-direction:column;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
-.irow{display:block;padding:14px 16px;border-bottom:1px solid var(--rule);text-decoration:none;color:inherit;
-  transition:background .15s}
-.irow:last-child{border-bottom:0}
-.irow:hover{background:rgba(213,67,63,.06)}
-.irow .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
-.ikind{font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  border:1px solid currentColor;padding:1px 6px;border-radius:2px;flex:none}
-.ikind.crash{color:var(--cabaled)}
-.ikind.rug{color:var(--bundled)}
-.isym{font-family:var(--display);font-weight:700;font-size:14px;color:var(--text)}
-.idamage{margin-left:auto;font-family:var(--display);font-weight:700;font-size:13px;color:var(--bundled);
-  white-space:nowrap}
-.iage{font-size:10px;color:var(--dim);white-space:nowrap}
-.idetail{font-size:12px;color:var(--muted);line-height:1.5}
-.noincidents{padding:20px 16px;color:var(--dim);font-size:12px}
+
+.itable{width:100%;border-collapse:collapse;border:1px solid var(--rule);border-radius:2px;overflow:hidden;
+  font-family:var(--mono)}
+.itable thead th{text-align:left;font-family:var(--display);font-weight:600;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dim);padding:8px 12px;border-bottom:1px solid var(--rule);background:var(--panel)}
+.itable th.ic-kind,.itable td.ic-kind{width:90px}
+.itable th.ic-damage,.itable td.ic-damage{width:90px;text-align:right}
+.itable th.ic-date,.itable td.ic-date{width:90px;text-align:right;white-space:nowrap}
+.itable tbody tr{cursor:pointer;transition:background .12s;background:var(--panel-2)}
+.itable tbody tr:hover{background:rgba(213,67,63,.08)}
+.itable tbody tr:not(:last-child) td{border-bottom:1px solid var(--rule)}
+.itable td{padding:10px 12px;vertical-align:top}
+.i-sym{font-family:var(--display);font-weight:700;font-size:13px;color:var(--text)}
+.i-detail{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4}
+.i-kind{font-family:var(--display);font-weight:700;font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid currentColor;padding:1px 6px;border-radius:2px;display:inline-block}
+.i-kind.crash{color:var(--cabaled)}
+.i-kind.rug{color:var(--bundled)}
+.i-damage{font-family:var(--display);font-weight:700;font-size:12px;color:var(--bundled)}
+.i-date{font-size:10px;color:var(--dim)}
+.noincidents{padding:20px 16px;color:var(--dim);font-size:12px;border:1px solid var(--rule);border-radius:2px}
+@media(max-width:640px){
+  .itable thead{display:none}
+  .itable, .itable tbody{display:block;width:100%}
+  .itable tbody tr{display:flex;align-items:center;gap:8px;padding:9px 12px}
+  .itable td{display:block;padding:0;border:0!important}
+  .itable td.ic-kind{flex:none}
+  .i-detail{display:none}
+  .itable td:nth-child(2){flex:1 1 auto;min-width:0}
+  .itable td.ic-damage{flex:none;text-align:right}
+  .itable td.ic-date{display:none}
+}
 
 .caveat{margin-top:24px;border-left:2px solid var(--cabaled);background:rgba(213,147,47,.07);
   padding:12px 16px;font-size:11px;color:var(--muted);line-height:1.6}
@@ -96,62 +112,75 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
 .printhead{display:none}
 .printfoot{display:none}
 
+/* Baskı/QR ölçüleri pt cinsinden veriliyor — px→pt dönüşüm belirsizliği
+   olmadan, tarayıcı yazdırma önizlemesinde doğrudan doğru boyut çıksın diye. */
 @media print{
-  @page{ size:auto; margin:16mm 15mm 18mm; }
-  html,body{background:#fff;color:#161616;font-size:9.5px;line-height:1.5}
+  @page{ size:auto; margin:12mm 12mm 14mm; }
+  html,body{background:#fff;color:#161616;font-size:7.5pt;line-height:1.35}
   body{background-image:none}
   header, footer, .langsel, #copyBtn, #pdfBtn, #solscanLink, .state, .kicker{display:none!important}
   main{padding:0}
   .wrap{max-width:100%;padding:0;margin:0}
 
-  /* kurumsal antet: arma + wordmark + rapor başlığı */
-  .printhead{display:block;margin-bottom:16px;padding-bottom:10px;border-bottom:1.5px solid #161616}
-  .phTop{display:flex;align-items:center;gap:9px;margin-bottom:9px}
-  .phCrest{width:26px;height:26px;flex:none}
-  .phCrest svg{width:100%;height:100%;display:block}
-  .phBrand{font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.1em;color:#161616}
-  .phBrand i{font-style:normal;color:#a3312d;font-weight:700}
-  .pTitle{font-family:var(--display);font-weight:600;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
-    color:#555}
-  .pMeta{font-size:8.5px;color:#777;margin-top:3px;font-family:var(--mono)}
+  /* kurumsal antet: gerçek kartal görseli (filigran değil) + büyük wordmark + QR */
+  .printhead{display:block;margin-bottom:7pt;padding-bottom:6pt;border-bottom:1.4pt solid #161616}
+  .phRow{display:flex;align-items:center;gap:9pt}
+  .phEagle{height:44pt;width:auto;flex:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .phTitleBlock{flex:1 1 auto;min-width:0}
+  .phBrand{font-family:var(--display);font-weight:700;font-size:23pt;letter-spacing:.03em;color:#161616;
+    line-height:1;white-space:nowrap}
+  .phSub{font-family:var(--display);font-weight:600;font-size:8.5pt;letter-spacing:.24em;color:#a3312d;
+    text-transform:uppercase;margin-top:2pt}
+  .phQRWrap{flex:none}
+  .phQR{width:44pt;height:44pt}
+  .phQR img{width:100%!important;height:100%!important;image-rendering:pixelated}
+  .pTitle{display:none}
+  .pMeta{font-size:6pt;color:#777;margin-top:5pt;font-family:var(--mono)}
 
-  /* içerik: kompakt, düşük kontrastlı kurumsal palet */
-  .wcard{border:1px solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;
-    padding:12px 14px;margin-bottom:14px;page-break-inside:avoid;border-radius:0}
-  .waddr b{font-size:11.5px;color:#161616!important}
+  /* içerik: kompakt, düşük kontrastlı kurumsal palet, pt bazlı */
+  .wcard{border:1pt solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;
+    padding:6pt 8pt;margin-bottom:7pt;page-break-inside:avoid;border-radius:0}
+  .waddr{gap:6pt}
+  .waddr b{font-size:9pt;color:#161616!important}
   .wbtn{display:none}
-  .wrole{font-size:7.5px;padding:1px 6px;color:#a3312d!important;border-color:#a3312d!important}
-  .wnote{font-size:9.5px;color:#444!important;margin-top:7px}
-  .wsince{font-size:8.5px;color:#888!important;margin-top:8px}
+  .wrole{font-size:5.5pt;padding:1pt 4pt;color:#a3312d!important;border-color:#a3312d!important}
+  .wnote{font-size:7pt;color:#444!important;margin-top:3pt}
+  .wsince{font-size:6pt;color:#888!important;margin-top:3pt}
 
-  .stats{gap:8px;margin-bottom:16px}
-  .stat{border:1px solid #d8d8d8;background:#fbfbfb!important;box-shadow:none!important;padding:9px 11px;
-    border-radius:0}
-  .stat b{font-size:15px;color:#161616!important}
-  .stat span{font-size:7.5px;color:#888!important}
+  .stats{display:flex;gap:0;border:1pt solid #d8d8d8;margin-bottom:7pt}
+  .stat{flex:1;border-right:1pt solid #d8d8d8;background:#fff!important;box-shadow:none!important;
+    padding:4pt 5pt;border-radius:0;text-align:center}
+  .stat:last-child{border-right:0}
+  .stat b{font-size:11pt;color:#161616!important}
+  .stat span{font-size:5.2pt;letter-spacing:.04em;color:#888!important}
   .stat.hot b{color:#a3312d!important}
 
-  .section-title{font-size:9.5px;letter-spacing:.12em;color:#161616;margin-bottom:8px}
-  .ilist{border:1px solid #d8d8d8;border-radius:0}
-  .irow{border-bottom-color:#e4e4e4!important;background:#fff!important;padding:9px 12px;
-    page-break-inside:avoid}
-  .irow:hover{background:#fff!important}
-  .ikind{font-size:7.5px;padding:1px 6px}
-  .ikind.crash{color:#9a6b1f!important}
-  .ikind.rug{color:#a3312d!important}
-  .isym{font-size:10.5px;color:#161616!important}
-  .idamage{font-size:9.5px;color:#a3312d!important}
-  .iage{font-size:7.5px;color:#888!important}
-  .idetail{font-size:8.5px;color:#555!important}
-  .noincidents{font-size:9px;color:#888!important}
+  .section-title{font-size:7.5pt;letter-spacing:.1em;color:#161616;margin-bottom:4pt}
+  .itable{border:1pt solid #d8d8d8;border-radius:0}
+  .itable thead th{font-size:5pt;letter-spacing:.06em;color:#777!important;padding:2.5pt 5pt;
+    border-bottom:1pt solid #161616;background:#f3f3f3!important}
+  .itable th.ic-kind,.itable td.ic-kind{width:34pt}
+  .itable th.ic-damage,.itable td.ic-damage{width:36pt}
+  .itable th.ic-date,.itable td.ic-date{width:44pt}
+  .itable td{padding:2.5pt 5pt;border-bottom-color:#ececec!important;page-break-inside:avoid}
+  .itable tbody tr{background:#fff!important}
+  .itable tbody tr:hover{background:#fff!important}
+  .i-kind{font-size:5pt;padding:0.5pt 3pt;border-width:.7pt}
+  .i-kind.crash{color:#9a6b1f!important}
+  .i-kind.rug{color:#a3312d!important}
+  .i-sym{font-size:7pt;color:#161616!important}
+  .i-detail{font-size:5.3pt;color:#888!important;margin-top:1pt;line-height:1.25}
+  .i-damage{font-size:6.5pt;color:#a3312d!important}
+  .i-date{font-size:5.3pt;color:#888!important}
+  .noincidents{font-size:6.5pt;color:#888!important;border-color:#d8d8d8;padding:6pt 8pt}
 
-  .caveat{border-left-color:#c9c9c9!important;background:#fbfbfb!important;color:#777!important;
-    font-size:8px;padding:9px 12px;margin-top:16px}
+  .caveat{border-left-width:1.4pt;border-left-color:#c9c9c9!important;background:#fbfbfb!important;
+    color:#888!important;font-size:5.3pt;line-height:1.4;padding:5pt 7pt;margin-top:8pt}
 
   a{text-decoration:none;color:inherit}
 
-  .printfoot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;
-    padding-top:8px;border-top:1px solid #e4e4e4;font-size:7.5px;color:#999;font-family:var(--mono)}
+  .printfoot{display:flex;justify-content:space-between;align-items:center;margin-top:8pt;
+    padding-top:4pt;border-top:.7pt solid #e4e4e4;font-size:5.3pt;color:#999;font-family:var(--mono)}
 }
 </style>
 </head>
@@ -174,9 +203,13 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
   <div class="wrap">
     <div class="kicker" data-i18n="kicker">Wallet forensics</div>
     <div class="printhead" id="printHead">
-      <div class="phTop">
-        <span class="phCrest"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M32 3 L60 12 V31 C60 47 48 57 32 61 C16 57 4 47 4 31 V12 Z" fill="none" stroke="#161616" stroke-width="3"/><path d="M32 12 L28 17 L12 15 L22 24 L8 26 L24 31 L14 40 L32 33 L50 40 L40 31 L56 26 L42 24 L52 15 L36 17 Z" fill="#161616"/><circle cx="32" cy="12" r="2.6" fill="#161616"/></svg></span>
-        <span class="phBrand">AMERICA<i>.SX</i></span>
+      <div class="phRow">
+        <img class="phEagle" src="/eagle.png" alt="">
+        <div class="phTitleBlock">
+          <div class="phBrand">AMERICA.SX</div>
+          <div class="phSub" data-i18n="printSub">WALLET FORENSICS</div>
+        </div>
+        <div class="phQRWrap"><div class="phQR" id="phQR"></div></div>
       </div>
       <div class="pTitle" data-i18n="printTitle">Wallet Forensics Report</div>
       <div class="pMeta" id="pMeta"></div>
@@ -206,7 +239,17 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
       </div>
 
       <div class="section-title" data-i18n="incidentsHead">Incident history</div>
-      <div class="ilist" id="ilist"></div>
+      <table class="itable" id="itableEl">
+        <thead>
+          <tr>
+            <th class="ic-kind" data-i18n="itKind">Type</th>
+            <th data-i18n="itToken">Token</th>
+            <th class="ic-damage" data-i18n="itDamage">Damage</th>
+            <th class="ic-date" data-i18n="itDate">Date</th>
+          </tr>
+        </thead>
+        <tbody id="ilist"></tbody>
+      </table>
 
       <div class="caveat" data-i18n="caveat">Damage figures are estimates derived from market-cap drop or liquidity pulled around the time this wallet was implicated — not an audited or legally established loss. This is a correlation-based record, not a court finding.</div>
 
@@ -222,6 +265,9 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
   <div class="wrap" data-i18n="footNote">Part of america.sx — Solana launch &amp; supply-distribution forensics.</div>
 </footer>
 
+<!-- Rapor QR kodu için (yalnızca @media print'te görünür) — yüklenemezse
+     PDF QR'sız üretilir, gerektirmez. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const API = window.SOLSCOPE_API ?? '';
@@ -235,10 +281,11 @@ const STR = {
   en: {
     navHome:'Home', kicker:'Wallet forensics', loading:'Loading…',
     copyBtn:'Copy', copied:'Copied', solscanBtn:'Solscan ↗',
-    pdfBtn:'Export PDF', printTitle:'Wallet Forensics Report',
+    pdfBtn:'Export PDF', printTitle:'Wallet Forensics Report', printSub:'WALLET FORENSICS',
     printMeta: (addr, date) => `Address: ${addr}  ·  Generated: ${date}  ·  america.sx`,
     stIncidents:'incidents', stTokens:'tokens hit', stDamage:'est. damage', stHits:'times flagged',
     incidentsHead:'Incident history',
+    itKind:'Type', itToken:'Token', itDamage:'Damage', itDate:'Date',
     caveat:'Damage figures are estimates derived from market-cap drop or liquidity pulled around the time this wallet was implicated — not an audited or legally established loss. This is a correlation-based record, not a court finding.',
     footNote:'Part of america.sx — Solana launch & supply-distribution forensics.',
     notFound:"This address isn't on the blacklist.",
@@ -253,10 +300,11 @@ const STR = {
   tr: {
     navHome:'Ana sayfa', kicker:'Cüzdan adli analizi', loading:'Yükleniyor…',
     copyBtn:'Kopyala', copied:'Kopyalandı', solscanBtn:'Solscan ↗',
-    pdfBtn:'PDF olarak dışa aktar', printTitle:'Cüzdan Adli Analiz Raporu',
+    pdfBtn:'PDF olarak dışa aktar', printTitle:'Cüzdan Adli Analiz Raporu', printSub:'CÜZDAN ADLİ ANALİZİ',
     printMeta: (addr, date) => `Adres: ${addr}  ·  Oluşturulma: ${date}  ·  america.sx`,
     stIncidents:'olay', stTokens:'etkilenen token', stDamage:'tahmini zarar', stHits:'kaç kez işaretlendi',
     incidentsHead:'Olay geçmişi',
+    itKind:'Tür', itToken:'Token', itDamage:'Zarar', itDate:'Tarih',
     caveat:'Zarar rakamları, bu cüzdanın karıştığı olay sırasındaki piyasa değeri düşüşü ya da çekilen likiditeden türetilen tahminlerdir — denetlenmiş ya da hukuken tespit edilmiş bir kayıp değildir. Bu korelasyon tabanlı bir kayıttır, mahkeme kararı değil.',
     footNote:'america.sx\'in bir parçası — Solana lansman ve arz dağıtımı adli analizi.',
     notFound:'Bu adres kara listede değil.',
@@ -331,22 +379,19 @@ function render(d){
   const box = $('ilist');
   box.innerHTML = '';
   if(!d.incidents.length){
-    box.innerHTML = `<div class="noincidents">${esc(L('noIncidents'))}</div>`;
+    box.innerHTML = `<tr><td colspan="4" class="noincidents">${esc(L('noIncidents'))}</td></tr>`;
   } else {
     d.incidents.forEach(i=>{
       const detail = (lang === 'en' ? i.detail_en : i.detail) || i.detail || '';
-      const a = document.createElement('a');
-      a.className = 'irow';
-      a.href = `/t/${encodeURIComponent(i.mint)}?lang=${lang}`;
-      a.innerHTML = `
-        <div class="top">
-          <span class="ikind ${i.kind}">${esc(L(KIND_L[i.kind] || i.kind))}</span>
-          <span class="isym">${esc(i.symbol || short(i.mint))}</span>
-          <span class="idamage">${i.damage_usd ? usd(i.damage_usd) : ''}</span>
-          <span class="iage">${relTime(i.created_at)}</span>
-        </div>
-        <div class="idetail">${esc(detail)}</div>`;
-      box.appendChild(a);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="ic-kind"><span class="i-kind ${i.kind}">${esc(L(KIND_L[i.kind] || i.kind))}</span></td>
+        <td><span class="i-sym">${esc(i.symbol || short(i.mint))}</span>
+          <div class="i-detail">${esc(detail)}</div></td>
+        <td class="ic-damage"><span class="i-damage">${i.damage_usd ? usd(i.damage_usd) : ''}</span></td>
+        <td class="ic-date"><span class="i-date">${relTime(i.created_at)}</span></td>`;
+      tr.onclick = ()=>{ location.href = `/t/${encodeURIComponent(i.mint)}?lang=${lang}`; };
+      box.appendChild(tr);
     });
   }
 
@@ -356,6 +401,7 @@ function render(d){
   updatePrintMeta();
 }
 
+let qrMade = false;
 function updatePrintMeta(){
   const addr = $('wAddr').textContent;
   if(!addr) return;
@@ -363,6 +409,18 @@ function updatePrintMeta(){
   const date = now.toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US');
   $('pMeta').textContent = L('printMeta', addr, date);
   $('pfUrl').textContent = location.href;
+  // QR: raporun kaynağını doğrulamak için — kütüphane yüklenemezse (ör.
+  // reklam engelleyici) sessizce atla, rapor QR'sız da eksiksiz çalışır.
+  if(!qrMade && window.QRCode){
+    try{
+      new QRCode($('phQR'), {
+        text: location.href, width: 128, height: 128,
+        colorDark: '#161616', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+      qrMade = true;
+    }catch(e){ /* sessizce geç */ }
+  }
 }
 
 async function load(){
