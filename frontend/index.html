@@ -1048,6 +1048,7 @@ const STR = {
     flagCount: n => `${n} wallets`,
     flagHits: n => `×${n}`,
     flagNoNote:'Blacklisted — reason not recorded.',
+    flagNoNoteEn:'Blacklisted — English reason not recorded yet.',
     trackScore: (n,m) => `${n} / ${m} correct`,
     outHit:'✓ called it', outMiss:'✗ missed', outNoDump:'— no dump yet', outClear:'✓ held up',
     outOpen: left => `watching · ${left} left`,
@@ -1164,6 +1165,7 @@ const STR = {
     flagCount: n => `${n} cüzdan`,
     flagHits: n => `×${n}`,
     flagNoNote:'Kara listede — sebep kaydedilmemiş.',
+    flagNoNoteEn:'Kara listede — İngilizce sebep henüz kaydedilmedi.',
     trackScore: (n,m) => `${n} / ${m} doğru`,
     outHit:'✓ isabet', outMiss:'✗ kaçırdı', outNoDump:'— henüz düşüş yok', outClear:'✓ korudu',
     outOpen: left => `izleniyor · ${left} kaldı`,
@@ -1858,7 +1860,7 @@ function renderFlagged(wallets){
     const a = document.createElement('a');
     a.className = 'fitem';
     a.href = `/w/${encodeURIComponent(w.address)}`;
-    const why = (lang === 'en' ? w.note_en : w.note) || w.note || L('flagNoNote');
+    const why = lang === 'en' ? (w.note_en || L('flagNoNoteEn')) : (w.note || L('flagNoNote'));
     a.title = `${w.address}\n${why}`;
     a.innerHTML = `
       <span class="faddr">${short(w.address)}</span>
