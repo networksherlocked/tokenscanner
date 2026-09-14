@@ -113,6 +113,37 @@ async def wallet_token_share(pool: RpcPool, owner: str, mint: str) -> float | No
     return round(bal / mi.supply_raw * 100, 3)
 
 
+_TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+
+async def wallet_current_mints(pool: RpcPool, owner: str) -> set[str] | None:
+    """Bir cüzdanın ŞU AN bakiyesi >0 olan tüm SPL token mint'leri — tek RPC
+    çağrısı (programId filtreli getTokenAccountsByOwner, getProgramAccounts
+    DEĞİL). 'Gainer' cüzdanları yeni ne biriktiriyor diye periyodik kontrol
+    için kullanılır. Token-2022 mint'leri kapsamaz (memecoin'lerde nadir).
+    RPC hatasında None döner — çağıran bunu 'bilinmiyor' saysın, boş sanmasın.
+    """
+    try:
+        res = await pool.call(
+            "getTokenAccountsByOwner",
+            [owner, {"programId": _TOKEN_PROGRAM}, {"encoding": "jsonParsed"}],
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    mints: set[str] = set()
+    for acc in (res or {}).get("value") or []:
+        info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+        mint = info.get("mint")
+        amt = (info.get("tokenAmount") or {}).get("amount")
+        if mint and amt:
+            try:
+                if int(amt) > 0:
+                    mints.add(mint)
+            except (TypeError, ValueError):
+                pass
+    return mints
+
+
 async def get_top_holders(pool: RpcPool, mint: str, decimals: int) -> list[HolderRecord]:
     """En büyük 20 token hesabı. Tek çağrı, ucuz."""
     res = await pool.call("getTokenLargestAccounts", [mint])

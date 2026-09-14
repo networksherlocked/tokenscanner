@@ -40,7 +40,7 @@ from .rpc import trades as rpc_trades
 from .rpc.market import fetch_market
 from .rpc.pool import RpcError, RpcPool
 from .rpc.pool import mask_endpoints as pool_mask
-from .rpc.solana import wallet_token_share
+from .rpc.solana import wallet_current_mints, wallet_token_share
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -101,6 +101,18 @@ GAIN_MAX_MARKERS = int(os.getenv("GAIN_MAX_MARKERS", "14"))
 GAIN_VERDICTS = {"organic", "cabaled", "inconclusive"}
 # Yükseliş penceresinde (24s'den sonra) piyasa verisi bu aralıkta bir yenilenir.
 GAIN_POLL_MIN = int(os.getenv("GAIN_POLL_MIN_SEC", "3600"))
+
+# --- Kümelenme izleme: "gainer" (daha önce sert yükselen tokenlarda erken
+#     görülmüş) cüzdanların ŞU AN ne biriktirdiğini periyodik kontrol eder.
+#     Birden çok gainer cüzdanı aynı, henüz taramadığımız mint'te yakın
+#     zamanda toplanırsa admin panelinde "kümelenme" olarak yüzeye çıkar —
+#     bir tokenin patlamasından ÖNCE, o tokeni taramadan sinyal verir. ---
+GAINER_WATCH_ENABLED = os.getenv("GAINER_WATCH_ENABLED", "1") != "0"
+GAINER_WATCH_INTERVAL = int(os.getenv("GAINER_WATCH_INTERVAL_SEC", "1800"))  # 30 dk
+GAINER_WATCH_BATCH = int(os.getenv("GAINER_WATCH_BATCH", "40"))  # döngü başına kaç cüzdan
+GAINER_CLUSTER_MIN = int(os.getenv("GAINER_CLUSTER_MIN", "2"))  # min. farklı cüzdan
+GAINER_CLUSTER_WINDOW_DAYS = int(os.getenv("GAINER_CLUSTER_WINDOW_DAYS", "5"))
+GAINER_WATCH_KEEP_DAYS = int(os.getenv("GAINER_WATCH_KEEP_DAYS", "21"))  # eski kayıt temizliği
 
 
 async def refresh_track() -> None:
@@ -824,6 +836,91 @@ def learn_from_gain(cache: ScanCache, row: dict, rise: float) -> None:
     )
 
 
+async def gainer_watch_scan(cache: ScanCache, pool: RpcPool) -> tuple[int, int]:
+    """RUNTIME_GAINERS'taki cüzdanların ŞU AN tuttuğu tokenlara bakar, daha
+    önce görmediğimiz mint'leri gainer_watch'a yazar. Liste büyükse tek
+    seferde hepsini kontrol etmez — her çağrıda GAINER_WATCH_BATCH kadarlık
+    bir dilimi döner (state["_gw_cursor"]), zamanla tüm liste taranmış olur.
+    Döner: (kontrol edilen cüzdan sayısı, yeni kaydedilen (cüzdan,mint) sayısı).
+    """
+    if not GAINER_WATCH_ENABLED or pool is None:
+        return 0, 0
+    addrs = list(registry.RUNTIME_GAINERS.keys())
+    if not addrs:
+        return 0, 0
+    cursor = state.get("_gw_cursor", 0) % len(addrs)
+    batch = (addrs[cursor:] + addrs[:cursor])[:GAINER_WATCH_BATCH]
+    state["_gw_cursor"] = (cursor + len(batch)) % len(addrs)
+
+    sem = asyncio.Semaphore(4)
+    new_count = 0
+
+    async def one(addr: str) -> None:
+        nonlocal new_count
+        async with sem:
+            mints = await wallet_current_mints(pool, addr)
+        if mints is None:
+            return
+        known = cache.gainer_watch_known_mints(addr)
+        now = int(time.time())
+        for m in mints - known:
+            if m in registry.WELL_KNOWN_MINTS or registry.is_infrastructure(m):
+                continue
+            cache.gainer_watch_add(addr, m, now)
+            new_count += 1
+
+    await asyncio.gather(*(one(a) for a in batch))
+    if new_count:
+        log.info(
+            "KÜMELENME İZLEME: %s cüzdan kontrol edildi, %s yeni (cüzdan,token) kaydedildi",
+            len(batch), new_count,
+        )
+    return len(batch), new_count
+
+
+def gainer_clusters(cache: ScanCache) -> list[dict]:
+    """gainer_watch kayıtlarını mint'e göre gruplar; ≥GAINER_CLUSTER_MIN farklı
+    gainer cüzdanının, henüz taranmamış AYNI mint'te son GAINER_CLUSTER_WINDOW_DAYS
+    içinde biriktiği durumları döner (en çok cüzdanlı / en yeni önce)."""
+    since = int(time.time()) - GAINER_CLUSTER_WINDOW_DAYS * 86400
+    rows = cache.gainer_watch_rows(since=since)
+    by_mint: dict[str, list[dict]] = {}
+    for r in rows:
+        by_mint.setdefault(r["mint"], []).append(r)
+    if not by_mint:
+        return []
+    already_scanned = cache.scans_have(list(by_mint.keys()))
+    clusters = []
+    for mint, entries in by_mint.items():
+        if mint in already_scanned:
+            continue
+        addrs = sorted({e["address"] for e in entries})
+        if len(addrs) < GAINER_CLUSTER_MIN:
+            continue
+        clusters.append({
+            "mint": mint,
+            "wallets": addrs,
+            "count": len(addrs),
+            "first_seen": min(e["first_seen"] for e in entries),
+            "last_seen": max(e["first_seen"] for e in entries),
+        })
+    clusters.sort(key=lambda c: (-c["count"], -c["last_seen"]))
+    return clusters
+
+
+async def _gainer_watch_loop() -> None:
+    while True:
+        try:
+            cache, pool = state.get("cache"), state.get("pool")
+            if cache is not None and pool is not None:
+                await gainer_watch_scan(cache, pool)
+                cutoff = int(time.time()) - GAINER_WATCH_KEEP_DAYS * 86400
+                await asyncio.to_thread(cache.gainer_watch_prune, cutoff)
+        except Exception:  # noqa: BLE001
+            log.exception("Kümelenme izleme döngüsü hatası")
+        await asyncio.sleep(GAINER_WATCH_INTERVAL)
+
+
 async def _track_loop() -> None:
     while True:
         try:
@@ -896,8 +993,10 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001
         log.exception("Min. tarama eşiği yüklenemedi")
     track_task = asyncio.create_task(_track_loop())
+    gainer_watch_task = asyncio.create_task(_gainer_watch_loop())
     yield
     track_task.cancel()
+    gainer_watch_task.cancel()
     await state["pool"].aclose()
     state["cache"].close()
 
@@ -1642,6 +1741,21 @@ async def admin_gainer_remove(address: str):
     state["cache"].gainer_remove(address)
     _reload_gainers()
     return {"ok": True}
+
+
+@app.get("/api/admin/gainer-watch/clusters", dependencies=[Depends(_admin)])
+async def admin_gainer_watch_clusters():
+    return {
+        "clusters": gainer_clusters(state["cache"]),
+        "window_d": GAINER_CLUSTER_WINDOW_DAYS,
+        "min_wallets": GAINER_CLUSTER_MIN,
+    }
+
+
+@app.post("/api/admin/gainer-watch/scan-now", dependencies=[Depends(_admin)])
+async def admin_gainer_watch_scan_now():
+    checked, new = await gainer_watch_scan(state["cache"], state["pool"])
+    return {"ok": True, "checked": checked, "new": new}
 
 
 def _mask_key(key: str) -> str:

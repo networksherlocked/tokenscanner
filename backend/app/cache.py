@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS gain_hits (
 );
 CREATE INDEX IF NOT EXISTS idx_gain_hits_at ON gain_hits(scanned_at DESC);
 
+-- Kümelenme izleme: "gainer" cüzdanlarının ŞU AN tuttuğu, daha önce
+-- görmediğimiz mint'ler. Birden çok gainer cüzdanı aynı (henüz taranmamış)
+-- mint'te yakın zamanda birikirse bu, "yeni bir tokene birlikte pozisyon
+-- alıyorlar" için ileriye dönük bir sinyaldir (bkz. gainer_watch_scan).
+CREATE TABLE IF NOT EXISTS gainer_watch (
+    address TEXT NOT NULL, mint TEXT NOT NULL, first_seen INTEGER NOT NULL,
+    PRIMARY KEY (address, mint)
+);
+CREATE INDEX IF NOT EXISTS idx_gainer_watch_seen ON gainer_watch(first_seen DESC);
+
 -- Kara listeye sonradan alınan bir cüzdanın, ZATEN izlenen başka tokenlarda
 -- zarar verecek büyüklükte pay/ilişkisi bulunduğunda o tokenlar buraya yazılır.
 CREATE TABLE IF NOT EXISTS risk_tokens (
@@ -172,6 +182,16 @@ CREATE TABLE IF NOT EXISTS gain_hits (
     detail TEXT, scanned_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_gain_hits_at ON gain_hits(scanned_at DESC);
+
+-- Kümelenme izleme: "gainer" cüzdanlarının ŞU AN tuttuğu, daha önce
+-- görmediğimiz mint'ler. Birden çok gainer cüzdanı aynı (henüz taranmamış)
+-- mint'te yakın zamanda birikirse bu, "yeni bir tokene birlikte pozisyon
+-- alıyorlar" için ileriye dönük bir sinyaldir (bkz. gainer_watch_scan).
+CREATE TABLE IF NOT EXISTS gainer_watch (
+    address TEXT NOT NULL, mint TEXT NOT NULL, first_seen BIGINT NOT NULL,
+    PRIMARY KEY (address, mint)
+);
+CREATE INDEX IF NOT EXISTS idx_gainer_watch_seen ON gainer_watch(first_seen DESC);
 
 CREATE TABLE IF NOT EXISTS risk_tokens (
     mint TEXT PRIMARY KEY, symbol TEXT, image TEXT, verdict_was TEXT,
@@ -877,6 +897,44 @@ class ScanCache:
 
     def gainer_remove(self, address: str) -> None:
         self._write("DELETE FROM gainers WHERE address = ?", (address,))
+
+    # ---- kümelenme izleme (gainer cüzdanları yeni ne biriktiriyor?) ---
+
+    def gainer_watch_known_mints(self, address: str) -> set[str]:
+        rows = self._rows(
+            "SELECT mint FROM gainer_watch WHERE address = ?", (address,)
+        )
+        return {r["mint"] for r in rows}
+
+    def gainer_watch_add(self, address: str, mint: str, first_seen: int) -> None:
+        self._write(
+            "INSERT INTO gainer_watch (address, mint, first_seen) VALUES (?, ?, ?) "
+            "ON CONFLICT(address, mint) DO NOTHING",
+            (address, mint, first_seen),
+        )
+
+    def gainer_watch_rows(self, since: int, limit: int = 2000) -> list[dict]:
+        return self._rows(
+            "SELECT address, mint, first_seen FROM gainer_watch "
+            "WHERE first_seen >= ? ORDER BY first_seen DESC LIMIT ?",
+            (since, limit),
+        )
+
+    def gainer_watch_prune(self, before: int) -> int:
+        rows = self._rows(
+            "SELECT COUNT(*) AS n FROM gainer_watch WHERE first_seen < ?", (before,)
+        )
+        self._write("DELETE FROM gainer_watch WHERE first_seen < ?", (before,))
+        return int((rows[0]["n"] if rows else 0) or 0)
+
+    def scans_have(self, mints: list[str]) -> set[str]:
+        """Verilen mint'lerden hangileri zaten taranmış (scans tablosunda)?"""
+        mints = list(dict.fromkeys(m for m in mints if m))
+        if not mints:
+            return set()
+        ph = ", ".join("?" for _ in mints)
+        rows = self._rows(f"SELECT mint FROM scans WHERE mint IN ({ph})", tuple(mints))
+        return {r["mint"] for r in rows}
 
     def add_gain_lesson(self, **kw) -> int:
         cols = (

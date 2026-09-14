@@ -1066,8 +1066,8 @@ async function paintAiSub(){
       wireLessons(av); wirePager(av);
     }else if(_aiSub==='momentum'){
       _aiFirst = null;
-      const d = await api('/momentum');
-      av.innerHTML = momentumView(d);
+      const [d, cw] = await Promise.all([api('/momentum'), api('/gainer-watch/clusters')]);
+      av.innerHTML = momentumView(d, cw);
       av.querySelectorAll('[data-mu]').forEach(b=> b.onclick = async ()=>{
         if(!confirm('Bu yükseliş dersinin kaydettiği adresler geri alınsın mı?')) return;
         const j = await api('/momentum/'+b.dataset.mu+'/undo', {method:'POST'});
@@ -1078,6 +1078,15 @@ async function paintAiSub(){
         await api('/gainers/'+encodeURIComponent(b.dataset.gx), {method:'DELETE'});
         flash('çıkarıldı'); paintAiSub();
       });
+      const cwb = $('#gwScanNow');
+      if(cwb) cwb.onclick = async ()=>{
+        cwb.disabled = true; const o = cwb.textContent; cwb.textContent = 'kontrol ediliyor…';
+        try{
+          const j = await api('/gainer-watch/scan-now', {method:'POST'});
+          flash(`${j.checked} cüzdan kontrol edildi, ${j.new} yeni kayıt`);
+          paintAiSub();
+        }catch(e){ flash(e.message); cwb.disabled = false; cwb.textContent = o; }
+      };
     }else{
       _aiFirst = null;
       _flgData = await api('/flagged'); _flgPage = 1;
@@ -1087,10 +1096,21 @@ async function paintAiSub(){
   }catch(e){ if(e.message!=='auth') av.innerHTML = `<p class="bad">${esc(e.message)}</p>`; }
 }
 const GN_KIND = { wallet:'erken alıcı', funder:'fonlayıcı', deployer:'deployer' };
-function momentumView(d){
+function momentumView(d, cw){
   const lessons = d.lessons || [], gainers = d.gainers || [], hits = d.hits || [];
   const win = Math.round(d.window_d || 7);
   const mult = ((d.min_rise_pct || 2) + 1).toFixed(1);
+
+  cw = cw || {};
+  const cwList = cw.clusters || [];
+  const cwWin = Math.round(cw.window_d || 5);
+  const cwMin = cw.min_wallets || 2;
+  const cwRows = cwList.map(c=>`<tr>
+    <td class="mono">${tokLink(c.mint, short(c.mint))}</td>
+    <td><b>${c.count}</b> cüzdan</td>
+    <td class="mono">${c.wallets.map(a=>solLink(a, short(a))).join(', ')}</td>
+    <td class="muted">${ago(c.last_seen)} önce</td>
+  </tr>`).join('');
 
   const lrows = lessons.map(l=>`<tr>
     <td>${vb(l.verdict_was)}<div class="muted">${ago(l.learned_at)} önce</div></td>
@@ -1127,6 +1147,20 @@ function momentumView(d){
       erken katılımcıları arasında görülürse <b>sonuç ekranında "Yükseliş sinyali" notu</b> çıkar —
       bu karara (bundled/organic) etki ETMEZ, yalnızca bilgilendirmedir. Bu bir korelasyondur;
       nedensellik ya da fiyat tahmini değildir.</p></div>
+
+    <div class="card"><p class="desc"><b>Kümelenme izleme (ileriye dönük).</b>
+      Aşağıdaki "izlenen" cüzdanlar arka planda ~30 dakikada bir zincirden kontrol edilir:
+      şu an ne tutuyorlar? Bunlardan ${cwMin}+ farklısı, HENÜZ taramadığımız aynı tokende
+      son ${cwWin} gün içinde birikmişse aşağıda çıkar — bir token patlamadan önce erken
+      uyarı olabilir. Bu bir korelasyondur, garanti değil; bir satırı taradığında (gerçek
+      karar verildiğinde) bu listeden kendiliğinden düşer.</p>
+      <div class="card-actions"><button class="ghost" id="gwScanNow">şimdi kontrol et</button></div>
+    </div>
+    <div class="section-title">Henüz taranmamış, birden çok izlenen cüzdanın biriktiği tokenlar
+      <span class="cnt">${cwList.length}</span></div>
+    <div class="tbl-card"><table>
+      <thead><tr><th>token</th><th>kaç cüzdan</th><th>hangi cüzdanlar</th><th>son görülme</th></tr></thead>
+      <tbody>${cwRows||'<tr><td colspan="4" class="muted">şu an kümelenme yok</td></tr>'}</tbody></table></div>
 
     <div class="section-title">Yükselen tokenlardan çıkarılan dersler</div>
     <div class="tbl-card"><table>

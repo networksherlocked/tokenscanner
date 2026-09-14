@@ -56,6 +56,15 @@ TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 METAPLEX_METADATA = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 
+# Kümelenme izlemede ("gainer" cüzdanları yeni ne alıyor?) gürültü sayılıp
+# dışlanan köklü mint'ler — bunlar "yeni bir token'a birlikte giriyorlar"
+# sinyalinin aradığı şey değil.
+WELL_KNOWN_MINTS = {
+    "So11111111111111111111111111111111111111112",  # Wrapped SOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  # USDT
+}
+
 # --- LP kilit tespiti ------------------------------------------------------
 # Bir LP token hesabının "authority"si aşağıdaki programlardan biri tarafından
 # sahiplenilmişse (PDA), LP kilitli sayılır. Liste etiketleme içindir; asıl
