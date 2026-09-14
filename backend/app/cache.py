@@ -699,6 +699,32 @@ class ScanCache:
             (address, limit),
         )
 
+    def backfill_flagged_notes(self) -> int:
+        """note_en'siz kalmış eski flagged kayıtlarını (note_en tutulmaya
+        başlanmadan önce işaretlenmiş ya da elle eklenmiş), o adresin en
+        son flagged_incidents kaydındaki TR/EN metinle senkronlar. Yeni
+        işaretlemeler zaten ikisini birden yazar — bu yalnızca geçmişi
+        onarır ve idempotenttir (her başlangıçta güvenle tekrar çalışır)."""
+        rows = self._rows(
+            "SELECT address FROM flagged WHERE note_en IS NULL OR note_en = ''"
+        )
+        fixed = 0
+        for r in rows:
+            addr = r["address"]
+            latest = self._rows(
+                "SELECT detail, detail_en FROM flagged_incidents "
+                "WHERE address = ? ORDER BY created_at DESC LIMIT 1",
+                (addr,),
+            )
+            if not latest or not latest[0].get("detail_en"):
+                continue
+            self._write(
+                "UPDATE flagged SET note = ?, note_en = ? WHERE address = ?",
+                (latest[0]["detail"], latest[0]["detail_en"], addr),
+            )
+            fixed += 1
+        return fixed
+
     # ---- AI tespitli riskli tokenlar ---------------------------------
 
     def risk_add(self, **kw) -> None:

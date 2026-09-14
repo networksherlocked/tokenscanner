@@ -997,6 +997,12 @@ async def lifespan(app: FastAPI):
         "Postgres" if dsn else "SQLite",
     )
     try:
+        fixed = state["cache"].backfill_flagged_notes()
+        if fixed:
+            log.info("İşaretli cüzdan notu onarıldı (note_en eksikti): %s", fixed)
+    except Exception:  # noqa: BLE001
+        log.exception("İşaretli cüzdan notu onarımı düştü")
+    try:
         rows = {r["address"]: (r["note"] or "flagged") for r in state["cache"].flagged_list()}
         registry.set_runtime_flagged(rows)
         if rows:

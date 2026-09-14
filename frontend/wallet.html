@@ -297,6 +297,8 @@ const STR = {
     roleWallet:'wallet', roleDeployer:'deployer', roleCreator:'creator',
     kindCrash:'crash', kindRug:'liquidity rug',
     noIncidents:'No incident history recorded yet.',
+    noEnNote:'English detail not recorded for this entry yet — it will fill in the next time this wallet is flagged.',
+    noEnDetail:'English detail not recorded for this incident.',
     viewScan:'view scan →',
   },
   tr: {
@@ -369,7 +371,7 @@ function render(d){
   $('wRole').textContent = L(ROLE_L[d.kind] || 'roleWallet');
   $('wAddr').textContent = d.address;
   $('solscanLink').href = `https://solscan.io/account/${encodeURIComponent(d.address)}`;
-  const note = (lang === 'en' ? d.note_en : d.note) || d.note || '';
+  const note = lang === 'en' ? (d.note_en || L('noEnNote')) : (d.note || '');
   $('wNote').textContent = note;
   $('wSince').textContent = L('sinceLine', relTime(d.first_seen));
 
@@ -384,7 +386,7 @@ function render(d){
     box.innerHTML = `<tr><td colspan="4" class="noincidents">${esc(L('noIncidents'))}</td></tr>`;
   } else {
     d.incidents.forEach(i=>{
-      const detail = (lang === 'en' ? i.detail_en : i.detail) || i.detail || '';
+      const detail = lang === 'en' ? (i.detail_en || L('noEnDetail')) : (i.detail || '');
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="ic-kind"><span class="i-kind ${i.kind}">${esc(L(KIND_L[i.kind] || i.kind))}</span></td>
