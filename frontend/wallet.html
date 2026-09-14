@@ -92,6 +92,27 @@ main{padding:36px 0 70px}
   padding:12px 16px;font-size:11px;color:var(--muted);line-height:1.6}
 
 footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-size:11px;color:var(--dim)}
+
+.printhead{display:none}
+.pTitle{font-family:var(--display);font-weight:700;font-size:20px}
+.pMeta{font-size:11px;color:var(--dim);margin-top:4px}
+
+@media print{
+  body{background:#fff;color:#111}
+  header, footer, .langsel, #copyBtn, #pdfBtn, #solscanLink, .state{display:none!important}
+  .printhead{display:block;margin-bottom:18px;border-bottom:2px solid #111;padding-bottom:10px}
+  .pTitle{color:#111}
+  .pMeta{color:#555}
+  .wcard, .stat, .ilist, .irow{background:#fff!important;border-color:#bbb!important;box-shadow:none!important}
+  .wcard{page-break-inside:avoid}
+  .irow{page-break-inside:avoid}
+  .irow:hover{background:#fff!important}
+  .wrole, .ikind, .idamage, .fhits, .kicker{color:#a33!important}
+  .wnote, .wsince, .idetail, .stat span, .iage{color:#444!important}
+  .waddr b, .isym, .stat b{color:#111!important}
+  .caveat{background:#fff!important;border-left-color:#999!important;color:#555!important}
+  a{text-decoration:none}
+}
 </style>
 </head>
 <body>
@@ -112,6 +133,10 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
 <main>
   <div class="wrap">
     <div class="kicker" data-i18n="kicker">Wallet forensics</div>
+    <div class="printhead" id="printHead">
+      <div class="pTitle">america.sx — <span data-i18n="printTitle">Wallet Forensics Report</span></div>
+      <div class="pMeta" id="pMeta"></div>
+    </div>
 
     <div id="loadingState" class="state" data-i18n="loading">Loading…</div>
     <div id="errState" class="state" hidden></div>
@@ -123,6 +148,7 @@ footer{border-top:1px solid var(--rule);padding:22px 0;text-align:center;font-si
           <b id="wAddr"></b>
           <button class="wbtn" id="copyBtn" data-i18n="copyBtn">Copy</button>
           <a class="wbtn" id="solscanLink" target="_blank" rel="noopener" data-i18n="solscanBtn">Solscan ↗</a>
+          <button class="wbtn" id="pdfBtn" data-i18n="pdfBtn">Export PDF</button>
         </div>
         <div class="wnote" id="wNote"></div>
         <div class="wsince" id="wSince"></div>
@@ -160,6 +186,8 @@ const STR = {
   en: {
     navHome:'Home', kicker:'Wallet forensics', loading:'Loading…',
     copyBtn:'Copy', copied:'Copied', solscanBtn:'Solscan ↗',
+    pdfBtn:'Export PDF', printTitle:'Wallet Forensics Report',
+    printMeta: (addr, date) => `Address: ${addr}  ·  Generated: ${date}  ·  america.sx`,
     stIncidents:'incidents', stTokens:'tokens hit', stDamage:'est. damage', stHits:'times flagged',
     incidentsHead:'Incident history',
     caveat:'Damage figures are estimates derived from market-cap drop or liquidity pulled around the time this wallet was implicated — not an audited or legally established loss. This is a correlation-based record, not a court finding.',
@@ -176,6 +204,8 @@ const STR = {
   tr: {
     navHome:'Ana sayfa', kicker:'Cüzdan adli analizi', loading:'Yükleniyor…',
     copyBtn:'Kopyala', copied:'Kopyalandı', solscanBtn:'Solscan ↗',
+    pdfBtn:'PDF olarak dışa aktar', printTitle:'Cüzdan Adli Analiz Raporu',
+    printMeta: (addr, date) => `Adres: ${addr}  ·  Oluşturulma: ${date}  ·  america.sx`,
     stIncidents:'olay', stTokens:'etkilenen token', stDamage:'tahmini zarar', stHits:'kaç kez işaretlendi',
     incidentsHead:'Olay geçmişi',
     caveat:'Zarar rakamları, bu cüzdanın karıştığı olay sırasındaki piyasa değeri düşüşü ya da çekilen likiditeden türetilen tahminlerdir — denetlenmiş ya da hukuken tespit edilmiş bir kayıp değildir. Bu korelasyon tabanlı bir kayıttır, mahkeme kararı değil.',
@@ -274,6 +304,15 @@ function render(d){
   $('loadingState').hidden = true;
   $('errState').hidden = true;
   $('content').hidden = false;
+  updatePrintMeta();
+}
+
+function updatePrintMeta(){
+  const addr = $('wAddr').textContent;
+  if(!addr) return;
+  const now = new Date();
+  const date = now.toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US');
+  $('pMeta').textContent = L('printMeta', addr, date);
 }
 
 async function load(){
@@ -310,6 +349,14 @@ $('copyBtn').onclick = async ()=>{
   catch(e){ prompt('', addr); }
   btn.textContent = L('copied');
   setTimeout(()=>{ btn.textContent = orig; }, 1200);
+};
+
+// PDF: tarayıcının kendi "PDF olarak kaydet" yazdırma hedefi kullanılır —
+// harici kütüphane yok. @media print sayfayı temiz bir rapor haline
+// getiriyor; içerik zaten hangi dil seçiliyse o dilde render edilmiş oluyor.
+$('pdfBtn').onclick = ()=>{
+  updatePrintMeta();
+  window.print();
 };
 
 load();
