@@ -25,6 +25,12 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
+
+try:
+    import psutil
+except Exception:  # pragma: no cover - kurulu değilse bellek koruması pasif kalır
+    psutil = None
+
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -101,6 +107,40 @@ GAIN_MAX_MARKERS = int(os.getenv("GAIN_MAX_MARKERS", "14"))
 GAIN_VERDICTS = {"organic", "cabaled", "inconclusive"}
 # Yükseliş penceresinde (24s'den sonra) piyasa verisi bu aralıkta bir yenilenir.
 GAIN_POLL_MIN = int(os.getenv("GAIN_POLL_MIN_SEC", "3600"))
+
+# --- Bellek koruması: arka plan otomasyonları (kümelenme izleme, trend
+#     tarama) her turdan önce process'in kendi RAM kullanımını ölçer; admin
+#     panelinden ayarlanan sınırı aşıyorsa o tur atlanır — instance'ı OOM'a
+#     götürmeden önce fren yapar. Özelliklerin kendi aç/kapa anahtarlarının
+#     YERİNE değil, ÜSTÜNE eklenen ek bir güvenlik katmanıdır. ---
+_PROC = psutil.Process() if psutil else None
+MEM_GUARD_DEFAULT_MB = 400.0  # Render'ın yaygın 512MB planına göre güvenli pay
+
+
+def _mem_guard_limit_mb() -> float:
+    v = state["cache"].config_get("mem_guard_limit_mb")
+    try:
+        return max(64.0, float(v))
+    except (TypeError, ValueError):
+        return MEM_GUARD_DEFAULT_MB
+
+
+def _current_mem_mb() -> float | None:
+    if _PROC is None:
+        return None
+    try:
+        return _PROC.memory_info().rss / (1024 * 1024)
+    except Exception:
+        return None
+
+
+def _mem_guard_ok() -> bool:
+    """Bellek ölçülemiyorsa (psutil yok/hata) güvenli tarafta kal — engelleme."""
+    cur = _current_mem_mb()
+    if cur is None:
+        return True
+    return cur < _mem_guard_limit_mb()
+
 
 # --- Kümelenme izleme: "gainer" (daha önce sert yükselen tokenlarda erken
 #     görülmüş) cüzdanların ŞU AN ne biriktirdiğini periyodik kontrol eder.
@@ -925,6 +965,12 @@ async def gainer_watch_scan(cache: ScanCache, pool: RpcPool) -> tuple[int, int]:
     """
     if not _gainer_watch_enabled() or pool is None:
         return 0, 0
+    if not _mem_guard_ok():
+        log.info(
+            "KÜMELENME İZLEME: bellek sınırı aşıldı (%.0f/%.0f MB) — bu tur atlandı",
+            _current_mem_mb() or -1, _mem_guard_limit_mb(),
+        )
+        return 0, 0
     addrs = list(registry.RUNTIME_GAINERS.keys())
     if not addrs:
         return 0, 0
@@ -1030,6 +1076,12 @@ async def trend_scan_tick() -> dict:
     """
     if not _trend_scan_enabled():
         return {"enabled": False}
+    if not _mem_guard_ok():
+        log.info(
+            "TREND TARAMA: bellek sınırı aşıldı (%.0f/%.0f MB) — bu tur atlandı",
+            _current_mem_mb() or -1, _mem_guard_limit_mb(),
+        )
+        return {"enabled": True, "skipped_mem": True, "mem_mb": _current_mem_mb(), "mem_limit_mb": _mem_guard_limit_mb()}
     cache = state.get("cache")
     if cache is None:
         return {"enabled": True, "error": "cache yok"}
@@ -2044,6 +2096,11 @@ async def admin_settings():
             "cluster_min_wallets": GAINER_CLUSTER_MIN,
             "cluster_window_d": GAINER_CLUSTER_WINDOW_DAYS,
         },
+        "mem_guard": {
+            "limit_mb": _mem_guard_limit_mb(),
+            "current_mb": _current_mem_mb(),
+            "available": _PROC is not None,
+        },
         # --- yalnızca env (bilgi amaçlı) ---
         "env_only": {
             "rate_limit_per_min": RATE_LIMIT,
@@ -2141,6 +2198,17 @@ async def admin_settings_set(payload: dict = Body(...)):
             "gainer_watch_enabled", "1" if payload.get("gainer_watch_enabled") else "0"
         )
         changed.append("gainer_watch_enabled")
+
+    # --- Bellek koruması ---
+    if "mem_guard_limit_mb" in payload:
+        try:
+            mg = float(payload["mem_guard_limit_mb"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "mem_guard_limit_mb bir sayı olmalı.") from None
+        if not 64 <= mg <= 4096:
+            raise HTTPException(422, "Bellek sınırı 64–4096 MB arasında olmalı.")
+        cache.config_set("mem_guard_limit_mb", str(mg))
+        changed.append("mem_guard_limit_mb")
 
     if "rpc_endpoints" in payload:
         raw = str(payload.get("rpc_endpoints") or "").strip()

@@ -646,6 +646,10 @@ function paintSettingsGrid(){
   const b = d.birdeye || {}, e = d.env_only || {};
   const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, max_mcap:0, queue:0, last_refresh:null, poll_sec:600};
   const gw = d.gainer_watch || {enabled:false, interval_sec:1800, cluster_min_wallets:2, cluster_window_d:5};
+  const mg = d.mem_guard || {limit_mb:400, current_mb:null, available:false};
+  const mgPct = (mg.available && mg.current_mb!=null && mg.limit_mb) ? Math.min(999, mg.current_mb/mg.limit_mb*100) : null;
+  const mgBadge = mgPct==null ? '' : (mgPct>=90?'<span class="badge b-dismissed">YÜKSEK</span>'
+    : mgPct>=70?'<span class="badge b-open">ORTA</span>':'<span class="badge b-resolved">NORMAL</span>');
   const grid = $('#setGrid');
 
   if(_setSub === 'conn'){
@@ -775,6 +779,28 @@ function paintSettingsGrid(){
         <span class="note">Kümelenme sonuçları "AI tespit → Momentum" sekmesinde listelenir.</span>
         <button id="gwToggle" class="${gw.enabled?'danger':''}">${gw.enabled?'kapat':'aç'}</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h3>Bellek koruması</h3>
+      <p class="desc">Kümelenme izleme ve trend tarama, her turdan önce bu instance'ın kendi RAM
+        kullanımını ölçer; aşağıdaki sınırı aşarsa o tur atlanır ve bir sonraki döngüde tekrar
+        denenir — instance'ı OOM ile çökertmeden önce fren yapar. Özelliklerin kendi aç/kapa
+        anahtarlarının <b>yerine değil, üstüne</b> eklenen ek bir korumadır.</p>
+      ${mg.available ? `
+      <div class="statusline">${mgBadge}
+        <span>şu an <b class="ok">${Math.round(mg.current_mb)} MB</b> / ${Math.round(mg.limit_mb)} MB
+          (%${mgPct.toFixed(0)})</span></div>
+      <div class="gauge"><i style="width:${Math.min(100,mgPct).toFixed(1)}%;background:${mgPct>=90?'var(--red)':mgPct>=70?'var(--amber)':'var(--green)'}"></i></div>
+      ` : `<p class="hint">psutil kurulu değil — bellek ölçülemiyor, koruma pasif kalır (her zaman izin verir).</p>`}
+      <div class="field" style="margin-top:14px">
+        <label>sınır (MB)</label>
+        <input id="mgLimit" type="number" min="64" max="4096" step="10" value="${Math.round(mg.limit_mb)}" style="max-width:140px">
+      </div>
+      <div class="card-actions">
+        <span class="note">64–4096 MB. Render'ın yaygın ücretsiz/starter planı 512MB — altında güvenli bir pay bırak (örn. 400).</span>
+        <button id="mgSave">kaydet</button>
+      </div>
     </div>`;
   } else {
     grid.innerHTML = `
@@ -867,6 +893,13 @@ function wireSettingsHandlers(){
     const turnOn = !((_setData.gainer_watch||{}).enabled);
     try{ await api('/settings', {method:'POST', body:JSON.stringify({gainer_watch_enabled:turnOn})});
       flash(turnOn?'kümelenme izleme açıldı':'kümelenme izleme kapatıldı'); route('settings');
+    }catch(e){ flash(e.message); }
+  });
+  on('#mgSave', async ()=>{
+    const v = parseFloat($('#mgLimit').value);
+    if(!(v >= 64 && v <= 4096)){ flash('geçersiz sınır (64–4096 MB)'); return; }
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({mem_guard_limit_mb:v})});
+      flash('bellek sınırı kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
   });
   on('#mmcSave', async ()=>{
