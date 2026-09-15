@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import time
+from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -53,6 +54,30 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
 log = logging.getLogger("solscope")
+
+# --- Canlı terminal: admin panelinde "sitenin şu an ne yaptığını" göstermek
+#     için tüm modüllerin (main/cache/xpost + engine/rpc __name__ logger'ları,
+#     hepsi root'a propagate eder) log kayıtlarının son N tanesini bellekte
+#     tutar. Ayrı bir dosya/DB yazımı yok — sadece bir halka tampon. ---
+_LIVE_LOG: deque[dict] = deque(maxlen=250)
+
+
+class _LiveLogHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            _LIVE_LOG.append({
+                "ts": record.created,
+                "level": record.levelname,
+                "logger": record.name,
+                "msg": self.format(record),
+            })
+        except Exception:  # noqa: BLE001 - loglama asla isteği çökertmemeli
+            pass
+
+
+_live_handler = _LiveLogHandler()
+_live_handler.setFormatter(logging.Formatter("%(message)s"))
+logging.getLogger().addHandler(_live_handler)
 
 BASE58 = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
@@ -2030,6 +2055,12 @@ async def admin_gainer_remove(address: str):
     state["cache"].gainer_remove(address)
     _reload_gainers()
     return {"ok": True}
+
+
+@app.get("/api/admin/live-log", dependencies=[Depends(_admin)])
+async def admin_live_log():
+    """Panel > Canlı terminal için: bellekteki son log kayıtları (en yeni en sonda)."""
+    return {"lines": list(_LIVE_LOG)}
 
 
 @app.get("/api/admin/gainer-watch/clusters", dependencies=[Depends(_admin)])

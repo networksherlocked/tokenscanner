@@ -154,6 +154,27 @@ button.link:hover{color:var(--gold);border-color:var(--gold-dim)}
 .vleg .n{color:var(--text);font-family:var(--disp);font-weight:600}
 .vbox.empty{color:var(--dim);font-size:11px}
 
+/* --- canlı terminal --- */
+.term-card{border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-bottom:14px;background:#05070c}
+.term-bar{display:flex;align-items:center;gap:7px;padding:8px 12px;background:#0d1420;border-bottom:1px solid var(--rule)}
+.term-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.term-dot.r{background:#ff5f57}.term-dot.y{background:#febc2e}.term-dot.g{background:#28c840}
+.term-title{font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.04em}
+.term-live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--green)}
+.term-live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.4s ease-in-out infinite}
+.term{height:280px;overflow-y:auto;padding:10px 14px;font-size:11.5px;line-height:1.7}
+.term .tline{display:flex;gap:9px;white-space:pre-wrap;word-break:break-word}
+.term .tline .tt{color:var(--dim);flex:none}
+.term .tline .tl{flex:none;font-weight:700;min-width:52px}
+.term .tline.lvl-i .tl{color:var(--blue)}
+.term .tline.lvl-w .tl{color:var(--amber)}
+.term .tline.lvl-e .tl{color:var(--red)}
+.term .tline.lvl-d .tl{color:var(--dim)}
+.term .tline .tm{color:var(--text)}
+.term::-webkit-scrollbar{width:8px}
+.term::-webkit-scrollbar-thumb{background:var(--rule2);border-radius:4px}
+
 /* --- son aktivite akışı --- */
 .feedgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:760px){.feedgrid{grid-template-columns:1fr}}
@@ -478,6 +499,16 @@ function renderPanel(d){
       <div id="vBox"></div>
     </div>
 
+    <div class="section-title">Canlı terminal</div>
+    <div class="term-card">
+      <div class="term-bar">
+        <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+        <span class="term-title">solscope · canlı log</span>
+        <span class="term-live"><i></i>canlı</span>
+      </div>
+      <div class="term" id="termBox"><div class="muted" style="padding:10px">yükleniyor…</div></div>
+    </div>
+
     <div class="section-title">Özet</div>
     <div class="card sumcard">
       <div class="sumrow">${sumRow(SUM_ITEMS, s)}</div>
@@ -512,12 +543,33 @@ function renderPanel(d){
   paintOrg(d);
   paintVerdict(d);
   paintFeed(d);
+  paintTerm();
   let last = calls(d);
   _poll = setInterval(async ()=>{
     let j; try{ j = await api('/overview'); }catch(e){ return; }
     const now = calls(j);
     paintProv(j); paintRpc(j, now !== last); paintOrg(j); paintVerdict(j); paintFeed(j); last = now;
+    paintTerm();
   }, 4000);
+}
+const LOG_LVL_CLASS = {INFO:'i', WARNING:'w', ERROR:'e', CRITICAL:'e', DEBUG:'d'};
+function termLine(l){
+  const d = new Date((l.ts||0)*1000);
+  const p2 = n => String(n).padStart(2,'0');
+  const hh = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  const cls = LOG_LVL_CLASS[l.level] || 'i';
+  return `<div class="tline lvl-${cls}"><span class="tt">${hh}</span>` +
+    `<span class="tl">${esc(l.level||'INFO')}</span><span class="tm">${esc(l.msg||'')}</span></div>`;
+}
+async function paintTerm(){
+  const box = $('#termBox'); if(!box) return;
+  let j; try{ j = await api('/live-log'); }catch(e){ return; }
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  const lines = j.lines || [];
+  box.innerHTML = lines.length
+    ? lines.map(termLine).join('')
+    : '<div class="muted" style="padding:10px">henüz kayıt yok</div>';
+  if(atBottom) box.scrollTop = box.scrollHeight;
 }
 function fmtUptime(sec){
   sec = sec||0;
