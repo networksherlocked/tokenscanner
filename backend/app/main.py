@@ -107,7 +107,7 @@ GAIN_POLL_MIN = int(os.getenv("GAIN_POLL_MIN_SEC", "3600"))
 #     Birden çok gainer cüzdanı aynı, henüz taramadığımız mint'te yakın
 #     zamanda toplanırsa admin panelinde "kümelenme" olarak yüzeye çıkar —
 #     bir tokenin patlamasından ÖNCE, o tokeni taramadan sinyal verir. ---
-GAINER_WATCH_ENABLED = os.getenv("GAINER_WATCH_ENABLED", "1") != "0"
+GAINER_WATCH_ENABLED = os.getenv("GAINER_WATCH_ENABLED", "0") != "0"
 GAINER_WATCH_INTERVAL = int(os.getenv("GAINER_WATCH_INTERVAL_SEC", "1800"))  # 30 dk
 GAINER_WATCH_BATCH = int(os.getenv("GAINER_WATCH_BATCH", "40"))  # döngü başına kaç cüzdan
 GAINER_CLUSTER_MIN = int(os.getenv("GAINER_CLUSTER_MIN", "2"))  # min. farklı cüzdan
