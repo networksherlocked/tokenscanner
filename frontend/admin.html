@@ -619,6 +619,7 @@ function srcBadge(src){
 }
 function renderSettings(d){
   const b = d.birdeye || {}, e = d.env_only || {};
+  const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, queue:0, last_refresh:null, poll_sec:600};
   $('#view').classList.add('cols');
   $('#view').innerHTML = `
     <div class="section-title">API & bağlantı</div>
@@ -705,6 +706,34 @@ function renderSettings(d){
       </div>
     </div>
 
+    <div class="section-title">Otomasyon</div>
+
+    <div class="card">
+      <h3>Trend tarama</h3>
+      <p class="desc">Her gün trend olan Solana tokenlarını (GeckoTerminal) otomatik olarak <b>sırayla</b> tarar —
+        anında değil, kuyruktan bir defada tek token; insanlar arayıp taramayı beklemesin diye sonuç önceden
+        önbelleğe düşmüş olur. Ayrı bir özellik — yükseliş/kümelenme izlemeyle ilgisi yok.</p>
+      <div class="statusline">
+        ${ts.enabled?'<span class="badge b-resolved">AÇIK</span>':'<span class="badge b-open">KAPALI</span>'}
+        <span class="muted">kuyrukta <b>${ts.queue}</b> token</span><span class="muted">·</span>
+        <span class="muted">${ts.last_refresh?('liste '+ago(ts.last_refresh)+' önce yenilendi'):'liste henüz çekilmedi'}</span>
+      </div>
+      <div class="field">
+        <label>kaç token izlensin</label>
+        <input id="tsMax" type="number" min="1" max="100" value="${ts.max_tokens}" style="max-width:120px">
+      </div>
+      <div class="field">
+        <label>min market cap ($)</label>
+        <input id="tsMcap" type="number" min="0" step="1000" value="${Math.round(ts.min_mcap)}" style="max-width:180px">
+      </div>
+      <div class="card-actions">
+        <span class="note">Kuyruktan her ~${Math.round(ts.poll_sec/60)} dakikada bir tek token taranır — bir anda hepsi değil.</span>
+        <button class="ghost sm" id="tsRunNow">şimdi bir adım ilerlet</button>
+        <button id="tsToggle" class="${ts.enabled?'danger':''}">${ts.enabled?'kapat':'aç'}</button>
+        <button id="tsSave">eşikleri kaydet</button>
+      </div>
+    </div>
+
     <div class="section-title">Yalnızca env (bilgi)</div>
     <div class="card">
       <p class="desc">Bunlar servis env değişkenleridir; değiştirmek için Render'da güncelle + yeniden dağıt.</p>
@@ -752,6 +781,37 @@ function renderSettings(d){
     try{ await api('/settings', {method:'POST', body:JSON.stringify({refresh_cooldown_min:m})});
       flash('yenileme aralığı kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
+  };
+  $('#tsToggle').onclick = async ()=>{
+    const turnOn = !ts.enabled;
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({trend_scan_enabled:turnOn})});
+      flash(turnOn?'trend tarama açıldı':'trend tarama kapatıldı'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+  $('#tsSave').onclick = async ()=>{
+    const n = parseInt($('#tsMax').value, 10);
+    const mc = parseFloat($('#tsMcap').value);
+    if(!(n >= 1)){ flash('geçersiz token sayısı'); return; }
+    if(!(mc >= 0)){ flash('geçersiz market cap'); return; }
+    try{
+      await api('/settings', {method:'POST', body:JSON.stringify({
+        trend_scan_max_tokens:n, trend_scan_min_mcap:mc,
+      })});
+      flash('eşikler kaydedildi'); route('settings');
+    }catch(e){ flash(e.message); }
+  };
+  $('#tsRunNow').onclick = async ()=>{
+    const btn = $('#tsRunNow'); btn.disabled = true; const o = btn.textContent;
+    btn.textContent = 'ilerletiliyor…';
+    try{
+      const j = await api('/trend-scan/run-now', {method:'POST'});
+      if(!j.enabled) flash('önce trend taramayı aç');
+      else if(j.scanned) flash(`tarandı: ${j.mint}`);
+      else if(j.skipped) flash(`${j.mint} zaten önbellekte — atlandı`);
+      else if(j.error) flash(`hata: ${j.error}`);
+      else flash(`kuyruk: ${j.queue ?? 0}`);
+      route('settings');
+    }catch(e){ flash(e.message); btn.disabled = false; btn.textContent = o; }
   };
   $('#mmcSave').onclick = async ()=>{
     const v = parseFloat($('#mmcInput').value);

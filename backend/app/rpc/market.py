@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 
 DEXSCREENER = "https://api.dexscreener.com/latest/dex/tokens/{mint}"
 GECKOTERMINAL_TOKEN = "https://api.geckoterminal.com/api/v2/networks/solana/tokens/{mint}"
+GECKOTERMINAL_TRENDING = "https://api.geckoterminal.com/api/v2/networks/solana/trending_pools"
 
 # --- Süreç-içi önbellek + eşzamanlı istek birleştirme + GeckoTerminal kısıtı ---
 #
@@ -220,6 +221,56 @@ async def _fetch_geckoterminal(mint: str, timeout: float) -> MarketSnapshot:
         snap.pair_address = ids[0].split("_", 1)[-1]
 
     return snap
+
+
+async def fetch_trending_tokens(pages: int = 1, timeout: float = 10.0) -> list[dict]:
+    """GeckoTerminal'in Solana 'trending pools' listesi — otomatik trend
+    tarama özelliği için (bkz. main.py trend_scan_tick). Sıra zaten
+    GeckoTerminal'in kendi trend skoruna göre geliyor, biz yeniden
+    sıralamıyoruz. Her sayfa 20 havuz döner; aynı GeckoTerminal kısıtına
+    (_GT_MIN_INTERVAL) tabidir. Döner: [{"mint","symbol","name",
+    "image_url","market_cap"}, …] — RPC harcamaz."""
+    global _gt_last
+    out: list[dict] = []
+    async with _gt_lock:
+        for page in range(1, max(1, pages) + 1):
+            wait = _GT_MIN_INTERVAL - (time.monotonic() - _gt_last)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            try:
+                async with httpx.AsyncClient(timeout=timeout, headers=_HEADERS) as client:
+                    resp = await client.get(
+                        GECKOTERMINAL_TRENDING,
+                        params={"page": page, "include": "base_token"},
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                log.warning("GeckoTerminal trend listesi alınamadı (sayfa %s): %s", page, exc)
+                break
+            finally:
+                _gt_last = time.monotonic()
+
+            tokens = {
+                t["id"]: t for t in (data.get("included") or []) if t.get("type") == "token"
+            }
+            for pool in data.get("data") or []:
+                rel = ((pool.get("relationships") or {}).get("base_token") or {}).get("data") or {}
+                tok_id = rel.get("id")
+                tok = tokens.get(tok_id)
+                if not tok or not tok_id:
+                    continue
+                mint = tok_id.split("_", 1)[-1]
+                tattrs = tok.get("attributes") or {}
+                pattrs = pool.get("attributes") or {}
+                out.append({
+                    "mint": mint,
+                    "symbol": tattrs.get("symbol"),
+                    "name": tattrs.get("name"),
+                    "image_url": tattrs.get("image_url"),
+                    "market_cap": _f(pattrs.get("market_cap_usd")) or _f(pattrs.get("fdv_usd")),
+                })
+    return out
 
 
 def _f(value) -> float | None:

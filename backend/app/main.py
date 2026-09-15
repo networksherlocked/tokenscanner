@@ -37,7 +37,7 @@ from .engine.scanner import scan_token, TokenTooSmall
 from .render_card import render_badge_svg, render_png
 from . import xpost
 from .rpc import trades as rpc_trades
-from .rpc.market import fetch_market
+from .rpc.market import fetch_market, fetch_trending_tokens
 from .rpc.pool import RpcError, RpcPool
 from .rpc.pool import mask_endpoints as pool_mask
 from .rpc.solana import wallet_current_mints, wallet_token_share
@@ -113,6 +113,37 @@ GAINER_WATCH_BATCH = int(os.getenv("GAINER_WATCH_BATCH", "40"))  # döngü baş�
 GAINER_CLUSTER_MIN = int(os.getenv("GAINER_CLUSTER_MIN", "2"))  # min. farklı cüzdan
 GAINER_CLUSTER_WINDOW_DAYS = int(os.getenv("GAINER_CLUSTER_WINDOW_DAYS", "5"))
 GAINER_WATCH_KEEP_DAYS = int(os.getenv("GAINER_WATCH_KEEP_DAYS", "21"))  # eski kayıt temizliği
+
+# --- Trend tarama: her gün trend olan tokenları (GeckoTerminal) otomatik,
+#     sırayla tarar — insanların zaten arayacağı tokenler onlar aramadan
+#     önbelleğe düşmüş olsun diye. Açık/kapalı + sayı + min market cap admin
+#     panelinden (DB, config_get/config_set) ayarlanır; yalnızca döngü
+#     aralığı (ne sıklıkla bir token taransın) env'de sabit. Ayrı bir özellik
+#     — gainer izleme / risk yayılımıyla ilgisi yok. ---
+TREND_SCAN_POLL_SEC = int(os.getenv("TREND_SCAN_POLL_SEC", "600"))  # kuyruktan 1 token/bu kadar sn
+TREND_SCAN_REFRESH_SEC = int(os.getenv("TREND_SCAN_REFRESH_SEC", "3600"))  # trend listesi en erken bu kadar sürede bir yenilenir
+_TREND_MAX_TOKENS_DEFAULT = 20
+_TREND_MIN_MCAP_DEFAULT = 20_000.0
+
+
+def _trend_scan_enabled() -> bool:
+    return state["cache"].config_get("trend_scan_enabled") == "1"
+
+
+def _trend_scan_max_tokens() -> int:
+    v = state["cache"].config_get("trend_scan_max_tokens")
+    try:
+        return max(1, min(100, int(v)))
+    except (TypeError, ValueError):
+        return _TREND_MAX_TOKENS_DEFAULT
+
+
+def _trend_scan_min_mcap() -> float:
+    v = state["cache"].config_get("trend_scan_min_mcap")
+    try:
+        return max(0.0, float(v))
+    except (TypeError, ValueError):
+        return _TREND_MIN_MCAP_DEFAULT
 
 
 async def refresh_track() -> None:
@@ -973,6 +1004,74 @@ async def _gainer_watch_loop() -> None:
         await asyncio.sleep(GAINER_WATCH_INTERVAL)
 
 
+async def trend_scan_tick() -> dict:
+    """Trend kuyruğu boşsa (ve son yenilemeden TREND_SCAN_REFRESH_SEC geçtiyse)
+    GeckoTerminal'den güncel trend listesini çekip admin ayarlarına göre
+    (sayı + min market cap) filtreleyip kuyruğa yazar; sonra kuyruktan TEK
+    bir mint alıp — zaten taze önbellekte değilse — gerçek bir tarama
+    yapar. Bu yüzden 20 token bile anında değil, döngü aralığı kadar
+    zamana yayılarak taranır ("sırayla" — RPC bütçesini bir anda tüketmez).
+    """
+    if not _trend_scan_enabled():
+        return {"enabled": False}
+    cache = state.get("cache")
+    if cache is None:
+        return {"enabled": True, "error": "cache yok"}
+
+    q = state.setdefault("trend_queue", [])
+    last_refresh = state.get("trend_last_refresh", 0.0)
+    now = time.time()
+    if not q and now - last_refresh > TREND_SCAN_REFRESH_SEC:
+        try:
+            trending = await fetch_trending_tokens()
+        except Exception:  # noqa: BLE001
+            log.exception("Trend listesi çekilemedi")
+            trending = []
+        min_mcap = _trend_scan_min_mcap()
+        max_n = _trend_scan_max_tokens()
+        picked: list[str] = []
+        seen: set[str] = set()
+        for t in trending:
+            mint = t.get("mint")
+            if not mint or mint in seen:
+                continue
+            seen.add(mint)
+            if (t.get("market_cap") or 0) < min_mcap:
+                continue
+            picked.append(mint)
+            if len(picked) >= max_n:
+                break
+        state["trend_queue"] = picked
+        state["trend_last_refresh"] = now
+        q = picked
+        log.info("TREND TARAMA: liste yenilendi — %s token kuyruğa alındı", len(picked))
+
+    if not q:
+        return {"enabled": True, "queue": 0}
+
+    mint = q.pop(0)
+    if cache.get(mint):
+        # zaten taze önbellekte (gerçek bir ziyaretçi ya da önceki tur
+        # taramış) — bosuna RPC harcamayalım, sıradaki tur bir sonrakine geçer.
+        return {"enabled": True, "queue": len(q), "mint": mint, "skipped": "cached"}
+    try:
+        await _run_scan(mint)
+        log.info("TREND TARAMA: %s otomatik tarandı (kalan kuyruk: %s)", mint, len(q))
+        return {"enabled": True, "queue": len(q), "mint": mint, "scanned": True}
+    except Exception as exc:  # noqa: BLE001
+        log.info("TREND TARAMA: %s taranamadı: %s", mint, exc)
+        return {"enabled": True, "queue": len(q), "mint": mint, "error": str(exc)}
+
+
+async def _trend_scan_loop() -> None:
+    while True:
+        try:
+            await trend_scan_tick()
+        except Exception:  # noqa: BLE001
+            log.exception("Trend tarama döngüsü hatası")
+        await asyncio.sleep(TREND_SCAN_POLL_SEC)
+
+
 async def _track_loop() -> None:
     while True:
         try:
@@ -1052,9 +1151,11 @@ async def lifespan(app: FastAPI):
         log.exception("Min. tarama eşiği yüklenemedi")
     track_task = asyncio.create_task(_track_loop())
     gainer_watch_task = asyncio.create_task(_gainer_watch_loop())
+    trend_scan_task = asyncio.create_task(_trend_scan_loop())
     yield
     track_task.cancel()
     gainer_watch_task.cancel()
+    trend_scan_task.cancel()
     await state["pool"].aclose()
     state["cache"].close()
 
@@ -1862,6 +1963,13 @@ async def admin_gainer_watch_scan_now():
     return {"ok": True, "checked": checked, "new": new}
 
 
+@app.post("/api/admin/trend-scan/run-now", dependencies=[Depends(_admin)])
+async def admin_trend_scan_run_now():
+    """Döngüyü beklemeden bir adım (kuyruk boşsa yenile, sonra 1 token tara)
+    ilerletir — panelden anında test/tetikleme için."""
+    return await trend_scan_tick()
+
+
 def _mask_key(key: str) -> str:
     if not key:
         return ""
@@ -1901,6 +2009,14 @@ async def admin_settings():
             "masked": _mask_key(db_bkey or env_bkey),
         },
         "x_autopost": xpost.public_status(),
+        "trend_scan": {
+            "enabled": _trend_scan_enabled(),
+            "max_tokens": _trend_scan_max_tokens(),
+            "min_mcap": _trend_scan_min_mcap(),
+            "queue": len(state.get("trend_queue") or []),
+            "last_refresh": state.get("trend_last_refresh") or None,
+            "poll_sec": TREND_SCAN_POLL_SEC,
+        },
         # --- yalnızca env (bilgi amaçlı) ---
         "env_only": {
             "rate_limit_per_min": RATE_LIMIT,
@@ -1951,6 +2067,35 @@ async def admin_settings_set(payload: dict = Body(...)):
         cache.config_set("min_market_cap_usd", str(mmc))
         scanner.set_min_market_cap(mmc)
         changed.append("min_market_cap")
+
+    # --- Trend tarama ---
+    if "trend_scan_enabled" in payload:
+        cache.config_set(
+            "trend_scan_enabled", "1" if payload.get("trend_scan_enabled") else "0"
+        )
+        changed.append("trend_scan_enabled")
+
+    if "trend_scan_max_tokens" in payload:
+        try:
+            n = int(payload["trend_scan_max_tokens"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "trend_scan_max_tokens bir tam sayı olmalı.") from None
+        if not 1 <= n <= 100:
+            raise HTTPException(422, "Token sayısı 1–100 arasında olmalı.")
+        cache.config_set("trend_scan_max_tokens", str(n))
+        state["trend_queue"] = []  # yeni ayarla yeniden doldurulsun
+        changed.append("trend_scan_max_tokens")
+
+    if "trend_scan_min_mcap" in payload:
+        try:
+            mmc2 = float(payload["trend_scan_min_mcap"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "trend_scan_min_mcap bir sayı olmalı.") from None
+        if not 0 <= mmc2 <= 1_000_000_000:
+            raise HTTPException(422, "Eşik 0–1.000.000.000 USD arasında olmalı.")
+        cache.config_set("trend_scan_min_mcap", str(mmc2))
+        state["trend_queue"] = []
+        changed.append("trend_scan_min_mcap")
 
     if "rpc_endpoints" in payload:
         raw = str(payload.get("rpc_endpoints") or "").strip()
