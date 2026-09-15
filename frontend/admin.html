@@ -736,13 +736,6 @@ function paintSettingsGrid(){
     </div>`;
   } else if(_setSub === 'auto'){
     grid.innerHTML = `
-    ${d.automations_locked ? `
-    <div class="card" style="grid-column:1/-1;border-color:var(--red)">
-      <h3 style="color:var(--red)">Otomasyonlar kilitli</h3>
-      <p class="desc">Tekrarlayan bellek (OOM) çökmeleri nedeniyle kümelenme izleme ve trend tarama,
-        kök neden netleşene kadar <b>koddan zorla kapatıldı</b> — aşağıdaki aç/kapa düğmeleri
-        tercihini kaydeder ama şu an gerçek bir etkisi yok. Kilit koddan (deploy ile) kaldırılır.</p>
-    </div>` : ''}
     <div class="card">
       <h3>Trend tarama</h3>
       <p class="desc">Her gün trend olan Solana tokenlarını (GeckoTerminal) otomatik olarak <b>sırayla</b> tarar —
@@ -779,6 +772,8 @@ function paintSettingsGrid(){
         ~${Math.round((gw.interval_sec||1800)/60)} dakikada bir zincirden kontrol eder. ${gw.cluster_min_wallets||2}+
         farklı izlenen cüzdan, henüz taramadığımız aynı tokende son ${gw.cluster_window_d||5} gün içinde
         birikirse "AI tespit → Momentum" sekmesinde kümelenme olarak yüzeye çıkar. Kapalıyken döngü RPC harcamadan boşta bekler.</p>
+      <p class="hint">Bu özellik daha önce Render'da tekrarlayan bellek (OOM) çökmesine yol açmıştı — artık
+        aşağıdaki "Bellek koruması" eşiğine takılı, ama yine de dikkatli aç.</p>
       <div class="statusline">
         ${gw.enabled?'<span class="badge b-resolved">AÇIK</span>':'<span class="badge b-open">KAPALI</span>'}
       </div>

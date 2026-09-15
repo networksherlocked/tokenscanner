@@ -154,18 +154,11 @@ GAINER_CLUSTER_WINDOW_DAYS = int(os.getenv("GAINER_CLUSTER_WINDOW_DAYS", "5"))
 GAINER_WATCH_KEEP_DAYS = int(os.getenv("GAINER_WATCH_KEEP_DAYS", "21"))  # eski kayıt temizliği
 
 
-# ACİL KİLİT (2026-09-15): Render'da OOM çökmesi art arda tekrarladı, kök
-# neden gainer-watch'a odaklanan mitigasyonlara rağmen kesin kanıtlanamadı
-# (trend tarama da bu sırada denenmiş olabilir). Kök neden netleşene kadar
-# arka plan otomasyonlarını (kümelenme izleme + trend tarama) DB ayarından
-# BAĞIMSIZ olarak kilitler. Admin panelindeki düğmeler kaydediliyor ama şu an
-# gerçek etkisi yok. Kilidi açmak için: AUTOMATIONS_LOCKED = False yap + deploy.
-AUTOMATIONS_LOCKED = True
-
-
 def _gainer_watch_enabled() -> bool:
-    if AUTOMATIONS_LOCKED:
-        return False
+    """Kullanıcı, önceki OOM çökmesine bu özelliği açık bırakarak yol açtığını
+    doğruladı — kanıt kesinleşti. Panelden yine aç/kapa edilebilir (bkz.
+    lifespan() içindeki tek seferlik güvenlik sıfırlaması), ama artık bellek
+    koruması (_mem_guard_ok) de her turdan önce devrede."""
     return state["cache"].config_get("gainer_watch_enabled") == "1"
 
 # --- Trend tarama: her gün trend olan tokenları (GeckoTerminal) otomatik,
@@ -181,8 +174,6 @@ _TREND_MIN_MCAP_DEFAULT = 20_000.0
 
 
 def _trend_scan_enabled() -> bool:
-    if AUTOMATIONS_LOCKED:
-        return False
     return state["cache"].config_get("trend_scan_enabled") == "1"
 
 
@@ -1183,6 +1174,18 @@ async def lifespan(app: FastAPI):
     except Exception:  # noqa: BLE001
         log.exception("İşaretli cüzdan notu onarımı düştü")
     try:
+        # Kullanıcı kümelenme izlemeyi kendi açmış ve bu, doğrulanmış tekrarlayan
+        # bir OOM çökmesine yol açmıştı. Panel toggle'ı tekrar gerçek kontrolü
+        # kullanıcıya veriyor, ama DB'de hâlâ "1" kalmış olabileceği için bunu
+        # tek seferlik olarak güvenli tarafa (kapalı) çekiyoruz; sonraki
+        # yeniden başlatmalarda kullanıcının kendi tercihine dokunmaz.
+        if state["cache"].config_get("_gw_oom_reset_v1") != "1":
+            state["cache"].config_set("gainer_watch_enabled", "0")
+            state["cache"].config_set("_gw_oom_reset_v1", "1")
+            log.info("Kümelenme izleme, doğrulanmış OOM olayı sonrası tek seferlik olarak kapatıldı.")
+    except Exception:  # noqa: BLE001
+        log.exception("Kümelenme izleme güvenlik sıfırlaması başarısız")
+    try:
         rows = {r["address"]: (r["note"] or "flagged") for r in state["cache"].flagged_list()}
         registry.set_runtime_flagged(rows)
         if rows:
@@ -2068,7 +2071,6 @@ async def admin_settings():
     db_bkey = cache.config_get("birdeye_api_key") or ""
     env_bkey = os.getenv("BIRDEYE_API_KEY", "")
     return {
-        "automations_locked": AUTOMATIONS_LOCKED,
         # --- düzenlenebilir ---
         "cache_ttl_hours": round(cache.ttl / 3600, 3),
         "cache_ttl_source": "db" if cache.config_get("cache_ttl_sec") else "env",
