@@ -644,7 +644,7 @@ function paintSettingsGrid(){
   const d = _setData; if(!d) return;
   const b = d.birdeye || {}, e = d.env_only || {};
   const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, max_mcap:0, queue:0, last_refresh:null, poll_sec:600};
-  const gw = d.gainer_watch || {enabled:true, interval_sec:1800, cluster_min_wallets:2, cluster_window_d:5};
+  const gw = d.gainer_watch || {enabled:false, interval_sec:1800, cluster_min_wallets:2, cluster_window_d:5};
   const grid = $('#setGrid');
 
   if(_setSub === 'conn'){

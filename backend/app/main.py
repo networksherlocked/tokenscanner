@@ -115,12 +115,11 @@ GAINER_WATCH_KEEP_DAYS = int(os.getenv("GAINER_WATCH_KEEP_DAYS", "21"))  # eski 
 
 
 def _gainer_watch_enabled() -> bool:
-    """DB'de hiç ayarlanmamışsa (ilk kurulum) açık kabul edilir; admin panelinden
-    kapatılınca bu, yeniden dağıtım gerekmeden anında ve kalıcı olarak geçerli olur."""
-    v = state["cache"].config_get("gainer_watch_enabled")
-    if v is None:
-        return True
-    return v == "1"
+    """ACİL: daha önce Render'da tekrarlayan OOM çökmesine yol açtığı için
+    varsayılan KAPALI — DB'de açıkça "1" yazmadıkça çalışmaz. Admin panelinden
+    (Ayarlar > Otomasyon) açılabilir, ama bellek sorunu kesin çözülene kadar
+    kapalı tutulması önerilir."""
+    return state["cache"].config_get("gainer_watch_enabled") == "1"
 
 # --- Trend tarama: her gün trend olan tokenları (GeckoTerminal) otomatik,
 #     sırayla tarar — insanların zaten arayacağı tokenler onlar aramadan
