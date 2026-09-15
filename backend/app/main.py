@@ -1002,6 +1002,7 @@ async def gainer_watch_scan(cache: ScanCache, pool: RpcPool) -> tuple[int, int]:
     cursor = state.get("_gw_cursor", 0) % len(addrs)
     batch = (addrs[cursor:] + addrs[:cursor])[:GAINER_WATCH_BATCH]
     state["_gw_cursor"] = (cursor + len(batch)) % len(addrs)
+    log.info("KÜMELENME İZLEME: %s cüzdan taranıyor…", len(batch))
 
     sem = asyncio.Semaphore(4)
     new_count = 0
@@ -1021,11 +1022,10 @@ async def gainer_watch_scan(cache: ScanCache, pool: RpcPool) -> tuple[int, int]:
             new_count += 1
 
     await asyncio.gather(*(one(a) for a in batch))
-    if new_count:
-        log.info(
-            "KÜMELENME İZLEME: %s cüzdan kontrol edildi, %s yeni (cüzdan,token) kaydedildi",
-            len(batch), new_count,
-        )
+    log.info(
+        "KÜMELENME İZLEME: %s cüzdan kontrol edildi, %s yeni (cüzdan,token) kaydedildi",
+        len(batch), new_count,
+    )
     return len(batch), new_count
 
 
@@ -1151,12 +1151,13 @@ async def trend_scan_tick() -> dict:
         # zaten taze önbellekte (gerçek bir ziyaretçi ya da önceki tur
         # taramış) — bosuna RPC harcamayalım, sıradaki tur bir sonrakine geçer.
         return {"enabled": True, "queue": len(q), "mint": mint, "skipped": "cached"}
+    log.info("TREND TARAMA: %s taranıyor… (kalan kuyruk: %s)", _short_addr(mint), len(q))
     try:
         await _run_scan(mint)
-        log.info("TREND TARAMA: %s otomatik tarandı (kalan kuyruk: %s)", mint, len(q))
+        log.info("TREND TARAMA: %s otomatik tarandı (kalan kuyruk: %s)", _short_addr(mint), len(q))
         return {"enabled": True, "queue": len(q), "mint": mint, "scanned": True}
     except Exception as exc:  # noqa: BLE001
-        log.info("TREND TARAMA: %s taranamadı: %s", mint, exc)
+        log.info("TREND TARAMA: %s taranamadı: %s", _short_addr(mint), exc)
         return {"enabled": True, "queue": len(q), "mint": mint, "error": str(exc)}
 
 
@@ -1504,6 +1505,11 @@ async def _run_scan(mint: str) -> dict:
             )
             # X otomatik paylaşım — bloklamaz, hata taramayı etkilemez.
             asyncio.create_task(xpost.maybe_autopost(result, state["cache"]))
+            log.info(
+                "TARAMA TAMAMLANDI: %s (%s) → %s (skor %s)",
+                token.get("symbol") or _short_addr(mint), _short_addr(mint),
+                verdict.get("kind"), verdict.get("score"),
+            )
             return result
         finally:
             _inflight.pop(mint, None)
@@ -1518,8 +1524,11 @@ async def scan(mint: str, request: Request):
     mint = _validate(mint)
     cached = state["cache"].get(mint)
     if cached:
+        sym = ((cached.get("token") or {}).get("symbol")) or _short_addr(mint)
+        log.info("Ziyaretçi %s tokenini arattı — önbellekten yanıtlandı", sym)
         return cached
     _check_rate(request)
+    log.info("Ziyaretçi %s tokenini arattı — yeni tarama başlıyor", _short_addr(mint))
     try:
         return await _run_scan(mint)
     except TokenTooSmall as exc:
@@ -1537,6 +1546,7 @@ async def rescan(mint: str, request: Request):
     mint = _validate(mint)
     _check_rate(request)
     _check_refresh_cooldown(mint)
+    log.info("Ziyaretçi %s için Yenile'ye bastı — yeniden taranıyor", _short_addr(mint))
     try:
         return await _run_scan(mint)
     except TokenTooSmall as exc:
