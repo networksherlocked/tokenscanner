@@ -619,7 +619,7 @@ function srcBadge(src){
 }
 function renderSettings(d){
   const b = d.birdeye || {}, e = d.env_only || {};
-  const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, queue:0, last_refresh:null, poll_sec:600};
+  const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, max_mcap:0, queue:0, last_refresh:null, poll_sec:600};
   $('#view').classList.add('cols');
   $('#view').innerHTML = `
     <div class="section-title">API & bağlantı</div>
@@ -726,8 +726,12 @@ function renderSettings(d){
         <label>min market cap ($)</label>
         <input id="tsMcap" type="number" min="0" step="1000" value="${Math.round(ts.min_mcap)}" style="max-width:180px">
       </div>
+      <div class="field">
+        <label>maksimum market cap ($)</label>
+        <input id="tsMcapMax" type="number" min="0" step="1000" value="${Math.round(ts.max_mcap||0)}" style="max-width:180px">
+      </div>
       <div class="card-actions">
-        <span class="note">Kuyruktan her ~${Math.round(ts.poll_sec/60)} dakikada bir tek token taranır — bir anda hepsi değil.</span>
+        <span class="note">Maksimumda 0 = üst sınır yok. Kuyruktan her ~${Math.round(ts.poll_sec/60)} dakikada bir tek token taranır — bir anda hepsi değil.</span>
         <button class="ghost sm" id="tsRunNow">şimdi bir adım ilerlet</button>
         <button id="tsToggle" class="${ts.enabled?'danger':''}">${ts.enabled?'kapat':'aç'}</button>
         <button id="tsSave">eşikleri kaydet</button>
@@ -791,11 +795,14 @@ function renderSettings(d){
   $('#tsSave').onclick = async ()=>{
     const n = parseInt($('#tsMax').value, 10);
     const mc = parseFloat($('#tsMcap').value);
+    const mcMax = parseFloat($('#tsMcapMax').value);
     if(!(n >= 1)){ flash('geçersiz token sayısı'); return; }
-    if(!(mc >= 0)){ flash('geçersiz market cap'); return; }
+    if(!(mc >= 0)){ flash('geçersiz min market cap'); return; }
+    if(!(mcMax >= 0)){ flash('geçersiz maksimum market cap'); return; }
+    if(mcMax > 0 && mcMax < mc){ flash('maksimum, minimumdan küçük olamaz'); return; }
     try{
       await api('/settings', {method:'POST', body:JSON.stringify({
-        trend_scan_max_tokens:n, trend_scan_min_mcap:mc,
+        trend_scan_max_tokens:n, trend_scan_min_mcap:mc, trend_scan_max_mcap:mcMax,
       })});
       flash('eşikler kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }

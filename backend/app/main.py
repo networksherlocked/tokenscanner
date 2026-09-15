@@ -146,6 +146,15 @@ def _trend_scan_min_mcap() -> float:
         return _TREND_MIN_MCAP_DEFAULT
 
 
+def _trend_scan_max_mcap() -> float:
+    """0 = üst sınır yok (min_market_cap'teki '0 = eşik yok' kuralıyla aynı)."""
+    v = state["cache"].config_get("trend_scan_max_mcap")
+    try:
+        return max(0.0, float(v))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 async def refresh_track() -> None:
     """İzlenen tokenların market cap'ini günceller, süresi dolanları sonuçlandırır."""
     cache = state.get("cache")
@@ -1028,6 +1037,7 @@ async def trend_scan_tick() -> dict:
             log.exception("Trend listesi çekilemedi")
             trending = []
         min_mcap = _trend_scan_min_mcap()
+        max_mcap = _trend_scan_max_mcap()
         max_n = _trend_scan_max_tokens()
         picked: list[str] = []
         seen: set[str] = set()
@@ -1036,7 +1046,10 @@ async def trend_scan_tick() -> dict:
             if not mint or mint in seen:
                 continue
             seen.add(mint)
-            if (t.get("market_cap") or 0) < min_mcap:
+            mcap = t.get("market_cap") or 0
+            if mcap < min_mcap:
+                continue
+            if max_mcap > 0 and mcap > max_mcap:
                 continue
             picked.append(mint)
             if len(picked) >= max_n:
@@ -2013,6 +2026,7 @@ async def admin_settings():
             "enabled": _trend_scan_enabled(),
             "max_tokens": _trend_scan_max_tokens(),
             "min_mcap": _trend_scan_min_mcap(),
+            "max_mcap": _trend_scan_max_mcap(),
             "queue": len(state.get("trend_queue") or []),
             "last_refresh": state.get("trend_last_refresh") or None,
             "poll_sec": TREND_SCAN_POLL_SEC,
@@ -2096,6 +2110,17 @@ async def admin_settings_set(payload: dict = Body(...)):
         cache.config_set("trend_scan_min_mcap", str(mmc2))
         state["trend_queue"] = []
         changed.append("trend_scan_min_mcap")
+
+    if "trend_scan_max_mcap" in payload:
+        try:
+            mmc3 = float(payload["trend_scan_max_mcap"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "trend_scan_max_mcap bir sayı olmalı.") from None
+        if not 0 <= mmc3 <= 1_000_000_000:
+            raise HTTPException(422, "Eşik 0–1.000.000.000 USD arasında olmalı (0 = üst sınır yok).")
+        cache.config_set("trend_scan_max_mcap", str(mmc3))
+        state["trend_queue"] = []
+        changed.append("trend_scan_max_mcap")
 
     if "rpc_endpoints" in payload:
         raw = str(payload.get("rpc_endpoints") or "").strip()
