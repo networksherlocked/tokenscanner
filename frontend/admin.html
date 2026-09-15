@@ -95,6 +95,11 @@ button.link:hover{color:var(--gold);border-color:var(--gold-dim)}
 .section-title{font-family:var(--disp);font-weight:600;font-size:12px;letter-spacing:.16em;
   text-transform:uppercase;color:var(--gold);margin:22px 0 10px}
 
+/* --- ayarlar: sekmeli + kompakt ızgara (kutular tam genişlik yerine yan yana) --- */
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start;margin-top:16px}
+.settings-grid .card{margin-bottom:0}
+.settings-grid .card > .desc,.settings-grid .hint{text-align:left}
+
 /* --- form alanları --- */
 .field{margin-bottom:12px}
 .field label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
@@ -426,6 +431,7 @@ $('#tabs').onclick = e=>{
 };
 let _poll = null;
 function stopPoll(){ if(_poll){ clearInterval(_poll); _poll = null; } }
+let _setData = null, _setSub = 'conn';
 
 async function route(t){
   stopPoll();
@@ -617,14 +623,33 @@ function srcBadge(src){
   if(src==='env') return `<span class="badge b-inconclusive">env</span>`;
   return `<span class="badge b-open">tanımsız</span>`;
 }
+const SETTINGS_SUBS = [['conn','Bağlantı'],['engine','Motor'],['auto','Otomasyon'],['env','Env (bilgi)']];
 function renderSettings(d){
-  const b = d.birdeye || {}, e = d.env_only || {};
-  const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, max_mcap:0, queue:0, last_refresh:null, poll_sec:600};
+  _setData = d;
+  if(!SETTINGS_SUBS.some(([k])=>k===_setSub)) _setSub = 'conn';
   $('#view').classList.add('cols');
   $('#view').innerHTML = `
-    <div class="section-title">API & bağlantı</div>
+    <div class="subtabs" id="setSub">${SETTINGS_SUBS.map(([k,l])=>
+      `<button data-s="${k}" class="${k===_setSub?'on':''}">${l}</button>`).join('')}</div>
+    <div class="settings-grid" id="setGrid"></div>`;
+  $('#setSub').onclick = e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    _setSub = btn.dataset.s;
+    document.querySelectorAll('#setSub button').forEach(x=>x.classList.toggle('on', x===btn));
+    paintSettingsGrid();
+  };
+  paintSettingsGrid();
+}
+function paintSettingsGrid(){
+  const d = _setData; if(!d) return;
+  const b = d.birdeye || {}, e = d.env_only || {};
+  const ts = d.trend_scan || {enabled:false, max_tokens:20, min_mcap:20000, max_mcap:0, queue:0, last_refresh:null, poll_sec:600};
+  const gw = d.gainer_watch || {enabled:true, interval_sec:1800, cluster_min_wallets:2, cluster_window_d:5};
+  const grid = $('#setGrid');
 
-    <div class="card">
+  if(_setSub === 'conn'){
+    grid.innerHTML = `
+    <div class="card" style="grid-column:1/-1">
       <h3>RPC uç noktaları</h3>
       <p class="desc">Solana RPC sağlayıcıları. Biçim: <code>&lt;url&gt;|&lt;rps&gt;</code>, virgülle ayır.
         Helius uçları DAS (deployer geçmişi) için gerekir. Kaydedince <b>havuz anında yeniden yapılandırılır</b> — yeniden dağıtım yok.</p>
@@ -659,10 +684,9 @@ function renderSettings(d){
         <button class="danger sm" id="bkeyClear">sil</button>
         <button id="bkeySave">kaydet</button>
       </div>
-    </div>
-
-    <div class="section-title">Motor</div>
-
+    </div>`;
+  } else if(_setSub === 'engine'){
+    grid.innerHTML = `
     <div class="card">
       <h3>Minimum tarama eşiği</h3>
       <p class="desc">Bir tokenın taranabilmesi için gereken en düşük piyasa değeri (USD). Bunun altındaki tokenlar hiç taranmaz — ziyaretçiye "market cap çok düşük" uyarısı döner ve RPC bütçesi harcanmaz. <b>0 = eşik yok</b> (her token taranır).</p>
@@ -704,10 +728,9 @@ function renderSettings(d){
         <span class="note">0–1440 dk. Admin panelindeki “yeniden tara” bu sınıra takılmaz.</span>
         <button id="rcSave">kaydet</button>
       </div>
-    </div>
-
-    <div class="section-title">Otomasyon</div>
-
+    </div>`;
+  } else if(_setSub === 'auto'){
+    grid.innerHTML = `
     <div class="card">
       <h3>Trend tarama</h3>
       <p class="desc">Her gün trend olan Solana tokenlarını (GeckoTerminal) otomatik olarak <b>sırayla</b> tarar —
@@ -738,8 +761,23 @@ function renderSettings(d){
       </div>
     </div>
 
-    <div class="section-title">Yalnızca env (bilgi)</div>
     <div class="card">
+      <h3>Kümelenme izleme</h3>
+      <p class="desc">Daha önce başarılı çıkmış "yükseliş" cüzdanlarının şu an ne biriktirdiğini arka planda
+        ~${Math.round((gw.interval_sec||1800)/60)} dakikada bir zincirden kontrol eder. ${gw.cluster_min_wallets||2}+
+        farklı izlenen cüzdan, henüz taramadığımız aynı tokende son ${gw.cluster_window_d||5} gün içinde
+        birikirse "AI tespit → Momentum" sekmesinde kümelenme olarak yüzeye çıkar. Kapalıyken döngü RPC harcamadan boşta bekler.</p>
+      <div class="statusline">
+        ${gw.enabled?'<span class="badge b-resolved">AÇIK</span>':'<span class="badge b-open">KAPALI</span>'}
+      </div>
+      <div class="card-actions">
+        <span class="note">Kümelenme sonuçları "AI tespit → Momentum" sekmesinde listelenir.</span>
+        <button id="gwToggle" class="${gw.enabled?'danger':''}">${gw.enabled?'kapat':'aç'}</button>
+      </div>
+    </div>`;
+  } else {
+    grid.innerHTML = `
+    <div class="card" style="grid-column:1/-1">
       <p class="desc">Bunlar servis env değişkenleridir; değiştirmek için Render'da güncelle + yeniden dağıt.</p>
       <table>
         <tr><td>RATE_LIMIT_PER_MIN</td><td class="mono">${e.rate_limit_per_min}</td></tr>
@@ -749,8 +787,12 @@ function renderSettings(d){
         <tr><td>veritabanı</td><td class="mono">${esc(e.database||'—')}</td></tr>
       </table>
     </div>`;
-
-  $('#rpcSave').onclick = async ()=>{
+  }
+  wireSettingsHandlers();
+}
+function wireSettingsHandlers(){
+  const on = (sel, fn) => { const el = $(sel); if(el) el.onclick = fn; };
+  on('#rpcSave', async ()=>{
     const v = $('#rpcInput').value.trim();
     if(!v){ flash('değer boş'); return; }
     const btn = $('#rpcSave'); btn.disabled = true;
@@ -758,41 +800,41 @@ function renderSettings(d){
       const j = await api('/settings', {method:'POST', body:JSON.stringify({rpc_endpoints:v})});
       flash('RPC yeniden yapılandırıldı ('+(j.changed||[]).join(',')+')'); route('settings');
     }catch(e){ flash(e.message); btn.disabled = false; }
-  };
-  $('#bkeySave').onclick = async ()=>{
+  });
+  on('#bkeySave', async ()=>{
     const k = $('#bkeyInput').value.trim();
     if(!k){ flash('anahtar boş'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify({birdeye_api_key:k})});
       flash('Birdeye anahtarı kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
-  };
-  $('#bkeyClear').onclick = async ()=>{
+  });
+  on('#bkeyClear', async ()=>{
     if(!confirm('Birdeye anahtarı silinsin mi?')) return;
     try{ await api('/settings', {method:'POST', body:JSON.stringify({birdeye_api_key:''})});
       flash('silindi'); route('settings');
     }catch(e){ flash(e.message); }
-  };
-  $('#ttlSave').onclick = async ()=>{
+  });
+  on('#ttlSave', async ()=>{
     const h = parseFloat($('#ttlInput').value);
     if(!(h > 0)){ flash('geçersiz süre'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify({cache_ttl_hours:h})});
       flash('önbellek süresi kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
-  };
-  $('#rcSave').onclick = async ()=>{
+  });
+  on('#rcSave', async ()=>{
     const m = parseFloat($('#rcInput').value);
     if(!(m >= 0)){ flash('geçersiz süre'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify({refresh_cooldown_min:m})});
       flash('yenileme aralığı kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
-  };
-  $('#tsToggle').onclick = async ()=>{
-    const turnOn = !ts.enabled;
+  });
+  on('#tsToggle', async ()=>{
+    const turnOn = !((_setData.trend_scan||{}).enabled);
     try{ await api('/settings', {method:'POST', body:JSON.stringify({trend_scan_enabled:turnOn})});
       flash(turnOn?'trend tarama açıldı':'trend tarama kapatıldı'); route('settings');
     }catch(e){ flash(e.message); }
-  };
-  $('#tsSave').onclick = async ()=>{
+  });
+  on('#tsSave', async ()=>{
     const n = parseInt($('#tsMax').value, 10);
     const mc = parseFloat($('#tsMcap').value);
     const mcMax = parseFloat($('#tsMcapMax').value);
@@ -806,8 +848,8 @@ function renderSettings(d){
       })});
       flash('eşikler kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
-  };
-  $('#tsRunNow').onclick = async ()=>{
+  });
+  on('#tsRunNow', async ()=>{
     const btn = $('#tsRunNow'); btn.disabled = true; const o = btn.textContent;
     btn.textContent = 'ilerletiliyor…';
     try{
@@ -819,14 +861,20 @@ function renderSettings(d){
       else flash(`kuyruk: ${j.queue ?? 0}`);
       route('settings');
     }catch(e){ flash(e.message); btn.disabled = false; btn.textContent = o; }
-  };
-  $('#mmcSave').onclick = async ()=>{
+  });
+  on('#gwToggle', async ()=>{
+    const turnOn = !((_setData.gainer_watch||{}).enabled);
+    try{ await api('/settings', {method:'POST', body:JSON.stringify({gainer_watch_enabled:turnOn})});
+      flash(turnOn?'kümelenme izleme açıldı':'kümelenme izleme kapatıldı'); route('settings');
+    }catch(e){ flash(e.message); }
+  });
+  on('#mmcSave', async ()=>{
     const v = parseFloat($('#mmcInput').value);
     if(!(v >= 0)){ flash('geçersiz değer'); return; }
     try{ await api('/settings', {method:'POST', body:JSON.stringify({min_market_cap:v})});
       flash('tarama eşiği kaydedildi'); route('settings');
     }catch(e){ flash(e.message); }
-  };
+  });
 }
 
 /* ================= X PAYLAŞIM ================= */

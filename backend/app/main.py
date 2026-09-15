@@ -107,12 +107,20 @@ GAIN_POLL_MIN = int(os.getenv("GAIN_POLL_MIN_SEC", "3600"))
 #     Birden çok gainer cüzdanı aynı, henüz taramadığımız mint'te yakın
 #     zamanda toplanırsa admin panelinde "kümelenme" olarak yüzeye çıkar —
 #     bir tokenin patlamasından ÖNCE, o tokeni taramadan sinyal verir. ---
-GAINER_WATCH_ENABLED = os.getenv("GAINER_WATCH_ENABLED", "0") != "0"
 GAINER_WATCH_INTERVAL = int(os.getenv("GAINER_WATCH_INTERVAL_SEC", "1800"))  # 30 dk
 GAINER_WATCH_BATCH = int(os.getenv("GAINER_WATCH_BATCH", "40"))  # döngü başına kaç cüzdan
 GAINER_CLUSTER_MIN = int(os.getenv("GAINER_CLUSTER_MIN", "2"))  # min. farklı cüzdan
 GAINER_CLUSTER_WINDOW_DAYS = int(os.getenv("GAINER_CLUSTER_WINDOW_DAYS", "5"))
 GAINER_WATCH_KEEP_DAYS = int(os.getenv("GAINER_WATCH_KEEP_DAYS", "21"))  # eski kayıt temizliği
+
+
+def _gainer_watch_enabled() -> bool:
+    """DB'de hiç ayarlanmamışsa (ilk kurulum) açık kabul edilir; admin panelinden
+    kapatılınca bu, yeniden dağıtım gerekmeden anında ve kalıcı olarak geçerli olur."""
+    v = state["cache"].config_get("gainer_watch_enabled")
+    if v is None:
+        return True
+    return v == "1"
 
 # --- Trend tarama: her gün trend olan tokenları (GeckoTerminal) otomatik,
 #     sırayla tarar — insanların zaten arayacağı tokenler onlar aramadan
@@ -916,7 +924,7 @@ async def gainer_watch_scan(cache: ScanCache, pool: RpcPool) -> tuple[int, int]:
     bir dilimi döner (state["_gw_cursor"]), zamanla tüm liste taranmış olur.
     Döner: (kontrol edilen cüzdan sayısı, yeni kaydedilen (cüzdan,mint) sayısı).
     """
-    if not GAINER_WATCH_ENABLED or pool is None:
+    if not _gainer_watch_enabled() or pool is None:
         return 0, 0
     addrs = list(registry.RUNTIME_GAINERS.keys())
     if not addrs:
@@ -2031,6 +2039,12 @@ async def admin_settings():
             "last_refresh": state.get("trend_last_refresh") or None,
             "poll_sec": TREND_SCAN_POLL_SEC,
         },
+        "gainer_watch": {
+            "enabled": _gainer_watch_enabled(),
+            "interval_sec": GAINER_WATCH_INTERVAL,
+            "cluster_min_wallets": GAINER_CLUSTER_MIN,
+            "cluster_window_d": GAINER_CLUSTER_WINDOW_DAYS,
+        },
         # --- yalnızca env (bilgi amaçlı) ---
         "env_only": {
             "rate_limit_per_min": RATE_LIMIT,
@@ -2121,6 +2135,13 @@ async def admin_settings_set(payload: dict = Body(...)):
         cache.config_set("trend_scan_max_mcap", str(mmc3))
         state["trend_queue"] = []
         changed.append("trend_scan_max_mcap")
+
+    # --- Kümelenme izleme (gainer-watch) ---
+    if "gainer_watch_enabled" in payload:
+        cache.config_set(
+            "gainer_watch_enabled", "1" if payload.get("gainer_watch_enabled") else "0"
+        )
+        changed.append("gainer_watch_enabled")
 
     if "rpc_endpoints" in payload:
         raw = str(payload.get("rpc_endpoints") or "").strip()
