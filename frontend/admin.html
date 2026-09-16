@@ -1609,6 +1609,20 @@ function renderTools(){
     </div>
 
     <div class="card">
+      <h3>Cüzdan kayıtlarını doğrula (düzeltme paketi)</h3>
+      <p class="desc">Yükseliş (gainers) ve otomatik işaretlenmiş (algoritmanın kendi bulduğu,
+        elle eklenmemiş) kara liste kayıtlarını zincirden yeniden kontrol eder: bir adres aslında
+        gerçek bir cüzdan değil de bir AMM havuz kasası / PDA çıkıyorsa (ör. Raydium vault
+        authority) kayıtlardan çıkarır. <b>Elle eklediğin cüzdanlara asla dokunmaz.</b> Tek
+        seferlik bir işlemdir, arka planda tekrar çalışmaz — istediğin an tekrar tetikleyebilirsin.</p>
+      <div class="card-actions">
+        <span class="note">Canlı terminalde ("Panel" sekmesi) ilerlemesini izleyebilirsin.</span>
+        <button id="wvRun">şimdi çalıştır</button>
+      </div>
+      <pre id="wvOut" class="muted" style="white-space:pre-wrap;max-height:220px;overflow:auto;margin:8px 0 0"></pre>
+    </div>
+
+    <div class="card">
       <h3>Veritabanı yedeği</h3>
       <p class="desc">Tüm tabloların (öğrenilen kara liste, yükseliş kayıtları, dersler,
         itirazlar, karne, ayarlar, cüzdan meta önbelleği, tarama geçmişi…) tek bir JSON
@@ -1641,6 +1655,23 @@ function renderTools(){
       <pre id="rsOut" class="muted" style="white-space:pre-wrap;max-height:220px;overflow:auto;margin:8px 0 0"></pre>
     </div>`;
 
+  $('#wvRun').onclick = async ()=>{
+    const btn = $('#wvRun'); btn.disabled = true; const o = btn.textContent;
+    btn.textContent = 'kontrol ediliyor…'; $('#wvOut').textContent = '';
+    try{
+      const j = await api('/wallets/revalidate', {method:'POST'});
+      const lines = [`${j.checked} adres kontrol edildi.`];
+      if(j.removed_gainers || j.removed_flagged){
+        lines.push(`${j.removed_gainers} yükseliş kaydı, ${j.removed_flagged} kara liste kaydı temizlendi (PDA/kontrat çıktı):`);
+        (j.removed_addresses||[]).forEach(a => lines.push('  · '+a));
+      } else {
+        lines.push('Temizlenecek bir şey bulunamadı — kayıtlar temiz.');
+      }
+      $('#wvOut').textContent = lines.join('\n');
+      flash('doğrulama tamamlandı');
+    }catch(e){ $('#wvOut').textContent = 'hata: '+e.message; flash(e.message); }
+    finally{ btn.disabled = false; btn.textContent = o; }
+  };
   $('#bkDownload').onclick = async ()=>{
     const btn = $('#bkDownload'); btn.disabled = true; const o = btn.textContent;
     btn.textContent = 'hazırlanıyor…';

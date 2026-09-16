@@ -47,7 +47,7 @@ from .rpc import trades as rpc_trades
 from .rpc.market import fetch_market, fetch_trending_tokens
 from .rpc.pool import RpcError, RpcPool
 from .rpc.pool import mask_endpoints as pool_mask
-from .rpc.solana import wallet_current_mints, wallet_token_share
+from .rpc.solana import resolve_contract_owners, wallet_current_mints, wallet_token_share
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -1078,6 +1078,50 @@ async def gainer_clusters(cache: ScanCache) -> list[dict]:
     return clusters
 
 
+async def revalidate_wallet_records(cache: ScanCache, pool: RpcPool) -> dict:
+    """Düzeltme paketi: launch.buyers filtrelemesi eklenmeden ÖNCE kaydedilmiş
+    yükseliş (gainers) ve OTOMATİK işaretlenmiş (flagged, via != "manual")
+    kayıtları zincirden yeniden doğrular — bir AMM havuz kasası/PDA, gerçek
+    cüzdan sanılıp kaydedilmiş mi? Elle işaretlenmiş cüzdanlara DOKUNMAZ.
+    Tek seferlik, admin panelinden elle tetiklenir — arka plan döngüsü değil."""
+    gainer_addrs = {r["address"] for r in cache.gainers_list()}
+    flagged_addrs = {
+        r["address"] for r in cache.flagged_list() if (r.get("via") or "manual") != "manual"
+    }
+    candidates = gainer_addrs | flagged_addrs
+    if not candidates or pool is None:
+        return {"checked": 0, "removed_gainers": 0, "removed_flagged": 0, "removed_addresses": []}
+
+    contract_owners = await resolve_contract_owners(pool, list(candidates))
+    removed_gainers = removed_flagged = 0
+    for addr in contract_owners:
+        if addr in gainer_addrs:
+            cache.gainer_remove(addr)
+            removed_gainers += 1
+        if addr in flagged_addrs:
+            cache.flagged_remove(addr)
+            cache.risk_remove_by_address(addr)
+            removed_flagged += 1
+        log.info(
+            "DÜZELTME PAKETİ: %s aslında bir PDA/kontrat (gerçek cüzdan değil) — kayıtlardan çıkarıldı",
+            _short_addr(addr),
+        )
+    if removed_gainers:
+        _reload_gainers()
+    if removed_flagged:
+        _reload_flagged()
+    log.info(
+        "DÜZELTME PAKETİ tamamlandı: %s adres kontrol edildi, %s yükseliş kaydı, %s kara liste kaydı temizlendi",
+        len(candidates), removed_gainers, removed_flagged,
+    )
+    return {
+        "checked": len(candidates),
+        "removed_gainers": removed_gainers,
+        "removed_flagged": removed_flagged,
+        "removed_addresses": sorted(contract_owners),
+    }
+
+
 async def _gainer_watch_loop() -> None:
     while True:
         try:
@@ -2065,6 +2109,14 @@ async def admin_gainer_remove(address: str):
     state["cache"].gainer_remove(address)
     _reload_gainers()
     return {"ok": True}
+
+
+@app.post("/api/admin/wallets/revalidate", dependencies=[Depends(_admin)])
+async def admin_wallets_revalidate():
+    """Düzeltme paketi: yükseliş + otomatik işaretlenmiş cüzdan kayıtlarını
+    zincirden yeniden doğrular, AMM havuz kasası/PDA çıkanları temizler.
+    Elle işaretlenenlere dokunmaz. Bkz. revalidate_wallet_records()."""
+    return await revalidate_wallet_records(state["cache"], state["pool"])
 
 
 @app.get("/api/admin/live-log", dependencies=[Depends(_admin)])
