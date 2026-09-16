@@ -514,8 +514,8 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 @keyframes eaglehover{from{transform:translateY(-5px) rotate(-.5deg)}to{transform:translateY(5px) rotate(.5deg)}}
 
 /* hero: kartal SOLDA, metin/arama SAĞDA (tarama öncesi) */
-.hero .wrap{display:grid;grid-template-columns:300px 1fr;gap:34px;align-items:center}
-@media(max-width:860px){.hero .wrap{grid-template-columns:1fr;gap:4px}}
+.hero .wrap{display:grid;grid-template-columns:300px 1fr;gap:40px;align-items:center}
+@media(max-width:860px){.hero .wrap{grid-template-columns:1fr;gap:28px}}
 .hero-eagle{position:relative;order:0}
 .hero-text{order:1}
 @media(max-width:860px){.hero-eagle{max-width:230px;margin:0 auto 0;order:0}.hero-text{order:1}}
@@ -598,7 +598,12 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   color:#d8c48a;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.3em}
 .wp-line .t{color:var(--dim);margin-right:3px}
 #wpText::after{content:"▋";margin-left:2px;color:var(--live);animation:blink 1s steps(2) infinite}
-@media(max-width:860px){.wp-line{margin-top:2px}}
+@media(max-width:860px){
+  /* kartal kutusu (ve arkasındaki bayrak) boyutuna DOKUNMADAN, satırı
+     ekranın gerçek sol kenarından sabit 40px'te başlat. */
+  .wp-line{position:absolute;top:100%;left:50%;width:100vw;margin:4px 0 0 -50vw;
+    padding-left:40px;box-sizing:border-box}
+}
 
 .scan-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:6px 0;font-family:var(--mono)}
 .scan-stat{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
