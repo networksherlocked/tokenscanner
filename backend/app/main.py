@@ -94,12 +94,24 @@ def _friendly_httpx_msg(raw: str) -> str | None:
 class _LiveLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            msg = self.format(record)
             if record.name.startswith(("httpx", "httpcore", "urllib3")):
-                friendly = _friendly_httpx_msg(msg)
+                friendly = _friendly_httpx_msg(self.format(record))
                 if friendly is None:
                     return
                 msg = friendly
+            elif record.exc_info:
+                # log.exception(...) tam Python traceback'i ekler — canlı
+                # terminalde onlarca satırlık bir yığın yerine tek satırlık
+                # kısa bir özet yeterli (tam iz zaten Render'ın kendi
+                # konsol loglarında duruyor, bu sadece kısa bir kopya).
+                exc_type = record.exc_info[0].__name__ if record.exc_info[0] else "Hata"
+                exc_msg = str(record.exc_info[1] or "")[:160]
+                msg = f"{record.getMessage()} — {exc_type}: {exc_msg}" if exc_msg else \
+                    f"{record.getMessage()} — {exc_type}"
+            else:
+                msg = self.format(record)
+            if len(msg) > 300:
+                msg = msg[:300].rstrip() + "…"
             _LIVE_LOG.append({
                 "ts": record.created,
                 "level": record.levelname,

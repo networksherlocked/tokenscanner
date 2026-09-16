@@ -591,6 +591,21 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 .ea-term.flash{animation:termflash .4s ease-out}
 @keyframes termflash{from{background:rgba(224,179,82,.18)}to{background:rgba(8,15,28,.72)}}
 
+/* --- "sizin için çalışıyoruz": aynı terminal dili, tamamen şeffaf gövde ---
+   Kasıtlı olarak jenerik/dekoratif satırlar gösterir — motorun gerçek log
+   akışı değil, sadece "aktif çalışıyor" hissi verir. */
+.workpulse{padding:0 0 10px}
+.wp-box{max-width:600px;margin:0 auto;text-align:center;
+  background:rgba(8,15,28,.34);border:1px solid rgba(226,232,244,.14);border-radius:5px;
+  padding:11px 18px;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.wp-head{font-family:var(--display);font-weight:600;font-size:10px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:6px;opacity:.9}
+.wp-line{font-family:var(--mono);font-size:12.5px;color:#d8c48a;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-height:1.3em}
+.wp-line .t{color:var(--dim);margin-right:3px}
+#wpText::after{content:"▋";margin-left:2px;color:var(--live);animation:blink 1s steps(2) infinite}
+@media(max-width:520px){.wp-box{margin:0 16px;padding:9px 14px}.wp-line{font-size:11.5px}}
+
 .scan-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:6px 0;font-family:var(--mono)}
 .scan-stat{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
 .scan-stat b{font-family:var(--display);font-weight:700;font-size:20px;color:var(--text)}
@@ -682,6 +697,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
       </div>
       <div class="hero-eagle" id="heroEagle" aria-hidden="true">
         <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+      </div>
+    </div>
+  </section>
+
+  <section class="workpulse" aria-hidden="true">
+    <div class="wrap">
+      <div class="wp-box">
+        <div class="wp-head" data-i18n="wpTitle">Working for you</div>
+        <div class="wp-line"><span class="t">&gt;</span> <span id="wpText"></span></div>
       </div>
     </div>
   </section>
@@ -959,6 +983,7 @@ const STR = {
     appealBody:"What's wrong, and what's the on-chain evidence?",
     appealSend:'Send', appealShort:'Please add a bit more detail (20+ chars).',
     appealOk:'Received. Thank you.', appealErr:'Could not send — try again later.',
+    wpTitle:'Working for you',
     kicker:'Solana · launch forensics',
     h1:"See who took a token's supply, and how.",
     lede:'Paste a mint address. Eighteen independent on-chain signals run, and we look at how many point the same way. No single signal decides.',
@@ -1077,6 +1102,7 @@ const STR = {
     appealBody:'Ne yanlış ve zincir üstü kanıtı ne?',
     appealSend:'Gönder', appealShort:'Lütfen biraz daha detay ekle (20+ karakter).',
     appealOk:'Alındı. Teşekkürler.', appealErr:'Gönderilemedi — sonra tekrar dene.',
+    wpTitle:'Sizin için çalışıyoruz',
     kicker:'Solana · lansman adli analizi',
     h1:'Bir tokenın arzını kimin, nasıl aldığını görün.',
     lede:'Mint adresini yapıştırın. On sekiz bağımsız zincir sinyali çalışır ve kaçının aynı yöne işaret ettiğine bakılır. Tek sinyal karar vermez.',
@@ -1382,6 +1408,40 @@ function setLang(l){
   lang = (l === 'tr') ? 'tr' : 'en';
   try{ localStorage.setItem('americasx_lang', lang); }catch(e){}
   applyI18n();
+  startWorkPulse();
+}
+
+/* ---------------- "sizin için çalışıyoruz" dekoratif satırlar ----------------
+   Kasıtlı olarak jenerik: gerçek log akışı DEĞİL, sistemin işleyişine dair
+   hiçbir şey açıklamıyor — sadece "aktif çalışıyor" hissi veren bir vitrin. */
+const WORKPULSE_MSGS = {
+  tr: ['Zincir taranıyor…','Güvenlik kontrolleri çalışıyor…','Yapay zekâ modelleri veri işliyor…',
+    'Cüzdan davranışları analiz ediliyor…','Piyasa sinyalleri değerlendiriliyor…',
+    'Yeni veri senkronize ediliyor…','Risk skorları güncelleniyor…','Arka planda koruma aktif…',
+    'Anomaliler taranıyor…','Desenler karşılaştırılıyor…','Sistem uyanık ve tetikte…'],
+  en: ['Scanning the chain…','Security checks running…','AI models processing data…',
+    'Wallet behavior under analysis…','Market signals being evaluated…','Syncing new data…',
+    'Risk scores updating…','Protection active in the background…','Scanning for anomalies…',
+    'Cross-checking patterns…','System awake and watching…'],
+};
+let _wpHandle = null;
+function stopWorkPulse(){ if(_wpHandle) _wpHandle.stop = true; _wpHandle = null; }
+async function startWorkPulse(){
+  stopWorkPulse();
+  const el = $('wpText'); if(!el) return;
+  const h = { stop:false }; _wpHandle = h;
+  const sleep = ms => new Promise(r=>setTimeout(r, ms));
+  const pool = WORKPULSE_MSGS[lang] || WORKPULSE_MSGS.en;
+  let bag = [];
+  while(!h.stop){
+    if(!bag.length) bag = pool.slice().sort(()=>Math.random()-0.5);
+    const text = bag.pop();
+    for(let p=1; p<=text.length && !h.stop; p++){ el.textContent = text.slice(0,p); await sleep(32); }
+    if(h.stop) break;
+    await sleep(1600);
+    for(let p=text.length; p>=0 && !h.stop; p--){ el.textContent = text.slice(0,p); await sleep(16); }
+    await sleep(350);
+  }
 }
 
 /* ---------------- hata kutusu ---------------- */
@@ -2439,6 +2499,7 @@ if(_toTop){
 }
 
 applyI18n();
+startWorkPulse();
 loadRecent();
 loadOrganic();
 loadTrack();
