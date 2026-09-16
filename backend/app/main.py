@@ -1116,20 +1116,31 @@ async def gainer_clusters(cache: ScanCache) -> list[dict]:
 async def revalidate_wallet_records(cache: ScanCache, pool: RpcPool) -> dict:
     """Düzeltme paketi: launch.buyers filtrelemesi eklenmeden ÖNCE kaydedilmiş
     yükseliş (gainers) ve OTOMATİK işaretlenmiş (flagged, via != "manual")
-    kayıtları zincirden yeniden doğrular — bir AMM havuz kasası/PDA, gerçek
-    cüzdan sanılıp kaydedilmiş mi? Elle işaretlenmiş cüzdanlara DOKUNMAZ.
-    Tek seferlik, admin panelinden elle tetiklenir — arka plan döngüsü değil."""
+    kayıtları iki şekilde yeniden doğrular:
+      1) Statik küratörlü liste (registry.is_infrastructure — CEX/protokol/burn
+         adresleri): RPC gerekmez, anında. Adres CEX_WALLETS'a SONRADAN
+         eklenmişse (ör. bir borsa cüzdanı fark edilip listeye girmişse) bu,
+         daha önce kaydedilmiş eski girdiyi de temizler.
+      2) Zincirden "sahibi System Program mı?" kontrolü (resolve_contract_owners)
+         — bir AMM havuz kasası/PDA, gerçek cüzdan sanılıp kaydedilmiş mi?
+    Elle işaretlenmiş cüzdanlara DOKUNMAZ. Tek seferlik, admin panelinden elle
+    tetiklenir — arka plan döngüsü değil."""
     gainer_addrs = {r["address"] for r in cache.gainers_list()}
     flagged_addrs = {
         r["address"] for r in cache.flagged_list() if (r.get("via") or "manual") != "manual"
     }
     candidates = gainer_addrs | flagged_addrs
-    if not candidates or pool is None:
+    if not candidates:
         return {"checked": 0, "removed_gainers": 0, "removed_flagged": 0, "removed_addresses": []}
 
-    contract_owners = await resolve_contract_owners(pool, list(candidates))
+    bad = {a for a in candidates if registry.is_infrastructure(a)}
+    if pool is not None:
+        remaining = list(candidates - bad)
+        if remaining:
+            bad |= await resolve_contract_owners(pool, remaining)
+
     removed_gainers = removed_flagged = 0
-    for addr in contract_owners:
+    for addr in bad:
         if addr in gainer_addrs:
             cache.gainer_remove(addr)
             removed_gainers += 1
@@ -1137,9 +1148,10 @@ async def revalidate_wallet_records(cache: ScanCache, pool: RpcPool) -> dict:
             cache.flagged_remove(addr)
             cache.risk_remove_by_address(addr)
             removed_flagged += 1
+        why = "küratörlü liste (CEX/protokol)" if registry.is_infrastructure(addr) else "PDA/kontrat"
         log.info(
-            "DÜZELTME PAKETİ: %s aslında bir PDA/kontrat (gerçek cüzdan değil) — kayıtlardan çıkarıldı",
-            _short_addr(addr),
+            "DÜZELTME PAKETİ: %s aslında gerçek bir cüzdan değil (%s) — kayıtlardan çıkarıldı",
+            _short_addr(addr), why,
         )
     if removed_gainers:
         _reload_gainers()
@@ -1153,7 +1165,7 @@ async def revalidate_wallet_records(cache: ScanCache, pool: RpcPool) -> dict:
         "checked": len(candidates),
         "removed_gainers": removed_gainers,
         "removed_flagged": removed_flagged,
-        "removed_addresses": sorted(contract_owners),
+        "removed_addresses": sorted(bad),
     }
 
 

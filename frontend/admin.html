@@ -1611,10 +1611,12 @@ function renderTools(){
     <div class="card">
       <h3>Cüzdan kayıtlarını doğrula (düzeltme paketi)</h3>
       <p class="desc">Yükseliş (gainers) ve otomatik işaretlenmiş (algoritmanın kendi bulduğu,
-        elle eklenmemiş) kara liste kayıtlarını zincirden yeniden kontrol eder: bir adres aslında
-        gerçek bir cüzdan değil de bir AMM havuz kasası / PDA çıkıyorsa (ör. Raydium vault
-        authority) kayıtlardan çıkarır. <b>Elle eklediğin cüzdanlara asla dokunmaz.</b> Tek
-        seferlik bir işlemdir, arka planda tekrar çalışmaz — istediğin an tekrar tetikleyebilirsin.</p>
+        elle eklenmemiş) kara liste kayıtlarını iki şekilde yeniden kontrol eder: (1) küratörlü
+        CEX/protokol listesine (<code>registry.py</code>) sonradan eklenmiş bir adres mi —
+        borsa cüzdanı fark edip listeye eklediysen eski kaydı da temizler; (2) zincirden, bir
+        AMM havuz kasası / PDA (ör. Raydium vault authority) gerçek cüzdan sanılıp kaydedilmiş
+        mi. <b>Elle eklediğin cüzdanlara asla dokunmaz.</b> Tek seferlik bir işlemdir, arka
+        planda tekrar çalışmaz — istediğin an tekrar tetikleyebilirsin.</p>
       <div class="card-actions">
         <span class="note">Canlı terminalde ("Panel" sekmesi) ilerlemesini izleyebilirsin.</span>
         <button id="wvRun">şimdi çalıştır</button>
