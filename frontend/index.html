@@ -516,11 +516,18 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 /* hero: kartal SOLDA, metin/arama SAĞDA (tarama öncesi) */
 .hero .wrap{display:grid;grid-template-columns:300px 1fr;gap:40px;align-items:center}
 @media(max-width:860px){.hero .wrap{grid-template-columns:1fr;gap:28px}}
-.hero-eagle{position:relative;order:0}
+.hero-eagle{order:0}
 .hero-text{order:1}
-@media(max-width:860px){.hero-eagle{max-width:230px;margin:0 auto 0;order:0}.hero-text{order:1}}
-/* kartalın arkasında dalgalanan bayrak */
-.hero-eagle::before{
+@media(max-width:860px){
+  .hero-eagle{order:0}
+  .eagle-visual{max-width:230px;margin:0 auto}
+  .hero-text{order:1}
+}
+/* kartal + arkasında dalgalanan bayrak — kendi görsel kutusunda, wp-line'dan
+   bağımsız boyutlanır (hero-eagle mobilde tam genişliğe açılsa bile bu kutu
+   hep 230px'te kalır, böylece bayrak büyümez). */
+.eagle-visual{position:relative}
+.eagle-visual::before{
   content:"";position:absolute;z-index:0;pointer-events:none;
   left:50%;top:48%;transform:translate(-50%,-50%);
   width:200%;aspect-ratio:1900/1013;
@@ -529,7 +536,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   -webkit-mask:radial-gradient(closest-side at 50% 50%,#000 34%,rgba(0,0,0,.35) 62%,transparent 84%);
           mask:radial-gradient(closest-side at 50% 50%,#000 34%,rgba(0,0,0,.35) 62%,transparent 84%);
 }
-.hero-eagle img{position:relative;z-index:1;width:100%;height:auto;display:block;
+.eagle-visual img{position:relative;z-index:1;width:100%;height:auto;display:block;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55));animation:eaglehover 6s ease-in-out infinite alternate}
 .hero-eagle.no-img{display:none}
 
@@ -595,15 +602,15 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
    Kasıtlı olarak jenerik/dekoratif satırlar gösterir — motorun gerçek log
    akışı değil, sadece "aktif çalışıyor" hissi verir. */
 .wp-line{margin-top:10px;text-align:left;font-family:var(--mono);font-size:12px;
-  color:#d8c48a;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.3em}
+  color:#d8c48a;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.3em}
 .wp-line .t{color:var(--dim);margin-right:3px}
 #wpText::after{content:"▋";margin-left:2px;color:var(--live);animation:blink 1s steps(2) infinite}
 @media(max-width:860px){
-  /* kartal kutusu (ve arkasındaki bayrak) boyutuna DOKUNMADAN, satırı
-     ekranın gerçek sol kenarına taşı — "> " işareti altındaki "Solana · ..."
-     metninin S'siyle aynı hizada başlasın diye .wrap ile aynı 20px içeri. */
-  .wp-line{position:absolute;top:100%;left:50%;width:100vw;margin:6px 0 0 -50vw;
-    padding-left:20px;box-sizing:border-box}
+  /* .eagle-visual artık kartalı kendi 230px kutusunda tutuyor, hero-eagle
+     ise tam genişlikte — bu yüzden wp-line, wrap'le aynı genişliği
+     paylaşıyor ve basit bir sol boşlukla "Solana · ..." ile aynı hizaya
+     düşüyor; viewport hesaplamasına gerek yok. */
+  .wp-line{margin-top:6px;padding-left:20px}
 }
 
 .scan-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:6px 0;font-family:var(--mono)}
@@ -696,7 +703,9 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
         <div class="err" id="err" hidden></div>
       </div>
       <div class="hero-eagle" id="heroEagle" aria-hidden="true">
-        <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+        <div class="eagle-visual">
+          <img src="/eagle.png" alt="" onerror="eagleImgFail(this)">
+        </div>
         <div class="wp-line"><span class="t">&gt;</span> <span id="wpText"></span></div>
       </div>
     </div>
