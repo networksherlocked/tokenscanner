@@ -275,7 +275,8 @@ td.addr{color:var(--text)}
 .momentum .mm-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
 .momentum .mm-list li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   font-family:var(--mono);font-size:11px}
-.momentum .mm-addr{color:var(--text)}
+.momentum .mm-addr{color:var(--text);text-decoration:none;border-bottom:1px dotted var(--dim)}
+.momentum .mm-addr:hover{color:var(--organic);border-bottom-color:var(--organic)}
 .momentum .mm-role{color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
 .momentum .mm-hits{margin-left:auto;color:var(--dim);font-size:10px}
 .momentum .mm-hits.conf{color:var(--organic)}
@@ -1954,14 +1955,15 @@ async function loadOrganic(){
 const MM_ROLE = () => ({
   early_buyer: L('mmRoleBuyer'), funder: L('mmRoleFunder'), deployer: L('mmRoleDeployer'),
 });
-function renderMomentum(m){
+function renderMomentum(m, mint){
   const box = $('momentum');
   if(!m || !m.hit || !(m.matches||[]).length){ box.innerHTML = ''; return; }
   const role = MM_ROLE();
+  const addrs = m.matches.map(x=>x.address);
   const items = m.matches.map(x=>{
     const conf = (x.hits || 0) >= 2;
     return `<li>
-      <span class="mm-addr">${short(x.address)}</span>
+      <a class="mm-addr" href="https://solscan.io/account/${esc(x.address)}" target="_blank" rel="noopener">${short(x.address)}</a>
       <span class="mm-role">${esc(role[x.role] || x.role)}</span>
       <span class="mm-hits ${conf ? 'conf' : ''}">${conf ? L('mmSeen', x.hits) : L('mmSeenOnce')}</span>
     </li>`;
@@ -1971,8 +1973,10 @@ function renderMomentum(m){
       <b>${L('mmHead')}</b>
       <p>${L('mmIntro', m.matches.length, m.confirmed || 0)}</p>
       <ul class="mm-list">${items}</ul>
+      ${liveWalletHtml()}
       <div class="mm-note">${L('mmDisc')}</div>
     </div>`;
+  if(mint && addrs.length) loadLiveWallet(box, mint, addrs);
 }
 function render(d){
   lastResult = d;
@@ -2127,7 +2131,7 @@ function render(d){
     <div class="caveats"><b>${L('whatLimits')}</b>
       <ul>${capList.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
 
-  renderMomentum(d.momentum);
+  renderMomentum(d.momentum, d.mint);
 
   renderChart(d.mint);
 
