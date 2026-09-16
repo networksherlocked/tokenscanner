@@ -29,7 +29,6 @@ CEX_WALLETS: dict[str, tuple[str, str]] = {
     "FWznbcNXWQuHTawe9RxvQ2LdCENssh12dsznf4RiouN5": ("Kraken", "major"),
     "5VCwKtCXgCJ6kit5FybXjvriW3xELsFDhYrPSqtJNmcD": ("OKX", "major"),
     "AC5RDfQFmDS1deWZos921JfqscXdByf8BKHs5ACWjtW2": ("Bybit", "regional"),
-    "iGdFcQoyR2MwbXMHQskhmNsqddZ6rinsipHc4TNSdwu": ("Bybit", "regional"),
     "u6PJ8DtQuPFnfmwHbGFULQ4u4EgjDiyYKjVEsynXq2w": ("Gate.io", "regional"),
     "BmFdpraQhkiDQE6SnfG5omcA1VwzqfXrwtNYBwWTymy6": ("KuCoin", "regional"),
     "ASTyfSima4LLAdDgoFGkgqoKowG1LZFDr9fAQrg7iaJZ": ("MEXC", "regional"),
