@@ -61,15 +61,50 @@ log = logging.getLogger("solscope")
 #     tutar. Ayrı bir dosya/DB yazımı yok — sadece bir halka tampon. ---
 _LIVE_LOG: deque[dict] = deque(maxlen=250)
 
+# httpx her dış çağrıyı kendi ham satırıyla loglar (ör. "HTTP Request: GET
+# https://api.dexscreener.com/... \"HTTP/1.1 200 OK\""). Solana RPC uçları
+# tek bir tarama başına onlarca kez çağrıldığı için ham haliyle terminali
+# anlamsız bir akışa boğar — zaten tarama başı/sonu ayrıca loglanıyor. Sadece
+# düşük frekanslı, isimlendirilebilir piyasa-verisi çağrılarını kısa ve
+# anlamlı bir cümleye çeviriyoruz; tanınmayan host'lar (RPC dahil) gösterilmez.
+_HTTPX_LOG_RE = re.compile(r'HTTP Request: (\w+) https?://([^/\s]+)\S* "HTTP/\S+ (\d+)')
+_FRIENDLY_HOSTS = {
+    "api.dexscreener.com": "DexScreener'den piyasa verisi",
+    "api.geckoterminal.com": "GeckoTerminal'dan piyasa verisi",
+    "public-api.birdeye.so": "Birdeye'den trade verisi",
+    "frontend-api-v3.pump.fun": "pump.fun'dan lansman verisi",
+    "api.twitter.com": "X'e tweet",
+}
+
+
+def _friendly_httpx_msg(raw: str) -> str | None:
+    m = _HTTPX_LOG_RE.search(raw)
+    if not m:
+        return None
+    method, host, status = m.groups()
+    label = _FRIENDLY_HOSTS.get(host)
+    if not label:
+        return None
+    ok = status.startswith("2")
+    if method == "GET":
+        return f"{label} {'çekildi' if ok else f'alınamadı (HTTP {status})'}"
+    return f"{label} {'gönderildi' if ok else f'gönderilemedi (HTTP {status})'}"
+
 
 class _LiveLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            msg = self.format(record)
+            if record.name.startswith(("httpx", "httpcore", "urllib3")):
+                friendly = _friendly_httpx_msg(msg)
+                if friendly is None:
+                    return
+                msg = friendly
             _LIVE_LOG.append({
                 "ts": record.created,
                 "level": record.levelname,
                 "logger": record.name,
-                "msg": self.format(record),
+                "msg": msg,
             })
         except Exception:  # noqa: BLE001 - loglama asla isteği çökertmemeli
             pass
