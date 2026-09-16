@@ -219,6 +219,16 @@ async def collect_launch_snapshot(
         if len(buyers) >= LAUNCH_MAX_BUYERS:
             break
 
+    # Statik altyapı listesi (is_infrastructure) yalnızca SABİT/global adresleri
+    # kapsar — her havuzun KENDİ vault authority'si gibi tek-seferlik PDA'ları
+    # yakalayamaz. Onları zincirden (sahip hesabı System Program mı?) tespit
+    # edip çıkarıyoruz; yoksa bir AMM kasası "erken alıcı"/"deployer'ı fonlayan"
+    # gibi gerçek olmayan sinyallere (ve momentum öğrenmesine) karışır.
+    if buyers:
+        contract_owners = await solana.resolve_contract_owners(pool, list(buyers.keys()))
+        for addr in contract_owners:
+            buyers.pop(addr, None)
+
     # 3 gerçek alıcı (deployer + en az 2 diğeri) tekil-hakimiyet gibi bir
     # sinyal için zaten yeterli örneklem — az önce havuz/pair adresini
     # dışladığımız için eşiği 4'te tutmak gerçek ama küçük lansmanları
@@ -237,7 +247,9 @@ async def collect_launch_snapshot(
     return snap
 
 
-def launch_from_trades(trades: list, source: str = "indexer") -> LaunchSnapshot:
+async def launch_from_trades(
+    pool: RpcPool | None, trades: list, source: str = "indexer"
+) -> LaunchSnapshot:
     """3. taraf indeksleyiciden gelen EarlyTrade listesinden LaunchSnapshot kurar.
 
     `collect_launch_snapshot`'ın çıktısıyla aynı biçim — böylece tüm bundle
@@ -263,6 +275,13 @@ def launch_from_trades(trades: list, source: str = "indexer") -> LaunchSnapshot:
         )
         if len(buyers) >= LAUNCH_MAX_BUYERS:
             break
+
+    # bkz. collect_launch_snapshot — statik liste tek-seferlik havuz PDA'larını
+    # yakalayamaz, zincirden sahiplik kontrolü gerekir.
+    if buyers and pool is not None:
+        contract_owners = await solana.resolve_contract_owners(pool, list(buyers.keys()))
+        for addr in contract_owners:
+            buyers.pop(addr, None)
 
     if len(buyers) < 3:
         return snap

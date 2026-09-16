@@ -179,34 +179,48 @@ async def resolve_owners(pool: RpcPool, holders: list[HolderRecord]) -> None:
             holder.owner = info.get("owner")
 
 
-async def classify_owner_accounts(pool: RpcPool, holders: list[HolderRecord]) -> None:
-    """Sahip hesapların tipi: normal cüzdan (System Program) mı, yoksa bir
-    program/PDA (AMM havuz kasası, vesting kontratı, çok-imza hazine) mi?
+async def resolve_contract_owners(pool: RpcPool, addrs: list[str]) -> set[str]:
+    """Verilen adreslerden hangilerinin System Program DIŞINDA bir program
+    tarafından sahiplenildiğini döner — yani gerçek bir cüzdan değil, bir
+    PDA/kontrat (AMM havuz kasası/authority'si, vesting kilidi, çok-imza
+    hazine) olduğunu. Çözülemeyen/olmayan hesaplar dışarıda bırakılır (yanlış
+    dışlama yapmamak için "cüzdan" varsayılır). Tek getMultipleAccounts, 100'lük
+    gruplar halinde."""
+    from ..engine import registry
 
-    Amaç: bir LP havuzu ya da vesting kilidi, "tek cüzdan baskınlığı" veya
-    "top-10 yoğunlaşması" sinyallerini SAHTE tetiklemesin. Tek getMultipleAccounts.
-    """
-    owners = list({h.owner for h in holders if h.owner})
-    if not owners:
-        return
-    prog_of: dict[str, str | None] = {}
-    for i in range(0, len(owners), 100):
-        chunk = owners[i : i + 100]
+    uniq = list(dict.fromkeys(a for a in addrs if a))
+    if not uniq:
+        return set()
+    out: set[str] = set()
+    for i in range(0, len(uniq), 100):
+        chunk = uniq[i : i + 100]
         try:
             res = await pool.call(
                 "getMultipleAccounts", [chunk, {"encoding": "base64"}]
             )
         except Exception as exc:  # noqa: BLE001
             log.debug("sahip hesap tipi çözülemedi: %s", exc)
-            return
+            continue
         for addr, acc in zip(chunk, (res or {}).get("value", [])):
-            prog_of[addr] = (acc or {}).get("owner") if acc else None
-    from ..engine import registry
+            prog = (acc or {}).get("owner") if acc else None
+            if prog and prog != registry.SYSTEM_PROGRAM:
+                out.add(addr)
+    return out
 
+
+async def classify_owner_accounts(pool: RpcPool, holders: list[HolderRecord]) -> None:
+    """Sahip hesapların tipi: normal cüzdan (System Program) mı, yoksa bir
+    program/PDA (AMM havuz kasası, vesting kontratı, çok-imza hazine) mi?
+
+    Amaç: bir LP havuzu ya da vesting kilidi, "tek cüzdan baskınlığı" veya
+    "top-10 yoğunlaşması" sinyallerini SAHTE tetiklemesin.
+    """
+    owners = [h.owner for h in holders if h.owner]
+    if not owners:
+        return
+    contract_owners = await resolve_contract_owners(pool, owners)
     for h in holders:
-        prog = prog_of.get(h.owner)
-        # prog None: hesap yok / çözülemedi → cüzdan varsay (yanlış dışlama yapma).
-        h.is_contract = bool(prog and prog != registry.SYSTEM_PROGRAM)
+        h.is_contract = h.owner in contract_owners
 
 
 async def _oldest_signature(

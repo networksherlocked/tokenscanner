@@ -230,7 +230,7 @@ async def scan_token(pool: RpcPool, mint: str, cache=None) -> dict:
     if (not launch or not launch.available) and early_trades_available():
         trades = await fetch_early_trades(mint)
         if trades:
-            launch = launch_from_trades(trades, source=early_trades_provider())
+            launch = await launch_from_trades(pool, trades, source=early_trades_provider())
             log.info(
                 "Lansman verisi %s'den alındı: %s alıcı",
                 early_trades_provider(), len(launch.buyers),

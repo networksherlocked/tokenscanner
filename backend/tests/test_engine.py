@@ -9,6 +9,7 @@ kalibre ederken her denemede kredi harcamak istemezsin.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import time
 from pathlib import Path
@@ -492,7 +493,7 @@ def indexer_launch_case():
         )
         for i in range(8)
     ]
-    launch = launch_from_trades(trades, source="birdeye")
+    launch = asyncio.run(launch_from_trades(None, trades, source="birdeye"))
     # indeksleyici yaş/fonlayıcı vermez — enrich edilmiş gibi elle doldur
     funder = "OLDBUNDLEFUNDERxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     for b in launch.buyers:
