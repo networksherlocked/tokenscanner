@@ -518,7 +518,11 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
 @media(max-width:860px){.hero .wrap{grid-template-columns:1fr;gap:4px}}
 .hero-eagle{position:relative;order:0}
 .hero-text{order:1}
-@media(max-width:860px){.hero-eagle{max-width:230px;margin:0 auto 0;order:0}.hero-text{order:1}}
+@media(max-width:860px){
+  .hero-eagle{max-width:none;margin:0;order:0}
+  .hero-eagle img{max-width:230px;margin:0 auto}
+  .hero-text{order:1}
+}
 /* kartalın arkasında dalgalanan bayrak */
 .hero-eagle::before{
   content:"";position:absolute;z-index:0;pointer-events:none;
@@ -598,7 +602,7 @@ footer p:first-child{color:var(--muted);font-size:13px;text-align:left}
   color:#d8c48a;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.3em}
 .wp-line .t{color:var(--dim);margin-right:3px}
 #wpText::after{content:"▋";margin-left:2px;color:var(--live);animation:blink 1s steps(2) infinite}
-@media(max-width:860px){.wp-line{margin-top:2px}}
+@media(max-width:860px){.wp-line{margin-top:2px;padding-left:40px}}
 
 .scan-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:6px 0;font-family:var(--mono)}
 .scan-stat{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
